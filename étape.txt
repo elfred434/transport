@@ -1,0 +1,127 @@
+# Résumé étape par étape du projet – Agence de Transport de Colis
+
+Ce guide synthétise chaque étape clé pour permettre à vos collaborateurs de reproduire le projet de A à Z.
+
+---
+
+## 1. Conception de la base de données
+
+- Créez la base `transport_db`.
+- Créez les tables principales :
+  - **users** : stocke les infos des utilisateurs (nom, prénom, email, mot de passe, téléphone, photo, rôle…).
+  - **colis** : stocke les colis postés (nom, type, poids, image, destination, numéro de suivi, statut…).
+  - **voyages** : stocke les voyages proposés par les transporteurs.
+  - **reservations** : fait le lien entre colis et voyages (pour réserver un transporteur).
+  - **messages** : gère la messagerie interne entre utilisateurs.
+  - **suivi_colis** : enregistre les étapes de suivi d’un colis.
+
+---
+
+## 2. Authentification et gestion des utilisateurs
+
+- Créez les pages d’inscription et de connexion.
+- Gérez les sessions PHP pour l’authentification.
+- Prévoyez la déconnexion (destruction de la session).
+
+---
+
+## 3. Tableau de bord utilisateur
+
+- Créez `dashboard.php` pour afficher :
+  - Les colis postés par l’utilisateur.
+  - Les voyages proposés.
+  - Le statut de chaque colis (en attente, approuvé, refusé).
+  - Les liens rapides vers les autres fonctionnalités.
+
+---
+
+## 4. Gestion du profil utilisateur
+
+- Créez `profil.php` pour afficher les infos personnelles, la photo, les colis et voyages de l’utilisateur.
+- Ajoutez un bouton pour modifier le profil (`modifier-profil.php`).
+
+---
+
+## 5. Poster un colis
+
+- Créez `poster-colis.html` (formulaire) et `traitement-colis.php` (traitement).
+- Permettez à l’utilisateur de saisir toutes les infos du colis et d’uploader une image.
+- Générez un numéro de suivi unique pour chaque colis.
+
+---
+
+## 6. Validation des colis par l’admin
+
+- Créez `admin_colis.php` pour que l’admin puisse valider ou refuser les colis postés.
+- Seuls les colis approuvés sont visibles pour les transporteurs.
+
+---
+
+## 7. Proposer un voyage (devenir transporteur)
+
+- Créez `devenir-transporteur.php` (formulaire) et `traitement-transporteur.php` (traitement).
+- Permettez à l’utilisateur de proposer un voyage (départ, destination, date, heure, poids max…).
+- Lors de la première proposition, passez le rôle de l’utilisateur à "transporteur".
+
+---
+
+## 8. Recherche de transporteurs
+
+- Depuis le dashboard, l’utilisateur peut rechercher un transporteur pour un colis.
+- Créez `resultat.php` pour afficher les voyages compatibles avec le colis sélectionné.
+
+---
+
+## 9. Messagerie interne
+
+- Créez la table `messages`.
+- Créez `messagerie.php` pour afficher et envoyer des messages entre utilisateurs.
+- Créez `liste-messagerie.php` pour afficher toutes les conversations de l’utilisateur.
+
+---
+
+## 10. Système de suivi de colis
+
+- Créez la table `suivi_colis`.
+- Créez `ajouter_etape_suivi.php` pour ajouter une étape de suivi (admin ou transporteur).
+- Créez `suivi.php` pour permettre à l’utilisateur de suivre son colis via le numéro de suivi.
+
+---
+
+## 11. Page de contact
+
+- Créez `contact.php` avec :
+  - Un formulaire de contact (envoi d’email).
+  - Les coordonnées de l’agence (Porto-Novo, quartier Hinkoudé).
+  - Une carte OpenStreetMap intégrée.
+
+---
+
+## 12. Sécurité et bonnes pratiques
+
+- Utilisez les sessions pour l’authentification.
+- Protégez les pages sensibles (admin, dashboard…).
+- Validez et filtrez toutes les entrées utilisateurs.
+- Utilisez des requêtes préparées pour éviter les injections SQL.
+- Gérez correctement l’upload des fichiers (taille, type, nom unique).
+
+---
+
+## 13. Navigation et responsive design
+
+- Ajoutez un menu de navigation sur toutes les pages principales (voir `menu.php`).
+- Rendez le site responsive (adapté aux mobiles/tablettes) avec Bootstrap ou CSS.
+- Prévoyez des messages d’erreur et de succès clairs pour chaque action utilisateur.
+
+---
+
+## 14. Extensions possibles
+
+- Notifications.
+- Paiement en ligne.
+- Suivi GPS en temps réel.
+- Gestion avancée des statuts de colis et de réservation.
+
+---
+
+**Ce résumé doit servir de feuille de route à chaque membre de l’équipe pour reproduire le projet avec succès.**
