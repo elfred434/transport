@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-  <rect width="200" height="200" fill="#e9ecef"/>
-  <g fill="#adb5bd">
-    <path d="M100 45 L155 75 V125 L100 155 L45 125 V75 Z" opacity=".35"/>
-    <path d="M100 45 L155 75 L100 105 L45 75 Z" opacity=".55"/>
-    <path d="M100 105 V155 L45 125 V75 Z" opacity=".25"/>
-  </g>
-  <text x="100" y="182" font-family="Arial, sans-serif" font-size="13" fill="#868e96" text-anchor="middle">Colis</text>
-</svg>

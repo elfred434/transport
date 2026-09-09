@@ -1,20 +1,20 @@
 # Frontend React — Agence de Transport de Colis
 
-SPA React 19 + Vite + TypeScript qui remplace le frontend vanilla (`../legacy/frontend`,
-26 pages). Même identité visuelle (Bootstrap 5, FontAwesome, `app.css` repris
-tel quel) et même contrat d'API (`{success, data|error}`, jeton Bearer
-`transport_token` en localStorage).
+SPA React 19 + Vite + TypeScript — le frontend de la plateforme (26 pages,
+refactorisé depuis le site vanilla d'origine, supprimé du dépôt). Même identité
+visuelle (Bootstrap 5, FontAwesome, `app.css` repris tel quel) et même contrat
+d'API (`{success, data|error}`, jeton Bearer `transport_token` en localStorage).
 
 ## Architecture
 
 | Emplacement | Rôle |
 |---|---|
-| `src/lib/api.ts` | client API (port de `js/api.js`) : enveloppe, 401 → /login, upload multipart |
-| `src/lib/format.tsx` | `money/date/datetime`, `StatusBadge`, `SmartImg`, `Stars` (port de `UI.*`) |
-| `src/context/AuthContext.tsx` | session (`/api/auth/me`), login/logout (port de `UI.requireUser`) |
-| `src/components/Toasts.tsx` | notifications (port de `UI.toast`, mêmes classes CSS) |
+| `src/lib/api.ts` | client API : enveloppe, 401 → /login, upload multipart |
+| `src/lib/format.tsx` | `money/date/datetime`, `StatusBadge`, `SmartImg`, `Stars` |
+| `src/context/AuthContext.tsx` | session (`/api/auth/me`), login/logout, gardes |
+| `src/components/Toasts.tsx` | notifications (mêmes classes CSS que le site d'origine) |
 | `src/components/Layouts.tsx` | `PublicLayout` (topbar/footer), `AppLayout` (sidebar), `AdminGate` |
-| `src/pages/` | une page = une page du frontend vanilla (voir table de routage dans `App.tsx`) |
+| `src/pages/` | une page = une page du site d'origine (voir table de routage dans `App.tsx`) |
 
 ## Développement
 

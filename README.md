@@ -9,10 +9,9 @@ authentification par jeton Bearer) :
 
 ```
 transport/
-├── backend/     API Laravel 13 (Sanctum) — backend principal
-├── frontend/    SPA React 19 + Vite + TypeScript — frontend principal
-├── legacy/      Version d'origine archivée (API PHP vanilla, site vanilla, PHPMailer)
-├── sql/         Schéma de la base (12 tables métier) — partagé par les deux stacks
+├── backend/     API Laravel 13 (Sanctum)
+├── frontend/    SPA React 19 + Vite + TypeScript
+├── sql/         Schéma de la base (12 tables métier + messages_admin + admin)
 └── tests/       Suites d'acceptation (78 vérifications API + 25 vérifications frontend)
 ```
 
@@ -30,12 +29,10 @@ Créez la base puis appliquez les migrations **dans l'ordre** :
 mysql -u root -p -e "CREATE DATABASE transport_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p transport_db < sql/000_schema_base.sql
 mysql -u root -p transport_db < sql/001_messages_admin_et_compte_admin.sql
-mysql -u root -p transport_db < sql/002_api_tokens.sql
 ```
 
 - `000_schema_base.sql` — les 12 tables métier de l'application.
 - `001_…` — table `messages_admin` + compte administrateur initial.
-- `002_…` — table `api_tokens` (jetons de l'API vanilla, conservée pour `legacy/`).
 
 Puis les tables d'infrastructure Laravel (cache, jobs, `personal_access_tokens`) :
 
@@ -51,8 +48,9 @@ cd backend && php artisan migrate --force
 
 ## 2. Configuration du backend (`backend/.env`)
 
-Copiez `backend/.env.example` vers `backend/.env`, générez la clé, renseignez la
-base. Variables spécifiques à l'application (le reste est du Laravel standard) :
+Copiez `backend/.env.example` vers `backend/.env`, générez la clé
+(`php artisan key:generate`), renseignez la base. Variables spécifiques à
+l'application (le reste est du Laravel standard) :
 
 | Variable                  | Rôle                                                | Défaut                          |
 |---------------------------|-----------------------------------------------------|---------------------------------|
@@ -60,8 +58,8 @@ base. Variables spécifiques à l'application (le reste est du Laravel standard)
 | `CORS_ORIGINS`            | Origines autorisées (séparées par `,`)              | `*`                             |
 | `TOKEN_TTL_DAYS`          | Durée de vie des jetons (jours)                     | `30`                            |
 | `MAX_UPLOAD_SIZE`         | Taille maximale d'upload (octets)                   | `5242880`                       |
-| `FRONTEND_URL`            | URL publique du frontend (liens des emails)         | `http://localhost:8000`         |
-| `TRANSPORT_STORAGE_PATH`  | Racine du disque des uploads                        | `legacy/backend/storage`        |
+| `FRONTEND_URL`            | URL publique du frontend (liens des emails)         | `http://localhost:8003`         |
+| `TRANSPORT_STORAGE_PATH`  | Racine du disque des uploads (dossier `uploads/`)   | `backend/storage`               |
 | `TRANSPORT_APP_URL`       | Préfixe des URLs de fichiers ; **vide = `/uploads/…` relatifs** | *(vide)*            |
 | `SMTP_USER` / `SMTP_PASS` | SMTP (reset mot de passe) ; vides = mode dev        | *(vide)*                        |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` | Hôte SMTP                         | `smtp.gmail.com` / `587`        |
@@ -69,9 +67,9 @@ base. Variables spécifiques à l'application (le reste est du Laravel standard)
 Sans SMTP configuré, le lien de réinitialisation de mot de passe est renvoyé
 dans la réponse (`dev_reset_link`) et journalisé — pratique en développement.
 
-Les uploads vivent dans `legacy/backend/storage/uploads/` (emplacement
-historique, ignoré par git) pour que les fichiers déjà en ligne restent servis.
-En production, fixez `TRANSPORT_STORAGE_PATH` vers un emplacement dédié.
+Les fichiers uploadés vivent dans `backend/storage/uploads/` (ignoré par git).
+En production, fixez `TRANSPORT_STORAGE_PATH` vers un emplacement dédié hors du
+dépôt (ex. `/var/www/transport-storage`).
 
 ## 3. Démarrage en développement
 
@@ -105,19 +103,20 @@ vers la route de distribution. Pensez au worker de queues
 
 Les deux suites valident le contrat complet (authentification, colis, paiement,
 voyages, réservations, suivi, commission, messagerie, modération, autorisations,
-CORS, sécurité des uploads) — **contre n'importe quel port backend** :
+CORS, sécurité des uploads) :
 
 ```bash
 # API (78 vérifications) — backend Laravel démarré sur 8002
 API_BASE=http://127.0.0.1:8002 python3 tests/test_api.py
 
-# Intégration frontend↔API (25 vérifications)
-API_PORT=8002 API_EXPECTED=http://localhost:8002 node tests/test_frontend_integration.js
+# Intégration frontend↔API (25 vérifications) — charge le vrai client
+# React (frontend/src/lib/api.ts, bundlé via rolldown) dans un navigateur simulé
+API_BASE=http://localhost:8002 node tests/test_frontend_integration.js
 ```
 
 `tests/test_api.py` vérifie certains états en base via `sudo -n mariadb
 transport_db` (adapter si votre accès MySQL diffère). La suite d'intégration
-charge le vrai client JS de `legacy/frontend` (paramétrable via `FRONTEND_DIR`).
+nécessite `cd frontend && npm install` (fournit rolldown).
 
 ## Règles métier principales
 
@@ -139,42 +138,26 @@ charge le vrai client JS de `legacy/frontend` (paramétrable via `FRONTEND_DIR`)
 
 ### Backend (`backend/` — Laravel 13)
 
-- Eloquent + query builder sur les tables existantes (aucune migration métier).
+- Eloquent + query builder sur les tables de `sql/` (aucune migration métier).
 - Contrôleurs par domaine (`Auth`, `Colis`, `Voyages`, `Reservations`, `Suivi`,
   `Paiements`, `Avis`, `Messages`, `Contact`, `Admin`…), exceptions `ApiException`
-  avec les messages français exacts de l'API d'origine.
+  avec des messages d'erreur lisibles en français.
 - Jetons Sanctum (hashés en base), garde anti path-traversal sur la distribution
   des uploads, CORS configurable.
 - Voir `backend/README.md` pour le détail.
 
 ### Frontend (`frontend/` — React 19 + Vite + TS)
 
-- Une route par page du site d'origine (26 pages), mêmes classes CSS
-  (Bootstrap 5 + `app.css` repris tel quel), mêmes gardes d'authentification.
+- Une route par page du site (26 pages), Bootstrap 5 + FontAwesome + `app.css`.
 - Client API avec enveloppe `{success, data|error}`, 401 → redirection login,
-  uploads multipart ; toasts, modales et onglets en état React (mêmes classes).
+  uploads multipart ; toasts, modales et onglets en état React.
 - Les anciens chemins `*.html` (emails, favoris) sont redirigés vers les routes SPA.
 - Voir `frontend/README.md` pour le détail.
 
-### Legacy (`legacy/`)
-
-Version d'origine, archivée mais fonctionnelle — utilisée comme référence de
-parité et par la suite d'intégration :
-
-```bash
-# API PHP vanilla — port 8001
-php -S 0.0.0.0:8001 -t legacy/backend/public legacy/backend/public/index.php
-# Site vanilla — port 8000
-php -S 0.0.0.0:8000 -t legacy/frontend
-```
-
-`legacy/backend` lit ses variables d'environnement comme avant (`DB_*`,
-`APP_URL`, `FRONTEND_URL`, `SMTP_*`…) et dépend de `legacy/PHPMailer`.
-
 ## Sécurité
 
-- Hachage des mots de passe (`password_hash` / cast `hashed` Eloquent), jetons
-  d'API hashés en base (Sanctum).
+- Hachage des mots de passe (cast `hashed` Eloquent), jetons d'API hashés en
+  base (Sanctum).
 - Requêtes préparées partout (Eloquent / query builder — protection injection SQL).
 - Échappement automatique JSX côté React (pas d'`innerHTML`).
 - Uploads : liste blanche MIME (`finfo`), taille limitée, noms aléatoires,

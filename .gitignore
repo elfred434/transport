@@ -12,5 +12,5 @@ Thumbs.db
 .env
 
 # Stockage runtime : uploads des utilisateurs (jamais versionnés)
-legacy/backend/storage/uploads/*
-!legacy/backend/storage/uploads/.gitkeep
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
