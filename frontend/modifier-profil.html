@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifier mon profil - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-user-pen text-primary"></i> Modifier mon profil</h2>
+
+        <div class="page-card" style="max-width:640px;">
+            <div id="alert-zone"></div>
+            <form id="profil-form">
+                <div class="text-center mb-3" id="photo-preview-zone"></div>
+                <div class="mb-3">
+                    <label class="form-label">Nom *</label>
+                    <input type="text" name="nom" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Prénom *</label>
+                    <input type="text" name="prenom" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email *</label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Téléphone</label>
+                    <input type="tel" name="telephone" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Photo de profil</label>
+                    <input type="file" name="photo_profil" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp">
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1 fw-bold">
+                        <i class="fa-solid fa-floppy-disk"></i> Enregistrer</button>
+                    <a href="profil.html" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        (async () => {
+            const me = await UI.renderSidebar('profil.html');
+            if (!me) return;
+            try {
+                const data = await api.get('/api/profile');
+                const u = data.user;
+                const f = document.getElementById('profil-form');
+                f.nom.value = u.nom || '';
+                f.prenom.value = u.prenom || '';
+                f.email.value = u.email || '';
+                f.telephone.value = u.telephone || '';
+                document.getElementById('photo-preview-zone').innerHTML = u.photo_url
+                    ? `<img src="${UI.esc(u.photo_url)}" class="avatar-lg" alt="">`
+                    : '';
+            } catch (e) { UI.toast(e.message, 'error'); }
+        })();
+
+        document.getElementById('profil-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const f = e.target;
+            const zone = document.getElementById('alert-zone');
+            zone.innerHTML = '';
+            try {
+                await api.upload('/api/profile', {
+                    nom: f.nom.value,
+                    prenom: f.prenom.value,
+                    email: f.email.value,
+                    telephone: f.telephone.value
+                }, { photo_profil: f.photo_profil.files[0] });
+                zone.innerHTML = '<div class="alert alert-success">Profil mis à jour.</div>';
+                setTimeout(() => location.href = 'profil.html', 1200);
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

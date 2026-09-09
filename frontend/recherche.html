@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recherche - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-magnifying-glass text-primary"></i> Recherche</h2>
+
+        <!-- Mode voyages compatibles (?colis_id=) -->
+        <div id="compatibles-zone" class="page-card" style="display:none;">
+            <h5 class="mb-3">Voyages compatibles avec votre colis</h5>
+            <div id="compatibles-content"></div>
+        </div>
+
+        <div class="page-card" id="search-zone">
+            <ul class="nav nav-pills mb-4" role="tablist">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-colis" type="button">
+                    <i class="fa-solid fa-box"></i> Colis disponibles</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-voyages" type="button">
+                    <i class="fa-solid fa-plane"></i> Voyages disponibles</button></li>
+            </ul>
+
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="pane-colis">
+                    <form id="colis-search-form" class="row g-2 align-items-end mb-3">
+                        <div class="col-md-4"><label class="form-label">Recherche</label>
+                            <input type="text" name="search" class="form-control" placeholder="Nom, type, ville…"></div>
+                        <div class="col-md-3"><label class="form-label">Pays</label>
+                            <input type="text" name="pays" class="form-control"></div>
+                        <div class="col-md-3"><label class="form-label">Ville</label>
+                            <input type="text" name="ville" class="form-control"></div>
+                        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Chercher</button></div>
+                    </form>
+                    <div id="colis-results" class="text-muted small">Lancez une recherche.</div>
+                </div>
+
+                <div class="tab-pane fade" id="pane-voyages">
+                    <form id="voyages-search-form" class="row g-2 align-items-end mb-3">
+                        <div class="col-md-4"><label class="form-label">Recherche</label>
+                            <input type="text" name="search" class="form-control" placeholder="Pays…"></div>
+                        <div class="col-md-3"><label class="form-label">Pays de départ</label>
+                            <input type="text" name="pays_depart" class="form-control"></div>
+                        <div class="col-md-3"><label class="form-label">Pays de destination</label>
+                            <input type="text" name="pays_destination" class="form-control"></div>
+                        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Chercher</button></div>
+                    </form>
+                    <div id="voyages-results" class="text-muted small">Lancez une recherche.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        let me = null;
+
+        (async () => {
+            me = await UI.renderSidebar('recherche.html');
+            if (!me) return;
+            const colisId = UI.qs('colis_id');
+            if (colisId) {
+                document.getElementById('compatibles-zone').style.display = '';
+                loadCompatibles(colisId);
+            }
+            searchColis(); searchVoyages();
+        })();
+
+        async function loadCompatibles(colisId) {
+            const zone = document.getElementById('compatibles-content');
+            zone.innerHTML = '<p class="text-muted">Chargement…</p>';
+            try {
+                const data = await api.get('/api/colis/' + encodeURIComponent(colisId) + '/voyages-compatibles');
+                const c = data.colis;
+                let html = `
+                    <div class="border rounded-3 p-3 mb-3 d-flex gap-3 align-items-center">
+                        ${UI.img(c.image_url, c.nom_colis, 'img-colis')}
+                        <div>
+                            <strong>${UI.esc(c.nom_colis)}</strong> ${UI.badge(c.statut)}
+                            <div class="small text-muted">${UI.esc(c.ville)}, ${UI.esc(c.pays)} · ${UI.esc(c.poids)} kg</div>
+                        </div>
+                    </div>`;
+                if (!data.voyages.length) {
+                    html += '<div class="alert alert-info mb-0">Aucun voyage approuvé ne correspond actuellement à ce colis.</div>';
+                } else {
+                    html += `<div class="table-responsive"><table class="table align-middle">
+                        <thead class="table-light"><tr>
+                            <th>Transporteur</th><th>Trajet</th><th>Départ</th><th>Poids max</th>
+                        </tr></thead><tbody>
+                        ${data.voyages.map(v => `
+                            <tr>
+                                <td><a href="profil-transporteur.html?id=${v.transporteur_id}">${UI.esc(v.prenom)} ${UI.esc(v.nom)}</a></td>
+                                <td>${UI.esc(v.pays_depart)} → ${UI.esc(v.pays_destination)}</td>
+                                <td>${UI.date(v.date_depart)} <span class="small text-muted">${UI.esc((v.heure_depart || '').substring(0, 5))}</span></td>
+                                <td>${UI.esc(v.poids_max)} kg</td>
+                            </tr>`).join('')}
+                        </tbody></table></div>
+                        <p class="text-muted small mb-0"><i class="fa-solid fa-circle-info"></i> Les transporteurs vous envoient des demandes de réservation ; vous les acceptez depuis votre tableau de bord.</p>`;
+                }
+                zone.innerHTML = html;
+            } catch (e) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(e.message)}</div>`;
+            }
+        }
+
+        document.getElementById('colis-search-form').addEventListener('submit', (e) => { e.preventDefault(); searchColis(); });
+        document.getElementById('voyages-search-form').addEventListener('submit', (e) => { e.preventDefault(); searchVoyages(); });
+
+        async function searchColis() {
+            const f = document.getElementById('colis-search-form');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.pays.value.trim()) params.set('pays', f.pays.value.trim());
+            if (f.ville.value.trim()) params.set('ville', f.ville.value.trim());
+            const zone = document.getElementById('colis-results');
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/colis/available' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun résultat.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Colis</th><th>Destination</th><th>Poids</th><th>Prix</th><th>Propriétaire</th><th></th>
+                    </tr></thead><tbody>
+                    ${list.map(c => `
+                        <tr>
+                            <td>${UI.img(c.image_url, c.nom_colis, 'img-colis')} <span class="ms-2">${UI.esc(c.nom_colis)}</span></td>
+                            <td>${UI.esc(c.ville)}, ${UI.esc(c.pays)}</td>
+                            <td>${UI.esc(c.poids)} kg</td>
+                            <td>${UI.money(c.prix_estime)}</td>
+                            <td>${UI.esc(c.proprietaire || '')}</td>
+                            <td><a href="colis-detail.html?id=${c.id}" class="btn btn-sm btn-outline-primary">Détail</a></td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+            } catch (e) { zone.innerHTML = `<div class="alert alert-danger">${UI.esc(e.message)}</div>`; }
+        }
+
+        async function searchVoyages() {
+            const f = document.getElementById('voyages-search-form');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.pays_depart.value.trim()) params.set('pays_depart', f.pays_depart.value.trim());
+            if (f.pays_destination.value.trim()) params.set('pays_destination', f.pays_destination.value.trim());
+            const zone = document.getElementById('voyages-results');
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/voyages/available' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun résultat.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Transporteur</th><th>Trajet</th><th>Départ</th><th>Poids max</th>
+                    </tr></thead><tbody>
+                    ${list.map(v => `
+                        <tr>
+                            <td><a href="profil-transporteur.html?id=${v.transporteur_id || v.user_id}">${UI.esc(v.prenom)} ${UI.esc(v.nom)}</a></td>
+                            <td>${UI.esc(v.pays_depart)} → ${UI.esc(v.pays_destination)}</td>
+                            <td>${UI.date(v.date_depart)} <span class="small text-muted">${UI.esc((v.heure_depart || '').substring(0, 5))}</span></td>
+                            <td>${UI.esc(v.poids_max)} kg</td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+            } catch (e) { zone.innerHTML = `<div class="alert alert-danger">${UI.esc(e.message)}</div>`; }
+        }
+    </script>
+</body>
+</html>

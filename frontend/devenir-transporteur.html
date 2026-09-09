@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devenir transporteur - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-2"><i class="fa-solid fa-id-badge text-primary"></i> Devenir transporteur</h2>
+        <p class="text-muted">Proposez un voyage : votre fiche transporteur est créée automatiquement et votre voyage sera visible après validation par l'agence.</p>
+
+        <div class="page-card" style="max-width:860px;">
+            <div id="alert-zone"></div>
+
+            <form id="transporteur-form">
+                <h6 class="text-primary mb-3"><i class="fa-solid fa-id-card"></i> Informations transporteur</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Numéro de permis *</label>
+                        <input type="text" name="numero_permis" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Véhicule *</label>
+                        <input type="text" name="vehicule" class="form-control" placeholder="Ex. Toyota HiAce, Immatriculation…" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Compagnie</label>
+                        <input type="text" name="compagnie" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Adresse</label>
+                        <input type="text" name="adresse" class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Ville</label>
+                        <input type="text" name="ville" class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Pays</label>
+                        <input type="text" name="pays" class="form-control">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Photo du véhicule</label>
+                        <input type="file" name="photo_vehicule" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp">
+                    </div>
+                </div>
+
+                <h6 class="text-primary mb-3"><i class="fa-solid fa-plane-departure"></i> Premier voyage proposé</h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Pays de départ *</label>
+                        <input type="text" name="pays_depart" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Pays de destination *</label>
+                        <input type="text" name="pays_destination" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Date de départ *</label>
+                        <input type="date" name="date_depart" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Heure de départ *</label>
+                        <input type="time" name="heure_depart" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Poids maximum (kg) *</label>
+                        <input type="number" name="poids_max" step="0.01" min="0.01" max="100000" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Email de contact *</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Téléphone de contact *</label>
+                        <input type="tel" name="telephone" class="form-control" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold mt-4">
+                    <i class="fa-solid fa-paper-plane"></i> Proposer le voyage
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        (async () => {
+            const me = await UI.renderSidebar('devenir-transporteur.html');
+            if (!me) return;
+            // Pré-remplir email/téléphone et infos transporteur existantes
+            const f = document.getElementById('transporteur-form');
+            f.email.value = me.email || '';
+            f.telephone.value = me.telephone || '';
+            document.querySelector('[name=date_depart]').min = new Date().toISOString().split('T')[0];
+            try {
+                const data = await api.get('/api/profile');
+                if (data.transporteur) {
+                    const t = data.transporteur;
+                    f.numero_permis.value = t.numero_permis || '';
+                    f.vehicule.value = t.vehicule || '';
+                    f.compagnie.value = t.compagnie || '';
+                    f.adresse.value = t.adresse || '';
+                    f.ville.value = t.ville || '';
+                    f.pays.value = t.pays || '';
+                }
+            } catch (e) { /* pré-remplissage optionnel */ }
+        })();
+
+        document.getElementById('transporteur-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const f = e.target;
+            const zone = document.getElementById('alert-zone');
+            zone.innerHTML = '';
+            try {
+                const data = await api.upload('/api/voyages', {
+                    numero_permis: f.numero_permis.value,
+                    vehicule: f.vehicule.value,
+                    compagnie: f.compagnie.value,
+                    adresse: f.adresse.value,
+                    ville: f.ville.value,
+                    pays: f.pays.value,
+                    pays_depart: f.pays_depart.value,
+                    pays_destination: f.pays_destination.value,
+                    date_depart: f.date_depart.value,
+                    heure_depart: f.heure_depart.value,
+                    poids_max: f.poids_max.value,
+                    email: f.email.value,
+                    telephone: f.telephone.value
+                }, { photo_vehicule: f.photo_vehicule.files[0] });
+                zone.innerHTML = `<div class="alert alert-success">${UI.esc(data.message)}</div>`;
+                setTimeout(() => location.href = 'dashboard.html', 1500);
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

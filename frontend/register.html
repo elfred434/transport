@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="public-body">
+    <div class="container auth-container">
+        <div class="card shadow-lg border-0 rounded-4 p-4">
+            <h2 class="text-center text-primary mb-4"><i class="fa-solid fa-user-plus"></i> Inscription</h2>
+
+            <div id="alert-zone"></div>
+
+            <form id="register-form" autocomplete="off">
+                <div class="mb-3">
+                    <label class="form-label">Nom</label>
+                    <input type="text" name="nom" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Prénom</label>
+                    <input type="text" name="prenom" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe <small class="text-muted">(8 caractères min.)</small></label>
+                    <input type="password" name="password" class="form-control" minlength="8" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Téléphone</label>
+                    <input type="tel" name="tel" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Photo de profil</label>
+                    <input type="file" name="photo_profil" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp">
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                    <i class="fa-solid fa-user-plus"></i> S'inscrire
+                </button>
+                <div class="text-center mt-3">
+                    Déjà un compte ? <a href="login.html" class="text-primary text-decoration-underline">Connectez-vous</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        if (Auth.isLoggedIn()) location.href = 'dashboard.html';
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const zone = document.getElementById('alert-zone');
+            zone.innerHTML = '';
+            const form = e.target;
+            const file = form.photo_profil.files[0];
+            try {
+                const data = await api.upload('/api/auth/register', {
+                    nom: form.nom.value,
+                    prenom: form.prenom.value,
+                    email: form.email.value,
+                    password: form.password.value,
+                    tel: form.tel.value
+                }, { photo_profil: file });
+                Auth.save(data.token);
+                location.href = 'dashboard.html';
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

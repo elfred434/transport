@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messagerie - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-envelope text-primary"></i> Messagerie</h2>
+
+        <div class="page-card" style="max-width:860px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Mes conversations</h5>
+                <a href="messagerie-admin.html" class="btn btn-outline-primary btn-sm">
+                    <i class="fa-solid fa-headset"></i> Contacter l'admin</a>
+            </div>
+            <div id="conv-zone" class="text-center text-muted py-4">Chargement…</div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        (async () => {
+            const me = await UI.renderSidebar('liste-messagerie.html');
+            if (!me) return;
+            const zone = document.getElementById('conv-zone');
+            try {
+                const list = await api.get('/api/conversations');
+                if (!list.length) {
+                    zone.innerHTML = '<p class="text-muted py-3 mb-0">Aucune conversation. '
+                        + 'Les conversations apparaissent après un premier message.</p>';
+                    return;
+                }
+                zone.innerHTML = `<div class="list-group text-start">
+                    ${list.map(c => `
+                        <a href="messagerie.html?destinataire_id=${c.id}" class="list-group-item list-group-item-action d-flex gap-3 align-items-center">
+                            ${c.photo_url
+                                ? `<img src="${UI.esc(c.photo_url)}" class="rounded-circle" style="width:44px;height:44px;object-fit:cover;" alt="">`
+                                : '<i class="fa-solid fa-user-circle fa-2x text-muted"></i>'}
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between">
+                                    <strong>${UI.esc(c.prenom)} ${UI.esc(c.nom)}</strong>
+                                    <small class="text-muted">${UI.datetime(c.derniere_date)}</small>
+                                </div>
+                                <div class="small text-muted text-truncate" style="max-width:480px;">${UI.esc(c.dernier_message || '')}</div>
+                            </div>
+                            ${c.non_lus > 0 ? `<span class="badge bg-danger rounded-pill">${UI.esc(c.non_lus)}</span>` : ''}
+                        </a>`).join('')}
+                </div>`;
+            } catch (e) { UI.error('#conv-zone', e.message); }
+        })();
+    </script>
+</body>
+</html>

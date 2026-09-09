@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil transporteur - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <div id="main-zone" class="text-center text-muted py-5">Chargement…</div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        let me = null;
+
+        (async () => {
+            me = await UI.renderSidebar('');
+            if (me) load();
+        })();
+
+        function stars(note) {
+            const n = Math.round(Number(note || 0));
+            let html = '';
+            for (let i = 1; i <= 5; i++) {
+                html += `<i class="fa-solid fa-star ${i <= n ? 'text-warning' : 'text-muted opacity-25'}"></i>`;
+            }
+            return html;
+        }
+
+        async function load() {
+            const id = UI.qs('id');
+            const zone = document.getElementById('main-zone');
+            if (!id) { zone.innerHTML = '<div class="alert alert-danger">Identifiant manquant.</div>'; return; }
+
+            try {
+                const [data, avis] = await Promise.all([
+                    api.get('/api/transporteurs/' + encodeURIComponent(id)),
+                    api.get('/api/transporteurs/' + encodeURIComponent(id) + '/avis')
+                ]);
+                const u = data.user, t = data.transporteur, s = data.stats;
+                const isSelf = me.id === u.id;
+
+                zone.innerHTML = `
+                <div class="row g-4" style="max-width:1000px;">
+                    <div class="col-md-4">
+                        <div class="page-card text-center">
+                            ${u.photo_url ? `<img src="${UI.esc(u.photo_url)}" class="avatar-lg" alt="">` : '<i class="fa-solid fa-user avatar-lg text-muted"></i>'}
+                            <h5 class="mt-3">${UI.esc(u.prenom)} ${UI.esc(u.nom)}</h5>
+                            <div class="mb-2">${stars(s.note_moyenne)}
+                                <span class="small text-muted d-block">${s.note_moyenne !== null ? UI.esc(s.note_moyenne) + '/5' : 'Pas encore de note'} · ${UI.esc(s.nb_avis)} avis</span>
+                            </div>
+                            <p class="text-muted small mb-2">
+                                <i class="fa-solid fa-box"></i> ${UI.esc(s.nb_colis_transportes)} colis transportés<br>
+                                Membre depuis ${UI.date(u.date_inscription)}
+                            </p>
+                            ${!isSelf ? `<a href="messagerie.html?destinataire_id=${u.id}" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="fa-solid fa-envelope"></i> Contacter</a>` : ''}
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="page-card">
+                            <h5 class="mb-3"><i class="fa-solid fa-truck text-primary"></i> Informations</h5>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr><th style="width:40%;">Véhicule</th><td>${UI.esc(t.vehicule || '—')}</td></tr>
+                                    <tr><th>Compagnie</th><td>${UI.esc(t.compagnie || '—')}</td></tr>
+                                    <tr><th>Zone</th><td>${UI.esc(t.ville || '')} ${UI.esc(t.pays || '')}</td></tr>
+                                </tbody>
+                            </table>
+                            ${t.photo_vehicule_url ? `<img src="${UI.esc(t.photo_vehicule_url)}" class="img-fluid rounded" alt="Véhicule" style="max-height:220px;">` : ''}
+                        </div>
+
+                        <div class="page-card">
+                            <h5 class="mb-3"><i class="fa-solid fa-plane text-primary"></i> Prochains voyages</h5>
+                            ${data.voyages.length ? `
+                                <div class="table-responsive"><table class="table table-sm align-middle">
+                                <thead class="table-light"><tr><th>Trajet</th><th>Départ</th><th>Poids max</th></tr></thead>
+                                <tbody>${data.voyages.map(v => `
+                                    <tr>
+                                        <td>${UI.esc(v.pays_depart)} → ${UI.esc(v.pays_destination)}</td>
+                                        <td>${UI.date(v.date_depart)} <span class="small text-muted">${UI.esc((v.heure_depart || '').substring(0, 5))}</span></td>
+                                        <td>${UI.esc(v.poids_max)} kg</td>
+                                    </tr>`).join('')}
+                                </tbody></table></div>` : '<p class="text-muted mb-0">Aucun voyage à venir.</p>'}
+                        </div>
+
+                        <div class="page-card">
+                            <h5 class="mb-3"><i class="fa-solid fa-star text-warning"></i> Avis (${avis.length})</h5>
+                            ${!isSelf ? `
+                            <form id="avis-form" class="border rounded-3 p-3 mb-4">
+                                <div id="avis-alert"></div>
+                                <div class="mb-2">
+                                    <label class="form-label">Votre note *</label>
+                                    <select name="note" class="form-select" style="max-width:140px;" required>
+                                        <option value="">—</option>
+                                        <option value="5">★★★★★</option>
+                                        <option value="4">★★★★</option>
+                                        <option value="3">★★★</option>
+                                        <option value="2">★★</option>
+                                        <option value="1">★</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Commentaire *</label>
+                                    <textarea name="commentaire" class="form-control" rows="2" maxlength="2000" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-warning fw-bold"><i class="fa-solid fa-star"></i> Publier un avis</button>
+                                <span class="small text-muted ms-2">Un seul avis par transporteur, publié après modération.</span>
+                            </form>` : ''}
+                            <div id="avis-list">
+                                ${avis.length ? avis.map(a => `
+                                    <div class="border-bottom py-3">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>${UI.esc(a.prenom)} ${UI.esc(a.nom)}</strong>
+                                            <span>${stars(a.note)}</span>
+                                        </div>
+                                        <p class="mb-1 mt-1">${UI.nl(a.commentaire)}</p>
+                                        <small class="text-muted">${UI.date(a.date_avis)}</small>
+                                    </div>`).join('') : '<p class="text-muted mb-0">Aucun avis publié pour le moment.</p>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+                const avisForm = document.getElementById('avis-form');
+                if (avisForm) avisForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const zoneAlert = document.getElementById('avis-alert');
+                    zoneAlert.innerHTML = '';
+                    try {
+                        const data2 = await api.post('/api/avis', {
+                            transporteur_id: Number(id),
+                            note: Number(e.target.note.value),
+                            commentaire: e.target.commentaire.value
+                        });
+                        zoneAlert.innerHTML = `<div class="alert alert-success">${UI.esc(data2.message)}</div>`;
+                        avisForm.reset();
+                    } catch (err) {
+                        zoneAlert.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+                    }
+                });
+            } catch (e) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(e.message)}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

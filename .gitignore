@@ -10,3 +10,7 @@ Thumbs.db
 
 # Configuration locale éventuelle
 .env
+
+# Stockage runtime : uploads des utilisateurs (jamais versionnés)
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep

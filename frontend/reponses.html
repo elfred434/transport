@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mes réponses - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-reply text-primary"></i> Réponses de l'agence</h2>
+
+        <div class="page-card" style="max-width:860px;">
+            <p class="text-muted small">Réponses aux messages envoyés via le formulaire de contact avec votre email.</p>
+            <div id="reponses-zone" class="text-center text-muted py-4">Chargement…</div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        (async () => {
+            const me = await UI.renderSidebar('reponses.html');
+            if (!me) return;
+            const zone = document.getElementById('reponses-zone');
+            try {
+                const list = await api.get('/api/contact/reponses');
+                if (!list.length) {
+                    zone.innerHTML = '<p class="text-muted py-3 mb-0">Aucune réponse pour le moment.</p>';
+                    return;
+                }
+                zone.innerHTML = list.map(r => `
+                    <div class="border rounded-3 p-3 mb-3 text-start">
+                        <div class="d-flex justify-content-between flex-wrap">
+                            <strong><i class="fa-solid fa-comment-dots text-primary"></i> ${UI.esc(r.nom || '')}</strong>
+                            <small class="text-muted">Envoyé le ${UI.datetime(r.date_envoi)} · Répondu le ${UI.datetime(r.date_reponse)}</small>
+                        </div>
+                        <p class="mb-2 mt-2">${UI.nl(r.message)}</p>
+                        <div class="alert alert-success mb-0">
+                            <strong><i class="fa-solid fa-headset"></i> Réponse de l'agence :</strong><br>
+                            ${UI.nl(r.reponse)}
+                        </div>
+                    </div>`).join('');
+            } catch (e) { UI.error('#reponses-zone', e.message); }
+        })();
+    </script>
+</body>
+</html>

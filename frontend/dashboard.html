@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4">Tableau de bord</h2>
+
+        <ul class="nav nav-tabs mb-4" id="main-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-colis" type="button">Mes colis</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-voyages" type="button">Mes voyages</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-reservations" type="button">Réservations reçues</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-paiements" type="button">Mes paiements</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Mes colis -->
+            <div class="tab-pane fade show active" id="tab-colis">
+                <div class="page-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Mes colis</h5>
+                        <a href="poster-colis.html" class="btn btn-primary"><i class="fa-solid fa-box"></i> Poster un colis</a>
+                    </div>
+                    <div id="colis-list" class="text-center text-muted py-4">Chargement…</div>
+                </div>
+            </div>
+
+            <!-- Mes voyages -->
+            <div class="tab-pane fade" id="tab-voyages">
+                <div class="page-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Mes voyages</h5>
+                        <span>
+                            <span class="badge bg-success me-2" id="solde-badge" style="display:none;"></span>
+                            <a href="devenir-transporteur.html" class="btn btn-primary"><i class="fa-solid fa-plane-departure"></i> Proposer un voyage</a>
+                        </span>
+                    </div>
+                    <div id="voyages-list" class="text-center text-muted py-4">Chargement…</div>
+                </div>
+            </div>
+
+            <!-- Réservations reçues (transporteur) -->
+            <div class="tab-pane fade" id="tab-reservations">
+                <div class="page-card">
+                    <h5 class="mb-3">Réservations sur mes voyages</h5>
+                    <div id="reservations-list" class="text-center text-muted py-4">Chargement…</div>
+                </div>
+            </div>
+
+            <!-- Paiements -->
+            <div class="tab-pane fade" id="tab-paiements">
+                <div class="page-card">
+                    <h5 class="mb-3">Mes paiements</h5>
+                    <div id="paiements-stats" class="row g-3 mb-3"></div>
+                    <div id="paiements-list" class="text-center text-muted py-4">Chargement…</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal édition colis -->
+    <div class="modal fade" id="edit-colis-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form id="edit-colis-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Modifier le colis</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="edit-alert"></div>
+                        <input type="hidden" name="id">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nom du colis</label>
+                                <input type="text" name="nom_colis" class="form-control" maxlength="100" required></div>
+                            <div class="col-md-3"><label class="form-label">Type de produit</label>
+                                <select name="type_produit" class="form-select" required>
+                                    <option value="alimentaire">Alimentaire</option>
+                                    <option value="electronique">Électronique</option>
+                                    <option value="vetements">Vêtements</option>
+                                    <option value="documents">Documents</option>
+                                    <option value="autre">Autre</option>
+                                </select></div>
+                            <div class="col-md-3"><label class="form-label">Nombre de produits</label>
+                                <input type="number" name="nombre_produits" min="1" max="10000" class="form-control" required></div>
+                            <div class="col-md-4"><label class="form-label">Poids (kg)</label>
+                                <input type="number" step="0.01" min="0.01" max="1000" name="poids" class="form-control" required></div>
+                            <div class="col-md-4"><label class="form-label">Dimensions (LxlxH cm)</label>
+                                <input type="text" name="dimensions" class="form-control" maxlength="50"></div>
+                            <div class="col-md-4"><label class="form-label">Date limite</label>
+                                <input type="date" name="date_limite" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Pays (destination)</label>
+                                <input type="text" name="pays" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Ville (destination)</label>
+                                <input type="text" name="ville" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Adresse de départ</label>
+                                <input type="text" name="adresse_depart" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Adresse de destination</label>
+                                <input type="text" name="adresse_destination" class="form-control" required></div>
+                            <div class="col-12"><label class="form-label">Nouvelle photo (optionnel)</label>
+                                <input type="file" name="image_colis" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp"></div>
+                        </div>
+                        <p class="text-muted small mt-3 mb-0"><i class="fa-solid fa-circle-info"></i> Le prix estimé est recalculé automatiquement selon le poids.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        let me = null;
+
+        async function init() {
+            me = await UI.renderSidebar('dashboard.html');
+            if (!me) return;
+
+            if (me.is_transporteur) {
+                const badge = document.getElementById('solde-badge');
+                badge.textContent = 'Solde : ' + UI.money(me.solde);
+                badge.style.display = '';
+            }
+
+            loadColis(); loadVoyages(); loadReservations(); loadPaiements();
+        }
+
+        // ============================ MES COLIS ============================
+        async function loadColis() {
+            const zone = document.getElementById('colis-list');
+            try {
+                const list = await api.get('/api/colis/mine');
+                if (!list.length) {
+                    zone.innerHTML = '<p class="text-muted text-center py-4">Aucun colis pour le moment. <a href="poster-colis.html">Poster un colis</a></p>';
+                    return;
+                }
+                zone.innerHTML = list.map(c => `
+                    <div class="border rounded-3 p-3 mb-3">
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            ${UI.img(c.image_url, c.nom_colis, 'img-colis')}
+                            <div class="flex-grow-1">
+                                <div class="fw-bold"><a href="colis-detail.html?id=${c.id}" class="text-decoration-none">${UI.esc(c.nom_colis)}</a>
+                                    ${UI.badge(c.statut)}
+                                    ${c.statut_livraison ? UI.badge(c.statut_livraison) : ''}
+                                    ${c.demande_livraison && !c.suivi_confirme_par_admin ? '<span class="badge bg-info text-dark">Livraison en attente de confirmation admin</span>' : ''}
+                                </div>
+                                <div class="small text-muted">
+                                    ${UI.esc(c.ville)}, ${UI.esc(c.pays)} · ${UI.esc(c.poids)} kg · ${UI.esc(c.type_produit || '')}
+                                    · Prix : <strong>${UI.money(c.prix_estime)}</strong> · Suivi : <code>${UI.esc(c.numero_suivi)}</code>
+                                    · Limite : ${UI.date(c.date_limite)}
+                                </div>
+                                ${c.reservations && c.reservations.length ? `
+                                    <div class="small mt-1">
+                                        <i class="fa-solid fa-truck text-primary"></i> Transporteur(s) affecté(s) :
+                                        ${c.reservations.map(r => `<a href="profil-transporteur.html?id=${r.transporteur_id}">${UI.esc(r.prenom)} ${UI.esc(r.nom)}</a>${r.note_moyenne ? ` (${UI.esc(r.note_moyenne)}★)` : ''}`).join(', ')}
+                                    </div>` : ''}
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${c.statut === 'en_attente' ? `
+                                    <button class="btn btn-sm btn-outline-primary edit-colis" data-id="${c.id}"><i class="fa-solid fa-pen"></i> Modifier</button>
+                                    <a class="btn btn-sm btn-outline-success" href="paiement.html?colis_id=${c.id}"><i class="fa-solid fa-credit-card"></i> Payer</a>` : ''}
+                                ${c.statut === 'approuve' ? `
+                                    <a class="btn btn-sm btn-outline-info" href="suivi.html?numero_suivi=${encodeURIComponent(c.numero_suivi)}"><i class="fa-solid fa-search-location"></i> Suivre</a>
+                                    <a class="btn btn-sm btn-outline-secondary" href="recherche.html?colis_id=${c.id}"><i class="fa-solid fa-plane"></i> Voyages compatibles</a>
+                                    <button class="btn btn-sm btn-outline-dark toggle-reservations" data-id="${c.id}"><i class="fa-solid fa-list"></i> Réservations</button>` : ''}
+                            </div>
+                        </div>
+                        <div id="reservations-colis-${c.id}" class="mt-3" style="display:none;"></div>
+                    </div>`).join('');
+
+                zone.querySelectorAll('.edit-colis').forEach(btn =>
+                    btn.addEventListener('click', () => openEditModal(btn.dataset.id)));
+
+                zone.querySelectorAll('.toggle-reservations').forEach(btn =>
+                    btn.addEventListener('click', () => toggleReservationsColis(btn.dataset.id)));
+            } catch (e) { UI.error('#colis-list', e.message); }
+        }
+
+        async function toggleReservationsColis(colisId) {
+            const zone = document.getElementById('reservations-colis-' + colisId);
+            if (zone.style.display !== 'none') { zone.style.display = 'none'; return; }
+            zone.style.display = '';
+            zone.innerHTML = '<p class="text-muted small">Chargement…</p>';
+            try {
+                const list = await api.get('/api/colis/' + colisId + '/reservations');
+                if (!list.length) { zone.innerHTML = '<p class="text-muted small mb-0">Aucune réservation pour ce colis.</p>'; return; }
+                zone.innerHTML = `
+                    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr>
+                        <th>Transporteur</th><th>Voyage</th><th>Date</th><th>Statut</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(r => `
+                        <tr>
+                            <td><a href="profil-transporteur.html?id=${r.transporteur_id}">${UI.esc(r.prenom)} ${UI.esc(r.nom)}</a>
+                                <div class="small text-muted">${UI.esc(r.email || '')} · ${UI.esc(r.telephone || '')}</div></td>
+                            <td>${UI.esc(r.pays_depart)} → ${UI.esc(r.pays_destination)}
+                                <div class="small text-muted">${UI.date(r.date_depart)} ${UI.esc(r.heure_depart || '')}</div></td>
+                            <td class="small">${UI.datetime(r.date_reservation)}</td>
+                            <td>${UI.badge(r.statut)}</td>
+                            <td class="text-end">
+                                ${r.statut === 'en_attente' ? `
+                                    <button class="btn btn-sm btn-success res-action" data-id="${r.id}" data-action="accepte" title="Accepter"><i class="fa-solid fa-check"></i></button>
+                                    <button class="btn btn-sm btn-danger res-action" data-id="${r.id}" data-action="refuse" title="Refuser"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                                ${r.statut === 'accepte' ? `
+                                    <button class="btn btn-sm btn-outline-secondary res-action" data-id="${r.id}" data-action="annule" title="Annuler"><i class="fa-solid fa-ban"></i></button>` : ''}
+                                <a class="btn btn-sm btn-outline-primary" href="messagerie.html?destinataire_id=${r.transporteur_id}" title="Message"><i class="fa-solid fa-envelope"></i></a>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.res-action').forEach(btn => btn.addEventListener('click', async () => {
+                    const labels = { accepte: 'accepter', refuse: 'refuser', annule: 'annuler (supprime le suivi)' };
+                    if (!UI.confirm('Confirmez-vous : ' + labels[btn.dataset.action] + ' ?')) return;
+                    try {
+                        await api.post('/api/reservations/' + btn.dataset.id + '/action', { action: btn.dataset.action });
+                        UI.toast('Réservation mise à jour.');
+                        loadColis();
+                    } catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) {
+                zone.innerHTML = `<div class="alert alert-danger small">${UI.esc(e.message)}</div>`;
+            }
+        }
+
+        // ======================= ÉDITION COLIS =======================
+        const editModal = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('edit-colis-modal'));
+
+        async function openEditModal(id) {
+            const f = document.getElementById('edit-colis-form');
+            document.getElementById('edit-alert').innerHTML = '';
+            try {
+                const c = await api.get('/api/colis/' + id);
+                f.id.value = c.id;
+                f.nom_colis.value = c.nom_colis;
+                f.type_produit.value = c.type_produit || 'autre';
+                f.nombre_produits.value = c.nombre_produits || 1;
+                f.poids.value = c.poids;
+                f.dimensions.value = c.dimensions || '';
+                f.date_limite.value = c.date_limite || '';
+                f.pays.value = c.pays || '';
+                f.ville.value = c.ville || '';
+                f.adresse_depart.value = c.adresse_depart || '';
+                f.adresse_destination.value = c.adresse_destination || '';
+                f.image_colis.value = '';
+                editModal().show();
+            } catch (e) { UI.toast(e.message, 'error'); }
+        }
+
+        document.getElementById('edit-colis-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const f = e.target;
+            const zone = document.getElementById('edit-alert');
+            try {
+                const data = await api.upload('/api/colis/' + f.id.value, {
+                    nom_colis: f.nom_colis.value,
+                    type_produit: f.type_produit.value,
+                    nombre_produits: f.nombre_produits.value,
+                    poids: f.poids.value,
+                    dimensions: f.dimensions.value,
+                    date_limite: f.date_limite.value,
+                    pays: f.pays.value,
+                    ville: f.ville.value,
+                    adresse_depart: f.adresse_depart.value,
+                    adresse_destination: f.adresse_destination.value
+                }, { image_colis: f.image_colis.files[0] });
+                editModal().hide();
+                UI.toast('Colis mis à jour. Nouveau prix estimé : ' + UI.money(data.prix_estime));
+                loadColis();
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+
+        // ============================ MES VOYAGES ============================
+        async function loadVoyages() {
+            const zone = document.getElementById('voyages-list');
+            if (!me || !me.is_transporteur) {
+                zone.innerHTML = '<div class="alert alert-info mb-0">Proposez un voyage pour devenir transporteur. '
+                    + '<a href="devenir-transporteur.html" class="alert-link">Candidater</a></div>';
+                return;
+            }
+            try {
+                const list = await api.get('/api/voyages/mine');
+                if (!list.length) {
+                    zone.innerHTML = '<p class="text-muted text-center py-4">Aucun voyage proposé. '
+                        + '<a href="devenir-transporteur.html">Proposer un voyage</a></p>';
+                    return;
+                }
+                zone.innerHTML = `
+                    <div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Trajet</th><th>Départ</th><th>Poids max</th><th>Réservations</th><th>Statut</th>
+                    </tr></thead><tbody>
+                    ${list.map(v => `
+                        <tr>
+                            <td>${UI.esc(v.pays_depart)} → ${UI.esc(v.pays_destination)}</td>
+                            <td>${UI.date(v.date_depart)} <span class="text-muted small">${UI.esc((v.heure_depart || '').substring(0, 5))}</span></td>
+                            <td>${UI.esc(v.poids_max)} kg</td>
+                            <td><span class="badge bg-secondary">${UI.esc(v.nb_reservations)}</span></td>
+                            <td>${UI.badge(v.statut)}</td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+            } catch (e) { UI.error('#voyages-list', e.message); }
+        }
+
+        // ==================== RÉSERVATIONS REÇUES (TRANSPORTEUR) ====================
+        async function loadReservations() {
+            const zone = document.getElementById('reservations-list');
+            if (!me || !me.is_transporteur) {
+                zone.innerHTML = '<p class="text-muted text-center py-4">Réservé aux transporteurs.</p>';
+                return;
+            }
+            try {
+                const list = await api.get('/api/reservations/recues');
+                if (!list.length) {
+                    zone.innerHTML = '<p class="text-muted text-center py-4">Aucune réservation sur vos voyages. '
+                        + '<a href="colis.html">Voir les colis disponibles</a></p>';
+                    return;
+                }
+                zone.innerHTML = `
+                    <div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Colis</th><th>Client</th><th>Voyage</th><th>Prix</th><th>Statut</th>
+                        <th>Suivi</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(r => `
+                        <tr>
+                            <td>${UI.img(r.image_url, r.nom_colis, 'img-colis')}
+                                <a href="colis-detail.html?id=${r.colis_id}" class="ms-2">${UI.esc(r.nom_colis)}</a>
+                                <div class="small text-muted"><code>${UI.esc(r.numero_suivi)}</code></div></td>
+                            <td>${UI.esc(r.client_prenom || '')} ${UI.esc(r.client_nom || '')}
+                                <div class="small text-muted">${UI.esc(r.client_tel || '')}</div></td>
+                            <td>${UI.esc(r.pays_depart)} → ${UI.esc(r.pays_destination)}
+                                <div class="small text-muted">${UI.date(r.date_depart)}</div></td>
+                            <td>${UI.money(r.prix_estime)}</td>
+                            <td>${UI.badge(r.statut)}</td>
+                            <td>${UI.badge(r.statut_suivi)}</td>
+                            <td class="text-end">
+                                ${r.statut === 'accepte' && r.statut_suivi !== 'Livré' ? `
+                                    <select class="form-select form-select-sm suivi-select" data-colis="${r.colis_id}" style="width:160px;display:inline-block;">
+                                        <option value="">Mettre à jour…</option>
+                                        <option value="En attente">En attente</option>
+                                        <option value="En cours">En cours</option>
+                                        <option value="Livré">Livré</option>
+                                    </select>` : ''}
+                                ${r.client_id ? `<a class="btn btn-sm btn-outline-primary" href="messagerie.html?destinataire_id=${r.client_id}" title="Message"><i class="fa-solid fa-envelope"></i></a>` : ''}
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>
+                    <p class="text-muted small mb-0"><i class="fa-solid fa-circle-info"></i> Marquer « Livré » envoie une demande de confirmation à l'agence. La commission de 5 % est versée à la confirmation.</p>`;
+
+                zone.querySelectorAll('.suivi-select').forEach(sel => sel.addEventListener('change', async () => {
+                    if (!sel.value) return;
+                    if (sel.value === 'Livré' && !UI.confirm('Marquer comme livré ? L\'agence devra confirmer.')) { sel.value = ''; return; }
+                    try {
+                        const data = await api.post('/api/suivi', { colis_id: Number(sel.dataset.colis), statut: sel.value });
+                        UI.toast(data.message || 'Statut mis à jour.');
+                        loadReservations();
+                    } catch (e) { UI.toast(e.message, 'error'); sel.value = ''; }
+                }));
+            } catch (e) { UI.error('#reservations-list', e.message); }
+        }
+
+        // ============================ MES PAIEMENTS ============================
+        async function loadPaiements() {
+            const zone = document.getElementById('paiements-list');
+            try {
+                const data = await api.get('/api/paiements/mine');
+                const list = data.paiements || [];
+                const stats = data.stats || {};
+
+                document.getElementById('paiements-stats').innerHTML = `
+                    <div class="col-md-4"><div class="border rounded-3 p-3 text-center">
+                        <div class="text-muted small">Total</div><div class="fs-5 fw-bold">${UI.money(stats.montant_total)}</div></div></div>
+                    <div class="col-md-4"><div class="border rounded-3 p-3 text-center">
+                        <div class="text-muted small">Payé</div><div class="fs-5 fw-bold text-success">${UI.money(stats.montant_paye)}</div></div></div>
+                    <div class="col-md-4"><div class="border rounded-3 p-3 text-center">
+                        <div class="text-muted small">En attente</div><div class="fs-5 fw-bold text-warning">${UI.money(stats.montant_en_attente)}</div></div></div>`;
+
+                if (!list.length) { zone.innerHTML = '<p class="text-muted text-center py-4">Aucun paiement.</p>'; return; }
+                zone.innerHTML = `
+                    <div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Colis</th><th>Montant</th><th>Méthode</th><th>Détails</th><th>Référence</th><th>Date</th><th>Statut</th><th></th>
+                    </tr></thead><tbody>
+                    ${list.map(p => `
+                        <tr>
+                            <td>${UI.esc(p.nom_colis || 'Colis #' + p.colis_id)}</td>
+                            <td>${UI.money(p.montant)}</td>
+                            <td>${p.methode_paiement === 'carte_credit' ? '<i class="fa-solid fa-credit-card"></i> Carte'
+                                : p.methode_paiement === 'mobile_money' ? '<i class="fa-solid fa-mobile-screen"></i> Mobile Money'
+                                : UI.esc(p.methode_paiement || '—')}</td>
+                            <td class="small">${UI.esc((p.details_paiement && (p.details_paiement.numero_masque || p.details_paiement.operateur)) || '—')}</td>
+                            <td class="small text-muted">${UI.esc(p.reference)}${p.numero_transaction ? '<br>' + UI.esc(p.numero_transaction) : ''}</td>
+                            <td class="small">${UI.datetime(p.date_creation)}</td>
+                            <td>${UI.badge(p.statut)}</td>
+                            <td>${p.statut === 'en_attente' ? `<a class="btn btn-sm btn-outline-success" href="paiement.html?colis_id=${p.colis_id}"><i class="fa-solid fa-credit-card"></i> Payer</a>` : ''}</td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+            } catch (e) { UI.error('#paiements-list', e.message); }
+        }
+
+        init();
+    </script>
+</body>
+</html>

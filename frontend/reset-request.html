@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mot de passe oublié - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="public-body">
+    <div class="container auth-container">
+        <div class="card shadow-lg border-0 rounded-4 p-4">
+            <h2 class="text-center text-primary mb-4"><i class="fa-solid fa-key"></i> Réinitialisation</h2>
+
+            <div id="alert-zone"></div>
+
+            <form id="reset-form" autocomplete="off">
+                <div class="mb-3">
+                    <label class="form-label">Votre email</label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                    <i class="fa-solid fa-paper-plane"></i> Envoyer le lien
+                </button>
+            </form>
+            <a href="login.html" class="btn btn-outline-primary w-100 mt-3 fw-bold">
+                <i class="fa-solid fa-right-to-bracket"></i> Retour à la connexion
+            </a>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        document.getElementById('reset-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const zone = document.getElementById('alert-zone');
+            zone.innerHTML = '';
+            try {
+                const data = await api.post('/api/auth/reset-request', { email: e.target.email.value });
+                let html = `<div class="alert alert-success">${UI.esc(data.message)}</div>`;
+                if (data.dev_reset_link) {
+                    html += `<div class="alert alert-info small text-break">Mode développement — lien généré :
+                             <a href="${UI.esc(data.dev_reset_link)}">${UI.esc(data.dev_reset_link)}</a></div>`;
+                }
+                zone.innerHTML = html;
+                e.target.reset();
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="../assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+    <div id="sidebar">
+        <div class="vertical-menu">
+            <div class="logo-container">
+                <a href="../index.html"><img src="../assets/img/logo.jpeg" alt="Logo" class="logo"></a>
+            </div>
+            <div class="user-box">
+                <div class="user-name" id="admin-name">Administration</div>
+                <span class="badge bg-light text-dark"><i class="fa-solid fa-shield-halved"></i> admin</span>
+            </div>
+            <ul class="menu-items" id="admin-menu">
+                <li><a href="#" data-section="stats" class="active"><i class="fas fa-chart-pie"></i> Statistiques</a></li>
+                <li><a href="#" data-section="users"><i class="fas fa-users"></i> Utilisateurs</a></li>
+                <li><a href="#" data-section="colis"><i class="fas fa-box"></i> Colis</a></li>
+                <li><a href="#" data-section="voyages"><i class="fas fa-plane"></i> Voyages</a></li>
+                <li><a href="#" data-section="transporteurs"><i class="fas fa-truck"></i> Transporteurs</a></li>
+                <li><a href="#" data-section="paiements"><i class="fas fa-credit-card"></i> Paiements</a></li>
+                <li><a href="#" data-section="avis"><i class="fas fa-star"></i> Avis</a></li>
+                <li><a href="#" data-section="contact"><i class="fas fa-envelope-open-text"></i> Messages contact</a></li>
+                <li><a href="messagerie.html"><i class="fas fa-headset"></i> Messagerie admin</a></li>
+                <li><a href="../dashboard.html"><i class="fas fa-gauge"></i> Vue utilisateur</a></li>
+                <li><a href="#" id="logout-link"><i class="fas fa-sign-out-alt"></i> Déconnexion</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="content">
+        <div id="global-alert"></div>
+
+        <!-- STATS -->
+        <section id="sec-stats" class="admin-section">
+            <h2 class="mb-4"><i class="fa-solid fa-chart-pie text-primary"></i> Statistiques</h2>
+            <div id="stats-zone" class="text-muted">Chargement…</div>
+        </section>
+
+        <!-- USERS -->
+        <section id="sec-users" class="admin-section" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <h2 class="mb-0"><i class="fa-solid fa-users text-primary"></i> Utilisateurs</h2>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#user-modal">
+                    <i class="fa-solid fa-user-plus"></i> Créer un utilisateur</button>
+            </div>
+            <div class="page-card">
+                <form id="users-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label">Recherche</label>
+                        <input type="text" name="search" class="form-control" placeholder="Nom, prénom, email…"></div>
+                    <div class="col-md-3"><label class="form-label">Rôle</label>
+                        <select name="role" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="utilisateur">Utilisateur</option>
+                            <option value="transporteur">Transporteur</option>
+                            <option value="admin">Admin</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="users-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- COLIS -->
+        <section id="sec-colis" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-box text-primary"></i> Colis</h2>
+            <div class="page-card">
+                <div id="livraison-alert" class="alert alert-warning" style="display:none;"></div>
+                <form id="colis-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label">Recherche</label>
+                        <input type="text" name="search" class="form-control" placeholder="Nom, suivi, ville…"></div>
+                    <div class="col-md-3"><label class="form-label">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="approuve">Approuvé</option>
+                            <option value="refuse">Refusé</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="colis-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- VOYAGES -->
+        <section id="sec-voyages" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-plane text-primary"></i> Voyages</h2>
+            <div class="page-card">
+                <form id="voyages-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label">Recherche</label>
+                        <input type="text" name="search" class="form-control" placeholder="Pays, transporteur…"></div>
+                    <div class="col-md-3"><label class="form-label">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="approuve">Approuvé</option>
+                            <option value="refuse">Refusé</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="voyages-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- TRANSPORTEURS -->
+        <section id="sec-transporteurs" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-truck text-primary"></i> Transporteurs</h2>
+            <div class="page-card">
+                <form id="transporteurs-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label">Recherche</label>
+                        <input type="text" name="search" class="form-control" placeholder="Nom, compagnie, ville…"></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="transporteurs-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- PAIEMENTS -->
+        <section id="sec-paiements" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-credit-card text-primary"></i> Paiements</h2>
+            <div class="page-card">
+                <form id="paiements-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label">Recherche</label>
+                        <input type="text" name="search" class="form-control" placeholder="Référence, colis, client…"></div>
+                    <div class="col-md-3"><label class="form-label">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="paye">Payé</option>
+                            <option value="echec">Échec</option>
+                            <option value="annule">Annulé</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="paiements-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- AVIS -->
+        <section id="sec-avis" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-star text-primary"></i> Avis</h2>
+            <div class="page-card">
+                <form id="avis-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label class="form-label">Statut</label>
+                        <select name="statut" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="approuve">Approuvé</option>
+                            <option value="refuse">Refusé</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="avis-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+
+        <!-- CONTACT -->
+        <section id="sec-contact" class="admin-section" style="display:none;">
+            <h2 class="mb-4"><i class="fa-solid fa-envelope-open-text text-primary"></i> Messages de contact</h2>
+            <div class="page-card">
+                <form id="contact-filter" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label class="form-label">État</label>
+                        <select name="repondu" class="form-select">
+                            <option value="">Tous</option>
+                            <option value="non">Sans réponse</option>
+                            <option value="oui">Répondus</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+                </form>
+                <div id="contact-list" class="text-muted">Chargement…</div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal création utilisateur -->
+    <div class="modal fade" id="user-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="user-create-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Créer un utilisateur</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="user-alert"></div>
+                        <div class="mb-3"><label class="form-label">Nom *</label>
+                            <input type="text" name="nom" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Prénom *</label>
+                            <input type="text" name="prenom" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Email *</label>
+                            <input type="email" name="email" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label">Mot de passe * (8 car. min.)</label>
+                            <input type="password" name="password" class="form-control" minlength="8" required></div>
+                        <div class="mb-3"><label class="form-label">Rôle *</label>
+                            <select name="role" class="form-select" required>
+                                <option value="utilisateur">Utilisateur</option>
+                                <option value="transporteur">Transporteur</option>
+                                <option value="admin">Admin</option>
+                            </select></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Créer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal réponse contact -->
+    <div class="modal fade" id="contact-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="contact-reply-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Répondre au message</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="contact-msg-preview" class="alert alert-light small"></div>
+                        <input type="hidden" name="id">
+                        <div class="mb-3"><label class="form-label">Votre réponse *</label>
+                            <textarea name="reponse" class="form-control" rows="4" maxlength="5000" required></textarea></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Envoyer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/ui.js"></script>
+    <script>
+        let me = null;
+
+        async function init() {
+            me = await UI.requireAdmin();
+            if (!me) return;
+            document.getElementById('admin-name').textContent = me.prenom + ' ' + me.nom;
+
+            document.querySelectorAll('#admin-menu a[data-section]').forEach(a => {
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showSection(a.dataset.section);
+                });
+            });
+            document.getElementById('logout-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                UI.logout();
+            });
+
+            showSection('stats');
+        }
+
+        function showSection(name) {
+            document.querySelectorAll('.admin-section').forEach(s => s.style.display = 'none');
+            document.getElementById('sec-' + name).style.display = '';
+            document.querySelectorAll('#admin-menu a[data-section]').forEach(a =>
+                a.classList.toggle('active', a.dataset.section === name));
+            loaders[name]();
+        }
+
+        const loaders = {
+            stats: loadStats, users: loadUsers, colis: loadColis, voyages: loadVoyages,
+            transporteurs: loadTransporteurs, paiements: loadPaiements, avis: loadAvis, contact: loadContact
+        };
+
+        function statutSelect(current, options, cls, dataId) {
+            return `<select class="form-select form-select-sm ${cls}" data-id="${dataId}" style="width:auto;display:inline-block;">
+                ${options.map(o => `<option value="${o}" ${o === current ? 'selected' : ''}>${o}</option>`).join('')}
+            </select>`;
+        }
+
+        // ============================ STATS ============================
+        async function loadStats() {
+            const zone = document.getElementById('stats-zone');
+            try {
+                const s = await api.get('/api/admin/stats');
+                const card = (icon, label, value, color) => `
+                    <div class="col-md-3 col-6">
+                        <div class="page-card text-center h-100">
+                            <i class="fa-solid ${icon} text-${color}" style="font-size:1.8rem;"></i>
+                            <div class="fs-4 fw-bold mt-2">${value}</div>
+                            <div class="text-muted small">${label}</div>
+                        </div>
+                    </div>`;
+                zone.innerHTML = `<div class="row g-3">
+                    ${card('fa-users', 'Utilisateurs', s.nb_users, 'primary')}
+                    ${card('fa-box', 'Colis', s.nb_colis, 'primary')}
+                    ${card('fa-plane', 'Voyages', s.nb_voyages, 'primary')}
+                    ${card('fa-truck', 'Transporteurs', s.nb_transporteurs, 'primary')}
+                    ${card('fa-hourglass-half', 'Colis en attente', s.colis_en_attente, 'warning')}
+                    ${card('fa-hourglass-half', 'Voyages en attente', s.voyages_en_attente, 'warning')}
+                    ${card('fa-star', 'Avis en attente', s.avis_en_attente, 'warning')}
+                    ${card('fa-truck-fast', 'Demandes de livraison', s.demandes_livraison, 'danger')}
+                    ${card('fa-credit-card', 'Paiements', s.nb_paiements, 'info')}
+                    ${card('fa-money-bill-wave', 'Total payé', UI.money(s.montant_total_paye), 'success')}
+                    ${card('fa-comment-dots', 'Messages contact non lus', s.messages_contact_non_lus, 'secondary')}
+                    ${card('fa-star', 'Avis publiés', s.nb_avis, 'warning')}
+                </div>`;
+            } catch (e) { UI.error('#stats-zone', e.message); }
+        }
+
+        // ============================ USERS ============================
+        document.getElementById('users-filter').addEventListener('submit', (e) => { e.preventDefault(); loadUsers(); });
+
+        async function loadUsers() {
+            const zone = document.getElementById('users-list');
+            const f = document.getElementById('users-filter');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.role.value) params.set('role', f.role.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/users' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun utilisateur.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>#</th><th>Nom</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Inscription</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.photo_url ? `<img src="${UI.esc(u.photo_url)}" class="rounded-circle me-2" style="width:32px;height:32px;object-fit:cover;">` : ''}
+                                ${UI.esc(u.prenom)} ${UI.esc(u.nom)}</td>
+                            <td>${UI.esc(u.email)}</td>
+                            <td>${UI.esc(u.telephone || '—')}</td>
+                            <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'transporteur' ? 'bg-info text-dark' : 'bg-secondary'}">${UI.esc(u.role)}</span></td>
+                            <td class="small">${UI.date(u.date_inscription)}</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary" href="messagerie.html?user_id=${u.id}" title="Message"><i class="fa-solid fa-envelope"></i></a>
+                                ${u.id !== me.id ? `<button class="btn btn-sm btn-outline-danger del-user" data-id="${u.id}" data-name="${UI.esc(u.prenom + ' ' + u.nom)}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+                zone.querySelectorAll('.del-user').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer définitivement ' + b.dataset.name + ' ?')) return;
+                    try { await api.del('/api/admin/users/' + b.dataset.id); UI.toast('Utilisateur supprimé.'); loadUsers(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#users-list', e.message); }
+        }
+
+        document.getElementById('user-create-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const f = e.target;
+            const zone = document.getElementById('user-alert');
+            try {
+                await api.post('/api/admin/users', {
+                    nom: f.nom.value, prenom: f.prenom.value, email: f.email.value,
+                    password: f.password.value, role: f.role.value
+                });
+                bootstrap.Modal.getInstance(document.getElementById('user-modal')).hide();
+                f.reset();
+                UI.toast('Utilisateur créé.');
+                loadUsers();
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+
+        // ============================ COLIS ============================
+        document.getElementById('colis-filter').addEventListener('submit', (e) => { e.preventDefault(); loadColis(); });
+
+        async function loadColis() {
+            const zone = document.getElementById('colis-list');
+            const f = document.getElementById('colis-filter');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.statut.value) params.set('statut', f.statut.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/colis' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun colis.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Colis</th><th>Client</th><th>Destination</th><th>Prix</th><th>Statut</th>
+                        <th>Livraison</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(c => `
+                        <tr>
+                            <td>${UI.img(c.image_url, c.nom_colis, 'img-colis')}
+                                <a href="../colis-detail.html?id=${c.id}" class="ms-2">${UI.esc(c.nom_colis)}</a>
+                                <div class="small text-muted"><code>${UI.esc(c.numero_suivi)}</code></div></td>
+                            <td>${UI.esc(c.prenom || '')} ${UI.esc(c.nom || '')}
+                                <div class="small text-muted">${UI.esc(c.email || '')}</div></td>
+                            <td>${UI.esc(c.ville)}, ${UI.esc(c.pays)}
+                                <div class="small text-muted">${UI.esc(c.poids)} kg</div></td>
+                            <td>${UI.money(c.prix_estime)}</td>
+                            <td>${statutSelect(c.statut, ['en_attente', 'approuve', 'refuse'], 'colis-statut', c.id)}</td>
+                            <td>${c.statut_livraison ? UI.badge(c.statut_livraison) : '—'}
+                                ${c.demande_livraison_id ? `
+                                    <div class="mt-1 d-flex gap-1">
+                                        <button class="btn btn-sm btn-success livraison-decision" data-id="${c.demande_livraison_id}" data-decision="confirmer" title="Confirmer la livraison (+5% transporteur)"><i class="fa-solid fa-check"></i></button>
+                                        <button class="btn btn-sm btn-danger livraison-decision" data-id="${c.demande_livraison_id}" data-decision="refuser" title="Refuser"><i class="fa-solid fa-xmark"></i></button>
+                                    </div>` : ''}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-danger del-colis" data-id="${c.id}"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.colis-statut').forEach(sel => sel.addEventListener('change', async () => {
+                    try {
+                        await api.post('/api/admin/colis/' + sel.dataset.id + '/statut', { statut: sel.value });
+                        UI.toast('Statut du colis mis à jour.');
+                    } catch (e) { UI.toast(e.message, 'error'); loadColis(); }
+                }));
+                zone.querySelectorAll('.del-colis').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer ce colis ?')) return;
+                    try { await api.del('/api/admin/colis/' + b.dataset.id); UI.toast('Colis supprimé.'); loadColis(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+                zone.querySelectorAll('.livraison-decision').forEach(b => b.addEventListener('click', async () => {
+                    const msg = b.dataset.decision === 'confirmer'
+                        ? 'Confirmer la livraison ? Le transporteur recevra sa commission de 5 %.'
+                        : 'Refuser cette demande de livraison ?';
+                    if (!UI.confirm(msg)) return;
+                    try {
+                        const data = await api.post('/api/admin/suivi/' + b.dataset.id + '/livraison', { decision: b.dataset.decision });
+                        UI.toast(data.message + (data.commission_transporteur ? ' — commission : ' + UI.money(data.commission_transporteur) : ''));
+                        loadColis();
+                    } catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#colis-list', e.message); }
+        }
+
+        // ============================ VOYAGES ============================
+        document.getElementById('voyages-filter').addEventListener('submit', (e) => { e.preventDefault(); loadVoyages(); });
+
+        async function loadVoyages() {
+            const zone = document.getElementById('voyages-list');
+            const f = document.getElementById('voyages-filter');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.statut.value) params.set('statut', f.statut.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/voyages' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun voyage.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>#</th><th>Transporteur</th><th>Trajet</th><th>Départ</th><th>Poids max</th>
+                        <th>Réservations</th><th>Statut</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(v => `
+                        <tr>
+                            <td>${v.id}</td>
+                            <td>${UI.esc(v.prenom || '')} ${UI.esc(v.nom || '')}
+                                <div class="small text-muted">${UI.esc(v.email || '')}</div></td>
+                            <td>${UI.esc(v.pays_depart)} → ${UI.esc(v.pays_destination)}</td>
+                            <td>${UI.date(v.date_depart)} <span class="small text-muted">${UI.esc((v.heure_depart || '').substring(0, 5))}</span></td>
+                            <td>${UI.esc(v.poids_max)} kg</td>
+                            <td><span class="badge bg-secondary">${UI.esc(v.nb_reservations)}</span></td>
+                            <td><select class="form-select form-select-sm voyage-statut" data-id="${v.id}" style="width:auto;display:inline-block;">
+                                ${['en_attente', 'approuve', 'refuse'].map(o => `<option value="${o}" ${o === v.statut ? 'selected' : ''}>${o}</option>`).join('')}
+                            </select></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-danger del-voyage" data-id="${v.id}"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.voyage-statut').forEach(sel => sel.addEventListener('change', async () => {
+                    try {
+                        await api.post('/api/admin/voyages/' + sel.dataset.id + '/statut', { statut: sel.value });
+                        UI.toast('Statut du voyage mis à jour.');
+                    } catch (e) { UI.toast(e.message, 'error'); loadVoyages(); }
+                }));
+                zone.querySelectorAll('.del-voyage').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer ce voyage ?')) return;
+                    try { await api.del('/api/admin/voyages/' + b.dataset.id); UI.toast('Voyage supprimé.'); loadVoyages(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#voyages-list', e.message); }
+        }
+
+        // ============================ TRANSPORTEURS ============================
+        document.getElementById('transporteurs-filter').addEventListener('submit', (e) => { e.preventDefault(); loadTransporteurs(); });
+
+        async function loadTransporteurs() {
+            const zone = document.getElementById('transporteurs-list');
+            const f = document.getElementById('transporteurs-filter');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/transporteurs' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun transporteur.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Transporteur</th><th>Véhicule</th><th>Compagnie</th><th>Zone</th>
+                        <th>Colis transportés</th><th>Solde</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(t => `
+                        <tr>
+                            <td><a href="../profil-transporteur.html?id=${t.user_id}">${UI.esc(t.prenom)} ${UI.esc(t.nom)}</a>
+                                <div class="small text-muted">${UI.esc(t.email)} · ${UI.esc(t.telephone || '')}</div></td>
+                            <td>${UI.esc(t.vehicule || '—')}
+                                <div class="small text-muted">Permis : ${UI.esc(t.numero_permis || '—')}</div></td>
+                            <td>${UI.esc(t.compagnie || '—')}</td>
+                            <td>${UI.esc(t.ville || '')} ${UI.esc(t.pays || '')}</td>
+                            <td>${UI.esc(t.nb_colis_transportes)}</td>
+                            <td><strong class="text-success">${UI.money(t.solde)}</strong></td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary" href="messagerie.html?user_id=${t.user_id}"><i class="fa-solid fa-envelope"></i></a>
+                                <button class="btn btn-sm btn-outline-danger del-transporteur" data-id="${t.id}"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.del-transporteur').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer cette fiche transporteur ? (le compte utilisateur est conservé)')) return;
+                    try { await api.del('/api/admin/transporteurs/' + b.dataset.id); UI.toast('Fiche supprimée.'); loadTransporteurs(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#transporteurs-list', e.message); }
+        }
+
+        // ============================ PAIEMENTS ============================
+        document.getElementById('paiements-filter').addEventListener('submit', (e) => { e.preventDefault(); loadPaiements(); });
+
+        async function loadPaiements() {
+            const zone = document.getElementById('paiements-list');
+            const f = document.getElementById('paiements-filter');
+            const params = new URLSearchParams();
+            if (f.search.value.trim()) params.set('search', f.search.value.trim());
+            if (f.statut.value) params.set('statut', f.statut.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/paiements' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun paiement.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Référence</th><th>Client</th><th>Colis</th><th>Montant</th><th>Méthode</th><th>Date</th><th>Statut</th>
+                    </tr></thead><tbody>
+                    ${list.map(p => `
+                        <tr>
+                            <td class="small"><code>${UI.esc(p.reference)}</code>
+                                ${p.numero_transaction ? `<div class="text-muted">${UI.esc(p.numero_transaction)}</div>` : ''}</td>
+                            <td>${UI.esc(p.prenom || '')} ${UI.esc(p.nom || '')}
+                                <div class="small text-muted">${UI.esc(p.email || '')}</div></td>
+                            <td>${UI.esc(p.nom_colis || '—')}
+                                <div class="small text-muted">${UI.esc(p.numero_suivi || '')}</div></td>
+                            <td>${UI.money(p.montant)}</td>
+                            <td class="small">${UI.esc(p.methode_paiement || '—')}${p.operateur ? ' (' + UI.esc(p.operateur) + ')' : ''}</td>
+                            <td class="small">${UI.datetime(p.date_creation)}</td>
+                            <td><select class="form-select form-select-sm paiement-statut" data-id="${p.id}" style="width:auto;display:inline-block;">
+                                ${['en_attente', 'paye', 'echec', 'annule'].map(o => `<option value="${o}" ${o === p.statut ? 'selected' : ''}>${o}</option>`).join('')}
+                            </select></td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.paiement-statut').forEach(sel => sel.addEventListener('change', async () => {
+                    try {
+                        await api.post('/api/admin/paiements/' + sel.dataset.id + '/statut', { statut: sel.value });
+                        UI.toast('Statut du paiement mis à jour.');
+                    } catch (e) { UI.toast(e.message, 'error'); loadPaiements(); }
+                }));
+            } catch (e) { UI.error('#paiements-list', e.message); }
+        }
+
+        // ============================ AVIS ============================
+        document.getElementById('avis-filter').addEventListener('submit', (e) => { e.preventDefault(); loadAvis(); });
+
+        async function loadAvis() {
+            const zone = document.getElementById('avis-list');
+            const f = document.getElementById('avis-filter');
+            const params = new URLSearchParams();
+            if (f.statut.value) params.set('statut', f.statut.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/avis' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun avis.</p>'; return; }
+                zone.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+                    <thead class="table-light"><tr>
+                        <th>Auteur</th><th>Transporteur</th><th>Note</th><th>Commentaire</th><th>Date</th><th>Statut</th><th class="text-end">Actions</th>
+                    </tr></thead><tbody>
+                    ${list.map(a => `
+                        <tr>
+                            <td>${UI.esc(a.user_prenom)} ${UI.esc(a.user_nom)}</td>
+                            <td><a href="../profil-transporteur.html?id=${a.transporteur_id}">${UI.esc(a.transporteur_prenom)} ${UI.esc(a.transporteur_nom)}</a></td>
+                            <td>${'★'.repeat(a.note)}${'☆'.repeat(5 - a.note)}</td>
+                            <td class="small" style="max-width:320px;">${UI.esc(a.commentaire)}</td>
+                            <td class="small">${UI.date(a.date_avis)}</td>
+                            <td><select class="form-select form-select-sm avis-statut" data-id="${a.id}" style="width:auto;display:inline-block;">
+                                ${['en_attente', 'approuve', 'refuse'].map(o => `<option value="${o}" ${o === a.statut ? 'selected' : ''}>${o}</option>`).join('')}
+                            </select></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-danger del-avis" data-id="${a.id}"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody></table></div>`;
+
+                zone.querySelectorAll('.avis-statut').forEach(sel => sel.addEventListener('change', async () => {
+                    try {
+                        await api.post('/api/admin/avis/' + sel.dataset.id + '/statut', { statut: sel.value });
+                        UI.toast('Statut de l\'avis mis à jour.');
+                    } catch (e) { UI.toast(e.message, 'error'); loadAvis(); }
+                }));
+                zone.querySelectorAll('.del-avis').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer cet avis ?')) return;
+                    try { await api.del('/api/admin/avis/' + b.dataset.id); UI.toast('Avis supprimé.'); loadAvis(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#avis-list', e.message); }
+        }
+
+        // ============================ CONTACT ============================
+        document.getElementById('contact-filter').addEventListener('submit', (e) => { e.preventDefault(); loadContact(); });
+
+        async function loadContact() {
+            const zone = document.getElementById('contact-list');
+            const f = document.getElementById('contact-filter');
+            const params = new URLSearchParams();
+            if (f.repondu.value) params.set('repondu', f.repondu.value);
+            zone.innerHTML = 'Chargement…';
+            try {
+                const list = await api.get('/api/admin/contact-messages' + (params.toString() ? '?' + params : ''));
+                if (!list.length) { zone.innerHTML = '<p class="text-muted">Aucun message de contact.</p>'; return; }
+                zone.innerHTML = list.map(m => `
+                    <div class="border rounded-3 p-3 mb-3">
+                        <div class="d-flex justify-content-between flex-wrap">
+                            <div>
+                                <strong>${UI.esc(m.nom)}</strong>
+                                <a href="mailto:${UI.esc(m.email)}" class="small ms-2">${UI.esc(m.email)}</a>
+                                ${m.reponse ? '<span class="badge bg-success ms-2">Répondu</span>' : '<span class="badge bg-warning text-dark ms-2">Sans réponse</span>'}
+                            </div>
+                            <small class="text-muted">${UI.datetime(m.date_envoi)}</small>
+                        </div>
+                        <p class="mt-2 mb-2">${UI.nl(m.message)}</p>
+                        ${m.reponse ? `<div class="alert alert-success small mb-2"><strong>Réponse (${UI.datetime(m.date_reponse)}) :</strong><br>${UI.nl(m.reponse)}</div>` : ''}
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-primary reply-contact" data-id="${m.id}"
+                                data-nom="${UI.esc(m.nom)}" data-message="${UI.esc(m.message)}">
+                                <i class="fa-solid fa-reply"></i> ${m.reponse ? 'Modifier la réponse' : 'Répondre'}</button>
+                            <button class="btn btn-sm btn-outline-danger del-contact" data-id="${m.id}"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>`).join('');
+
+                zone.querySelectorAll('.reply-contact').forEach(b => b.addEventListener('click', () => {
+                    const form = document.getElementById('contact-reply-form');
+                    form.id.value = b.dataset.id;
+                    form.reponse.value = '';
+                    document.getElementById('contact-msg-preview').innerHTML =
+                        `<strong>${b.dataset.nom}</strong><br>${UI.nl(b.dataset.message)}`;
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('contact-modal')).show();
+                }));
+                zone.querySelectorAll('.del-contact').forEach(b => b.addEventListener('click', async () => {
+                    if (!UI.confirm('Supprimer ce message ?')) return;
+                    try { await api.del('/api/admin/contact-messages/' + b.dataset.id); UI.toast('Message supprimé.'); loadContact(); }
+                    catch (e) { UI.toast(e.message, 'error'); }
+                }));
+            } catch (e) { UI.error('#contact-list', e.message); }
+        }
+
+        document.getElementById('contact-reply-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const f = e.target;
+            try {
+                await api.post('/api/admin/contact-messages/' + f.id.value + '/repondre', { reponse: f.reponse.value });
+                bootstrap.Modal.getInstance(document.getElementById('contact-modal')).hide();
+                UI.toast('Réponse envoyée.');
+                loadContact();
+            } catch (err) { UI.toast(err.message, 'error'); }
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-credit-card text-primary"></i> Paiement du colis</h2>
+        <div class="page-card" style="max-width:640px;">
+            <div id="alert-zone"></div>
+            <div id="main-zone" class="text-center text-muted py-4">Chargement…</div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        let me = null;
+
+        (async () => {
+            me = await UI.renderSidebar('dashboard.html');
+            if (me) load();
+        })();
+
+        async function load() {
+            const zone = document.getElementById('main-zone');
+            const colisId = UI.qs('colis_id');
+            if (!colisId) { zone.innerHTML = '<div class="alert alert-danger">colis_id manquant.</div>'; return; }
+
+            try {
+                const params = new URLSearchParams(location.search);
+                const ref = params.get('reference');
+                const p = await api.get('/api/paiements/colis/' + encodeURIComponent(colisId)
+                    + (ref ? '?reference=' + encodeURIComponent(ref) : ''));
+
+                if (p.statut === 'paye') {
+                    zone.innerHTML = `
+                        <div class="text-center py-3">
+                            <i class="fa-solid fa-circle-check text-success" style="font-size:3.5rem;"></i>
+                            <h4 class="mt-3">Paiement déjà effectué</h4>
+                            <p class="text-muted mb-1">${UI.esc(p.nom_colis || '')} — ${UI.money(p.montant)}</p>
+                            <p class="small text-muted">Transaction : <code>${UI.esc(p.numero_transaction || '')}</code><br>
+                            Référence : <code>${UI.esc(p.reference)}</code><br>
+                            Payé le : ${UI.datetime(p.date_paiement)}</p>
+                            <a href="dashboard.html" class="btn btn-primary">Retour au tableau de bord</a>
+                        </div>`;
+                    return;
+                }
+
+                zone.innerHTML = `
+                    <div class="border rounded-3 p-3 mb-4">
+                        <div class="d-flex justify-content-between">
+                            <span>${UI.esc(p.nom_colis || 'Colis')}</span>
+                            <strong class="text-primary fs-5">${UI.money(p.montant)}</strong>
+                        </div>
+                        <div class="small text-muted mt-1">Référence : <code>${UI.esc(p.reference)}</code> · Statut : ${UI.badge(p.statut)}</div>
+                    </div>
+
+                    <form id="pay-form">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Méthode de paiement</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="methode" id="m-carte" value="carte_credit" checked>
+                                    <label class="form-check-label" for="m-carte"><i class="fa-solid fa-credit-card"></i> Carte bancaire</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="methode" id="m-mobile" value="mobile_money">
+                                    <label class="form-check-label" for="m-mobile"><i class="fa-solid fa-mobile-screen"></i> Mobile Money</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="carte-fields">
+                            <div class="mb-3">
+                                <label class="form-label">Numéro de carte</label>
+                                <input type="text" name="numero_carte" class="form-control" inputmode="numeric"
+                                       placeholder="12 à 19 chiffres" maxlength="23">
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label">Expiration (MM/AA)</label>
+                                    <input type="text" name="expiration" class="form-control" placeholder="12/28" maxlength="5">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">CVV</label>
+                                    <input type="text" name="cvv" class="form-control" inputmode="numeric" placeholder="123" maxlength="4">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="mobile-fields" style="display:none;">
+                            <div class="mb-3">
+                                <label class="form-label">Opérateur</label>
+                                <select name="operateur" class="form-select">
+                                    <option value="">— Choisir —</option>
+                                    <option value="mtn">MTN MoMo</option>
+                                    <option value="moov">Moov Money</option>
+                                    <option value="wave">Wave</option>
+                                    <option value="orange">Orange Money</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-lg w-100 fw-bold mt-4">
+                            <i class="fa-solid fa-lock"></i> Payer ${UI.money(p.montant)}
+                        </button>
+                        <p class="text-muted small text-center mt-2 mb-0">
+                            <i class="fa-solid fa-shield-halved"></i> Paiement simulé : aucune donnée sensible n'est stockée.
+                        </p>
+                    </form>`;
+
+                const carteFields = document.getElementById('carte-fields');
+                const mobileFields = document.getElementById('mobile-fields');
+                document.querySelectorAll('input[name=methode]').forEach(r => r.addEventListener('change', () => {
+                    const carte = document.getElementById('m-carte').checked;
+                    carteFields.style.display = carte ? '' : 'none';
+                    mobileFields.style.display = carte ? 'none' : '';
+                }));
+
+                document.getElementById('pay-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const f = e.target;
+                    const zoneAlert = document.getElementById('alert-zone');
+                    zoneAlert.innerHTML = '';
+                    const methode = f.methode.value;
+                    const body = { methode_paiement: methode };
+                    if (methode === 'carte_credit') {
+                        body.numero_carte = f.numero_carte.value;
+                        body.expiration = f.expiration.value;
+                        body.cvv = f.cvv.value;
+                    } else {
+                        body.operateur = f.operateur.value;
+                    }
+                    try {
+                        const data = await api.post('/api/paiements/' + p.id + '/payer', body);
+                        zoneAlert.innerHTML = `<div class="alert alert-success">
+                            ${UI.esc(data.message)} — Transaction : <code>${UI.esc(data.numero_transaction)}</code></div>`;
+                        setTimeout(() => location.reload(), 2000);
+                    } catch (err) {
+                        zoneAlert.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+                    }
+                });
+            } catch (e) { UI.error('#main-zone', e.message); }
+        }
+    </script>
+</body>
+</html>

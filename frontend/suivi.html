@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi de colis - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        .timeline { list-style: none; padding: 0; margin: 0; }
+        .timeline li { position: relative; padding: 0 0 24px 36px; border-left: 2px solid #d7e4ef; }
+        .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+        .timeline li::before {
+            content: ''; position: absolute; left: -9px; top: 2px;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #3498db; border: 3px solid #fff; box-shadow: 0 0 0 2px #3498db;
+        }
+        .timeline li.livre::before { background: #198754; box-shadow: 0 0 0 2px #198754; }
+    </style>
+</head>
+<body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+        <h2 class="mb-4"><i class="fa-solid fa-search-location text-primary"></i> Suivi de colis</h2>
+
+        <div class="page-card" style="max-width:760px;">
+            <form id="track-form" class="d-flex gap-2 mb-4">
+                <input type="text" id="track-num" class="form-control" placeholder="Numéro de suivi (ex. COLIS1A2B3C4D5E)" required>
+                <button class="btn btn-primary fw-bold" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Suivre</button>
+            </form>
+
+            <div id="result-zone"></div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        (async () => { if (!(await UI.renderSidebar('suivi.html'))) return; })();
+
+        const input = document.getElementById('track-num');
+        const prefill = UI.qs('numero_suivi');
+        if (prefill) {
+            input.value = prefill;
+            track(prefill);
+        }
+
+        document.getElementById('track-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            track(input.value.trim());
+        });
+
+        async function track(numero) {
+            const zone = document.getElementById('result-zone');
+            if (!numero) return;
+            zone.innerHTML = '<p class="text-muted text-center py-3">Recherche…</p>';
+            try {
+                const data = await api.get('/api/suivi/' + encodeURIComponent(numero));
+                const c = data.colis;
+                zone.innerHTML = `
+                    <div class="border rounded-3 p-3 mb-4">
+                        <div class="d-flex gap-3 align-items-center flex-wrap">
+                            ${UI.img(c.image_url, c.nom_colis, 'img-colis')}
+                            <div>
+                                <div class="fw-bold fs-5">${UI.esc(c.nom_colis)} ${UI.badge(c.statut)}</div>
+                                <div class="small text-muted">
+                                    ${UI.esc(c.ville)}, ${UI.esc(c.pays)} · ${UI.esc(c.poids)} kg · Suivi : <code>${UI.esc(c.numero_suivi)}</code>
+                                </div>
+                            </div>
+                            <div class="ms-auto text-end">
+                                <div class="text-muted small">Statut actuel</div>
+                                ${UI.badge(data.statut_actuel)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6>Étapes de livraison</h6>
+                    ${data.etapes.length ? `
+                        <ul class="timeline mt-3">
+                            ${data.etapes.map(et => `
+                                <li class="${et.statut === 'Livré' ? 'livre' : ''}">
+                                    <strong>${UI.badge(et.statut)}</strong>
+                                    <div class="small text-muted">${UI.datetime(et.date_etape)}</div>
+                                </li>`).join('')}
+                        </ul>` : `
+                        <p class="text-muted">Aucune étape enregistrée pour le moment.
+                        ${c.statut === 'en_attente' ? 'Le colis est en attente de validation et de paiement.' : ''}</p>`}
+
+                    <div class="mt-4">
+                        <a href="colis-detail.html?id=${c.id}" class="btn btn-outline-primary btn-sm">
+                            <i class="fa-solid fa-box-open"></i> Voir le détail du colis
+                        </a>
+                    </div>`;
+            } catch (e) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(e.message)}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

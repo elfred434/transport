@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - Agence de Transport de Colis</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="public-body">
+    <div class="container public-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="text-primary mb-0"><i class="fa-solid fa-phone-alt"></i> Nous contacter</h2>
+            <a href="index.html" class="btn btn-outline-primary">← Accueil</a>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-5">
+                <div class="page-card h-100">
+                    <h5><i class="fa-solid fa-location-dot text-primary"></i> Adresse</h5>
+                    <p>Porto-Novo, quartier Hinkoudé, Bénin</p>
+                    <h5 class="mt-4"><i class="fa-solid fa-envelope text-primary"></i> Email</h5>
+                    <p><a href="mailto:contact@spiistmove.bj">contact@spiistmove.bj</a></p>
+                    <div class="alert alert-info small mb-0">
+                        Connecté ? Utilisez <a href="messagerie-admin.html" class="alert-link">la messagerie admin</a> pour un suivi de vos demandes.
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-7">
+                <div class="page-card h-100">
+                    <div id="alert-zone"></div>
+                    <form id="contact-form" autocomplete="off">
+                        <div class="mb-3">
+                            <label class="form-label">Votre nom</label>
+                            <input type="text" name="nom" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Votre email</label>
+                            <input type="email" name="email" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea name="message" class="form-control" rows="4" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">
+                            <i class="fa-solid fa-paper-plane"></i> Envoyer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        document.getElementById('contact-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const zone = document.getElementById('alert-zone');
+            zone.innerHTML = '';
+            const f = e.target;
+            try {
+                const data = await api.post('/api/contact', {
+                    nom: f.nom.value, email: f.email.value, message: f.message.value
+                });
+                zone.innerHTML = `<div class="alert alert-success">${UI.esc(data.message)}</div>`;
+                f.reset();
+            } catch (err) {
+                zone.innerHTML = `<div class="alert alert-danger">${UI.esc(err.message)}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
