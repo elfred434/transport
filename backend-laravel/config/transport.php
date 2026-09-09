@@ -21,7 +21,11 @@ return [
     |
     */
 
-    'app_url' => env('TRANSPORT_APP_URL', env('APP_URL', 'http://localhost:8002')),
+    // URL de base des fichiers uploadés. Vide par défaut = URL relatives
+    // ('/uploads/...') : le SPA les consomme via son proxy dev, et la prod les
+    // sert sur le même domaine. Renseigner TRANSPORT_APP_URL si l'API est sur
+    // un domaine distinct de celui qui affiche les images.
+    'app_url' => env('TRANSPORT_APP_URL', ''),
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:8000'),
 
