@@ -32,7 +32,7 @@ const sandbox = {
         removeItem: k => { delete store[k]; },
     },
     window: {
-        location: { hostname: 'localhost', protocol: 'http:', search: '', pathname: '/' },
+        location: { hostname: process.env.API_HOST || 'localhost', protocol: 'http:', search: '', pathname: '/' },
         API_URL: undefined,
         confirm: () => true,
     },
@@ -56,7 +56,8 @@ const { api, Auth, ApiError } = sandbox;
 
 (async () => {
     console.log('API_URL résolu par config.js :', sandbox.window.API_URL);
-    check('config.js résout API_URL vers le backend :8001', sandbox.window.API_URL === 'http://localhost:8001', sandbox.window.API_URL);
+    const attendu = process.env.API_EXPECTED || 'http://localhost:8001';
+    check('config.js résout API_URL vers le backend attendu', sandbox.window.API_URL === attendu, sandbox.window.API_URL + ' != ' + attendu);
 
     // ---- 1. Inscription utilisateur A (propriétaire colis) via api.upload ----
     const emailA = `own${stamp}@test.bj`;

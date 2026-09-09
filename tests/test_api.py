@@ -6,7 +6,8 @@ import urllib.error
 import urllib.request
 
 import time
-B = "http://127.0.0.1:8001"
+import os
+B = os.environ.get("API_BASE", "http://127.0.0.1:8001")
 EMAIL = f"jean.api{int(time.time())}@test.bj"
 results = []
 
@@ -187,11 +188,17 @@ s, r = call("GET", f"/api/admin-chat?user_id={UID}", token=ATOK)
 check("admin lit la conversation", s, 200)
 
 print("== 9. Messagerie user <-> user ==")
-s, r = call("POST", "/api/messages", token=TOK, data={"destinataire_id": 5, "contenu": "Salut"})
+# Destinataire créé par le test lui-même (indépendant du contenu de la base)
+EMAIL_PEER = f"peer.msg{int(time.time())}@test.bj"
+s, r = call("POST", "/api/auth/register", data={"nom": "Peer", "prenom": "Message",
+            "email": EMAIL_PEER, "password": "Test@12345"})
+check("inscription destinataire (messagerie)", s, 201)
+PEER_ID = dig(r, "data", "user", "id")
+s, r = call("POST", "/api/messages", token=TOK, data={"destinataire_id": PEER_ID, "contenu": "Salut"})
 check("envoi vers un autre utilisateur", s, 201)
 s, r = call("POST", "/api/messages", token=TOK, data={"destinataire_id": UID, "contenu": "x"})
 check("envoi vers soi refusé", s, 400)
-s, r = call("GET", "/api/messages?destinataire_id=5", token=TOK)
+s, r = call("GET", f"/api/messages?destinataire_id={PEER_ID}", token=TOK)
 check("lecture conversation", s, 200)
 s, r = call("GET", "/api/conversations", token=TOK)
 check("liste conversations", s, 200)
