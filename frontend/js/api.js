@@ -61,9 +61,12 @@ const api = {
         try { data = text ? JSON.parse(text) : null; } catch (e) { /* réponse non-JSON */ }
 
         if (!res.ok) {
+            // Jeton présent mais rejeté (401) : session expirée/révoquée.
+            // On efface le jeton puis on renvoie vers la page de connexion du
+            // contexte courant (admin/login.html depuis /admin/, sinon login.html).
             if (res.status === 401 && Auth.isLoggedIn()) {
                 Auth.clear();
-                window.location.href = window.location.pathname.includes('/admin/') ? 'login.html' : 'login.html';
+                window.location.href = 'login.html';
                 throw new ApiError('Session expirée', 401);
             }
             throw new ApiError((data && data.error) || ('Erreur HTTP ' + res.status), res.status);
@@ -71,9 +74,9 @@ const api = {
         return data && data.data !== undefined ? data.data : data;
     },
 
+    // L'API n'expose que GET/POST/DELETE (les modifications passent par POST).
     get(path)            { return this.request('GET', path); },
     post(path, body)     { return this.request('POST', path, body); },
-    put(path, body)      { return this.request('PUT', path, body); },
     del(path)            { return this.request('DELETE', path); },
     upload(path, fields, files = {}) {
         const fd = new FormData();
