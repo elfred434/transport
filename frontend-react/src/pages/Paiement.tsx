@@ -1,9 +1,238 @@
-/** Portage en cours — remplace paiement.html (frontend vanilla). */
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { api, ApiError } from '../lib/api'
+import { datetime, money, StatusBadge } from '../lib/format'
+
+/** Paiement d'un colis — port de paiement.html (?colis_id=&reference=). */
+
+interface PaiementData {
+  id: number
+  nom_colis: string | null
+  montant: string | number
+  reference: string
+  statut: string
+  numero_transaction: string | null
+  date_paiement: string | null
+}
+
 export default function Paiement() {
+  const [params] = useSearchParams()
+  const colisId = params.get('colis_id')
+  const reference = params.get('reference')
+
+  const [p, setP] = useState<PaiementData | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [alert, setAlert] = useState<{ type: 'danger' | 'success'; html: string } | null>(null)
+
+  const [methode, setMethode] = useState<'carte_credit' | 'mobile_money'>('carte_credit')
+  const [numeroCarte, setNumeroCarte] = useState('')
+  const [expiration, setExpiration] = useState('')
+  const [cvv, setCvv] = useState('')
+  const [operateur, setOperateur] = useState('')
+  const [paidNow, setPaidNow] = useState<{ message: string; numero_transaction: string } | null>(null)
+
+  useEffect(() => {
+    if (!colisId) return
+    ;(async () => {
+      try {
+        const data = await api.get<PaiementData>(
+          '/api/paiements/colis/' + encodeURIComponent(colisId) +
+            (reference ? '?reference=' + encodeURIComponent(reference) : ''),
+        )
+        setP(data)
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+      }
+    })()
+  }, [colisId, reference])
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!p) return
+    setAlert(null)
+
+    const body: Record<string, string> = { methode_paiement: methode }
+    if (methode === 'carte_credit') {
+      body.numero_carte = numeroCarte
+      body.expiration = expiration
+      body.cvv = cvv
+    } else {
+      body.operateur = operateur
+    }
+
+    try {
+      const data = await api.post<{ message: string; numero_transaction: string }>(
+        `/api/paiements/${p.id}/payer`,
+        body,
+      )
+      setPaidNow(data)
+      // Recharger l'état du paiement (le vanilla faisait location.reload()).
+      setTimeout(async () => {
+        try {
+          setP(await api.get<PaiementData>('/api/paiements/colis/' + encodeURIComponent(colisId!)))
+          setPaidNow(null)
+        } catch {
+          /* l'alerte de succès reste affichée */
+        }
+      }, 2000)
+    } catch (err) {
+      setAlert({ type: 'danger', html: err instanceof ApiError ? err.message : 'Erreur inconnue' })
+    }
+  }
+
+  if (!colisId) return <div className="alert alert-danger">colis_id manquant.</div>
+
   return (
-    <div className="page-card text-center text-muted py-5">
-      <i className="fa-solid fa-screwdriver-wrench fa-2x mb-3 d-block"></i>
-      Cette page est en cours de portage vers React.
-    </div>
+    <>
+      <h2 className="mb-4">
+        <i className="fa-solid fa-credit-card text-primary"></i> Paiement du colis
+      </h2>
+      <div className="page-card" style={{ maxWidth: 640 }}>
+        {alert && <div className={`alert alert-${alert.type}`}>{alert.html}</div>}
+        {paidNow && (
+          <div className="alert alert-success">
+            {paidNow.message} — Transaction : <code>{paidNow.numero_transaction}</code>
+          </div>
+        )}
+
+        {error && <div className="alert alert-danger">{error}</div>}
+        {!p && !error && <div className="text-center text-muted py-4">Chargement…</div>}
+
+        {p && p.statut === 'paye' && (
+          <div className="text-center py-3">
+            <i className="fa-solid fa-circle-check text-success" style={{ fontSize: '3.5rem' }}></i>
+            <h4 className="mt-3">Paiement déjà effectué</h4>
+            <p className="text-muted mb-1">
+              {p.nom_colis || ''} — {money(p.montant)}
+            </p>
+            <p className="small text-muted">
+              Transaction : <code>{p.numero_transaction || ''}</code>
+              <br />
+              Référence : <code>{p.reference}</code>
+              <br />
+              Payé le : {datetime(p.date_paiement)}
+            </p>
+            <Link to="/dashboard" className="btn btn-primary">
+              Retour au tableau de bord
+            </Link>
+          </div>
+        )}
+
+        {p && p.statut !== 'paye' && (
+          <>
+            <div className="border rounded-3 p-3 mb-4">
+              <div className="d-flex justify-content-between">
+                <span>{p.nom_colis || 'Colis'}</span>
+                <strong className="text-primary fs-5">{money(p.montant)}</strong>
+              </div>
+              <div className="small text-muted mt-1">
+                Référence : <code>{p.reference}</code> · Statut : <StatusBadge statut={p.statut} />
+              </div>
+            </div>
+
+            <form onSubmit={onSubmit}>
+              <div className="mb-3">
+                <label className="form-label fw-bold">Méthode de paiement</label>
+                <div className="d-flex gap-3">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="methode"
+                      id="m-carte"
+                      value="carte_credit"
+                      checked={methode === 'carte_credit'}
+                      onChange={() => setMethode('carte_credit')}
+                    />
+                    <label className="form-check-label" htmlFor="m-carte">
+                      <i className="fa-solid fa-credit-card"></i> Carte bancaire
+                    </label>
+                  </div>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="methode"
+                      id="m-mobile"
+                      value="mobile_money"
+                      checked={methode === 'mobile_money'}
+                      onChange={() => setMethode('mobile_money')}
+                    />
+                    <label className="form-check-label" htmlFor="m-mobile">
+                      <i className="fa-solid fa-mobile-screen"></i> Mobile Money
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {methode === 'carte_credit' ? (
+                <div>
+                  <div className="mb-3">
+                    <label className="form-label">Numéro de carte</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      inputMode="numeric"
+                      placeholder="12 à 19 chiffres"
+                      maxLength={23}
+                      value={numeroCarte}
+                      onChange={(e) => setNumeroCarte(e.target.value)}
+                    />
+                  </div>
+                  <div className="row g-3">
+                    <div className="col-6">
+                      <label className="form-label">Expiration (MM/AA)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="12/28"
+                        maxLength={5}
+                        value={expiration}
+                        onChange={(e) => setExpiration(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label">CVV</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        inputMode="numeric"
+                        placeholder="123"
+                        maxLength={4}
+                        value={cvv}
+                        onChange={(e) => setCvv(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <label className="form-label">Opérateur</label>
+                  <select
+                    className="form-select"
+                    value={operateur}
+                    onChange={(e) => setOperateur(e.target.value)}
+                  >
+                    <option value="">— Choisir —</option>
+                    <option value="mtn">MTN MoMo</option>
+                    <option value="moov">Moov Money</option>
+                    <option value="wave">Wave</option>
+                    <option value="orange">Orange Money</option>
+                  </select>
+                </div>
+              )}
+
+              <button type="submit" className="btn btn-success btn-lg w-100 fw-bold mt-4">
+                <i className="fa-solid fa-lock"></i> Payer {money(p.montant)}
+              </button>
+              <p className="text-muted small text-center mt-2 mb-0">
+                <i className="fa-solid fa-shield-halved"></i> Paiement simulé : aucune donnée
+                sensible n'est stockée.
+              </p>
+            </form>
+          </>
+        )}
+      </div>
+    </>
   )
 }
