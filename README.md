@@ -88,6 +88,52 @@ cd frontend && npm install && npm run dev
 Le navigateur n'appelle que l'origine du SPA (pas de CORS en dev) ; la cible du
 proxy se change via `VITE_API_TARGET` dans `frontend/`.
 
+### Windows (XAMPP + PowerShell)
+
+Les commandes ci-dessus sont écrites pour bash : PowerShell ne connaît ni la
+redirection `<` ni (en version 5.1) le séparateur `&&`, et XAMPP n'ajoute pas
+`mysql` au PATH. Procédure équivalente complète, depuis la racine du dépôt :
+
+```powershell
+# 0. XAMPP Control Panel : démarrer MySQL (et Apache si besoin)
+
+# 1. Vérifier que le PHP utilisé a bien pdo_mysql (sinon : l'activer dans son php.ini)
+php -m | Select-String "pdo"
+
+# 2. Créer la base (client MySQL en chemin complet, root sans mot de passe par défaut)
+C:\xampp\mysql\bin\mysql.exe -u root -e "CREATE DATABASE transport_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 3. Importer le schéma — la commande cliente « source » remplace la redirection « < »
+C:\xampp\mysql\bin\mysql.exe --default-character-set=utf8mb4 -u root transport_db -e "source sql/000_schema_base.sql"
+C:\xampp\mysql\bin\mysql.exe --default-character-set=utf8mb4 -u root transport_db -e "source sql/001_messages_admin_et_compte_admin.sql"
+
+# 4. Backend Laravel
+cd backend
+composer install                  # installe vendor/ (non versionné)
+Copy-Item .env.example .env       # .env.example contient déjà les valeurs XAMPP
+                                  # (DB_CONNECTION=mysql, transport_db, root, mot de passe vide)
+php artisan key:generate          # génère APP_KEY (obligatoire)
+php artisan migrate --force       # tables d'infrastructure (cache, jobs, personal_access_tokens)
+php artisan serve --host=127.0.0.1 --port=8002
+
+# 5. Frontend React — dans une AUTRE fenêtre PowerShell
+cd C:\xampp\htdocs\transport\frontend
+npm install
+npm run dev                       # http://localhost:8003
+```
+
+Pièges fréquents :
+
+- **`could not find driver (Connection: sqlite)`** → `backend/.env` est absent :
+  Laravel retombe sur sqlite par défaut. Faire `Copy-Item .env.example .env`.
+- **`could not find driver (Connection: mysql)`** → extension `pdo_mysql` non
+  activée dans le `php.ini` du PHP utilisé (attention si plusieurs PHP installés,
+  ex. `C:\php` et `C:\xampp\php` : `php -v` et `php --ini` montrent lequel tourne).
+- **`vendor/autoload.php: Failed to open stream`** → `composer install` pas
+  encore exécuté.
+- Alternative graphique pour les étapes 2–3 : **phpMyAdmin**
+  (http://localhost/phpmyadmin) → base `transport_db` → onglet Importer.
+
 ## 4. Production (mono-domaine)
 
 ```bash
