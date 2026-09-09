@@ -1,23 +1,12 @@
--- Migration 000 : schéma de base complet de l'application (12 tables).
+-- Migration 000 : schéma de base complet de l'application (11 tables métier).
 -- Généré depuis la base transport_db. Idempotent (IF NOT EXISTS).
--- À exécuter AVANT 001 et 002 sur une base neuve.
+-- À exécuter AVANT 001 sur une base neuve.
 
 SET FOREIGN_KEY_CHECKS = 0;
 
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
-CREATE TABLE IF NOT EXISTS `api_tokens` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
-  `token_hash` char(64) NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `expires_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `token_hash` (`token_hash`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `api_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;

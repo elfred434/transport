@@ -12,7 +12,7 @@ verbes (GET/POST/DELETE), même enveloppe de réponse :
 
 ## Principes de la migration
 
-- **Base de données existante conservée** : les 12 tables métier (`users`, `colis`,
+- **Base de données existante conservée** : les 11 tables métier (`users`, `colis`,
   `voyages`, ...) sont mappées par Eloquent sans aucune migration de schéma ni de
   données. Seules les tables d'infrastructure Laravel (`personal_access_tokens`,
   `cache`, `jobs`, ...) ont été ajoutées.

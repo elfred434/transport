@@ -96,9 +96,11 @@ const LEGACY_ROUTES: [string, string][] = [
 export default function App() {
   return (
     <Routes>
+      {/* --- Accueil : design d'origine (navbar + footer intégrés à la page) --- */}
+      <Route path="/" element={<Home />} />
+
       {/* --- Pages publiques (topbar + footer) --- */}
       <Route element={<PublicLayout />}>
-        <Route path="/" element={<Home />} />
         <Route path="/contact" element={<Contact />} />
       </Route>
 

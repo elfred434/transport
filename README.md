@@ -11,7 +11,7 @@ authentification par jeton Bearer) :
 transport/
 ├── backend/     API Laravel 13 (Sanctum)
 ├── frontend/    SPA React 19 + Vite + TypeScript
-├── sql/         Schéma de la base (12 tables métier + messages_admin + admin)
+├── sql/         Schéma de la base (11 tables métier + messages_admin + compte admin)
 └── tests/       Suites d'acceptation (78 vérifications API + 25 vérifications frontend)
 ```
 
@@ -31,7 +31,7 @@ mysql -u root -p transport_db < sql/000_schema_base.sql
 mysql -u root -p transport_db < sql/001_messages_admin_et_compte_admin.sql
 ```
 
-- `000_schema_base.sql` — les 12 tables métier de l'application.
+- `000_schema_base.sql` — les 11 tables métier de l'application.
 - `001_…` — table `messages_admin` + compte administrateur initial.
 
 Puis les tables d'infrastructure Laravel (cache, jobs, `personal_access_tokens`) :
