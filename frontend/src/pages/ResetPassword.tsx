@@ -32,9 +32,9 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="public-body" style={{ minHeight: '100vh' }}>
-      <div className="container auth-container">
-        <div className="card shadow-lg border-0 rounded-4 p-4">
+    <div className="bg-light">
+      <div className="container d-flex align-items-center justify-content-center min-vh-100">
+        <div className="card shadow-lg border-0 rounded-4 p-4" style={{ maxWidth: '420px', width: '100%' }}>
           <h2 className="text-center text-primary mb-4">
             <i className="fa-solid fa-key"></i> Nouveau mot de passe
           </h2>
@@ -68,7 +68,7 @@ export default function ResetPassword() {
               />
             </div>
             <button type="submit" className="btn btn-primary w-100 fw-bold">
-              <i className="fa-solid fa-key"></i> Réinitialiser
+              <i className="fa-solid fa-key"></i> Réinitialiser le mot de passe
             </button>
           </form>
           <Link to="/login" className="btn btn-outline-primary w-100 mt-3 fw-bold">

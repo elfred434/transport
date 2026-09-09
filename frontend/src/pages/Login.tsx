@@ -48,16 +48,9 @@ export default function Login() {
   }
 
   return (
-    <div className="public-body" style={{ minHeight: '100vh' }}>
-      <div className="container auth-container">
-        <div className="card shadow-lg border-0 rounded-4 p-4">
-          <div className="text-center mb-3">
-            <img
-              src="/assets/img/logo.jpeg"
-              alt="Logo"
-              style={{ maxWidth: 120, borderRadius: 10 }}
-            />
-          </div>
+    <div className="bg-light">
+      <div className="container d-flex align-items-center justify-content-center min-vh-100">
+        <div className="card shadow-lg border-0 rounded-4 p-4" style={{ maxWidth: '420px', width: '100%' }}>
           <h2 className="text-center text-primary mb-4">
             <i className="fa-solid fa-right-to-bracket"></i> Connexion
           </h2>
@@ -103,15 +96,6 @@ export default function Login() {
               Pas encore de compte ?{' '}
               <Link to="/register" className="text-primary text-decoration-underline">
                 Inscrivez-vous
-              </Link>
-            </div>
-            <div className="text-center mt-1">
-              <Link to="/" className="text-muted small">
-                ← Accueil
-              </Link>
-              {' · '}
-              <Link to="/admin/login" className="text-muted small">
-                Espace admin
               </Link>
             </div>
           </form>

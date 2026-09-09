@@ -33,9 +33,9 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="public-body" style={{ minHeight: '100vh' }}>
-      <div className="container auth-container">
-        <div className="card shadow-lg border-0 rounded-4 p-4">
+    <div className="bg-light">
+      <div className="container d-flex align-items-center justify-content-center min-vh-100">
+        <div className="card shadow-lg border-0 rounded-4 p-4" style={{ maxWidth: '420px', width: '100%' }}>
           <h2 className="text-center text-primary mb-4">
             <i className="fa-solid fa-shield-halved"></i> Espace admin
           </h2>

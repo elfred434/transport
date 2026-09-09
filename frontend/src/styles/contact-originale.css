@@ -1,0 +1,110 @@
+/* ---------------------------------------------------------------------------
+ * Design original de la page Contact (contact.php + css/contact.css du commit
+ * 0ba787c). Porté tel quel en React, scopé sous .contact-originale pour éviter
+ * les collisions avec Bootstrap (.container, h2, button, ...).
+ * Seule la règle `body` de l'original n'est pas reprise : la police/fond sont
+ * déjà fournis par app.css dans la zone .content.
+ * --------------------------------------------------------------------------- */
+
+.contact-originale .container {
+    max-width: 900px;
+    margin: 40px auto;
+    background: #fff;
+    padding: 32px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px #0001;
+}
+
+.contact-originale h2 {
+    color: #007bff;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.contact-originale .contact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+}
+
+.contact-originale .contact-form,
+.contact-originale .contact-infos {
+    flex: 1 1 320px;
+}
+
+.contact-originale form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+}
+
+.contact-originale form input[type="text"],
+.contact-originale form input[type="email"],
+.contact-originale form textarea {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 18px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.contact-originale form textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.contact-originale button {
+    width: 100%;
+    padding: 12px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.contact-originale button:hover {
+    background: #0056b3;
+}
+
+.contact-originale .contact-infos {
+    background: #f1f8ff;
+    border-radius: 6px;
+    padding: 18px;
+    margin-bottom: 18px;
+    font-size: 16px;
+    color: #34495e;
+}
+
+.contact-originale .contact-infos i {
+    color: #007bff;
+    margin-right: 8px;
+}
+
+.contact-originale .map-container {
+    width: 100%;
+    height: 260px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px #0001;
+}
+
+.contact-originale .msg-success {
+    color: #27ae60;
+    font-weight: bold;
+    margin-bottom: 18px;
+}
+
+.contact-originale .msg-error {
+    color: #e74c3c;
+    font-weight: bold;
+    margin-bottom: 18px;
+}
+
+@media (max-width: 900px) {
+    .contact-originale .contact-row {
+        flex-direction: column;
+    }
+}

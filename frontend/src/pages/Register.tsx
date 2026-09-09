@@ -48,9 +48,9 @@ export default function Register() {
   }
 
   return (
-    <div className="public-body" style={{ minHeight: '100vh' }}>
-      <div className="container auth-container">
-        <div className="card shadow-lg border-0 rounded-4 p-4">
+    <div className="bg-light">
+      <div className="container d-flex align-items-center justify-content-center min-vh-100">
+        <div className="card shadow-lg border-0 rounded-4 p-4" style={{ maxWidth: '420px', width: '100%' }}>
           <h2 className="text-center text-primary mb-4">
             <i className="fa-solid fa-user-plus"></i> Inscription
           </h2>
@@ -86,7 +86,7 @@ export default function Register() {
                 type="file"
                 name="photo_profil"
                 className="form-control"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept="image/*"
               />
             </div>
             <button type="submit" className="btn btn-primary w-100 fw-bold">

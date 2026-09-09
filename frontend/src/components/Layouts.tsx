@@ -1,59 +1,11 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Auth } from '../lib/api'
 
 /**
  * Layouts — port des structures vanilla :
- *  - PublicLayout : topbar + footer des pages publiques (index.html) ;
  *  - AppLayout : barre latérale des pages authentifiées (UI.renderSidebar).
  */
-
-export function PublicLayout() {
-  const { me } = useAuth()
-  const loggedIn = me !== null || Auth.isLoggedIn()
-
-  return (
-    <div className="public-body">
-      <div className="topbar d-flex justify-content-between align-items-center">
-        <div className="fw-bold text-primary">
-          <img
-            src="/assets/img/logo.jpeg"
-            alt=""
-            style={{ height: 38, borderRadius: 6 }}
-            className="me-2"
-          />
-          SPIISTMOVE
-        </div>
-        <div>
-          {loggedIn ? (
-            <Link to="/dashboard" className="btn btn-primary fw-bold">
-              <i className="fa-solid fa-gauge"></i> Mon espace
-            </Link>
-          ) : (
-            <>
-              <Link to="/login" className="btn btn-outline-primary fw-bold">
-                Connexion
-              </Link>{' '}
-              <Link to="/register" className="btn btn-primary fw-bold">
-                Inscription
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      <Outlet />
-
-      <footer className="text-center text-muted py-4 border-top bg-white">
-        <p className="mb-1">
-          <strong>Agence de Transport de Colis</strong> — Porto-Novo, quartier Hinkoudé, Bénin
-        </p>
-        <p className="mb-0 small">© 2025 SPIISTMOVE</p>
-      </footer>
-    </div>
-  )
-}
 
 interface SidebarLink {
   to: string
@@ -110,9 +62,7 @@ export function AppLayout() {
       <div id="sidebar">
         <div className="vertical-menu">
           <div className="logo-container">
-            <Link to="/">
-              <img src="/assets/img/logo.jpeg" alt="Logo" className="logo" />
-            </Link>
+            <img src="/assets/img/OIG1.jpeg" alt="Logo SPIISTMOVE" className="logo" />
           </div>
           <div className="user-box">
             {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" /> : null}

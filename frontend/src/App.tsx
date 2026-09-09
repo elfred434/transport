@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { AdminGate, AppLayout, PublicLayout } from './components/Layouts'
+import { AdminGate, AppLayout } from './components/Layouts'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -99,11 +99,6 @@ export default function App() {
       {/* --- Accueil : design d'origine (navbar + footer intégrés à la page) --- */}
       <Route path="/" element={<Home />} />
 
-      {/* --- Pages publiques (topbar + footer) --- */}
-      <Route element={<PublicLayout />}>
-        <Route path="/contact" element={<Contact />} />
-      </Route>
-
       {/* --- Authentification (carte centrée, sans topbar) --- */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -130,6 +125,7 @@ export default function App() {
         <Route path="/messagerie" element={<Messagerie />} />
         <Route path="/messagerie-admin" element={<MessagerieAdmin />} />
         <Route path="/reponses" element={<Reponses />} />
+        <Route path="/contact" element={<Contact />} />
 
         {/* --- Administration --- */}
         <Route
