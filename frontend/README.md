@@ -1,6 +1,6 @@
 # Frontend React — Agence de Transport de Colis
 
-SPA React 19 + Vite + TypeScript qui remplace le frontend vanilla (`../frontend`,
+SPA React 19 + Vite + TypeScript qui remplace le frontend vanilla (`../legacy/frontend`,
 26 pages). Même identité visuelle (Bootstrap 5, FontAwesome, `app.css` repris
 tel quel) et même contrat d'API (`{success, data|error}`, jeton Bearer
 `transport_token` en localStorage).
@@ -24,7 +24,7 @@ npm run dev          # http://localhost:8003
 ```
 
 Le backend attendu est l'API Laravel sur le port **8002**
-(`cd ../backend-laravel && php artisan serve --port=8002`).
+(`cd ../backend && php artisan serve --port=8002`).
 `/api` et `/uploads` sont proxyfiés vers lui par Vite (`VITE_API_TARGET` pour
 changer de cible) : le navigateur n'appelle que l'origine du SPA, sans CORS.
 Les URLs de fichiers renvoyées par l'API sont relatives (`/uploads/...`).

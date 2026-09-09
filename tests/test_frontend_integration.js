@@ -43,7 +43,7 @@ vm.createContext(sandbox);
 
 // Charge config.js puis api.js (le vrai code du frontend)
 const path = require('path');
-const FE = path.join(__dirname, '..', 'frontend');
+const FE = path.join(__dirname, '..', process.env.FRONTEND_DIR || 'legacy/frontend');
 // Port backend optionnel (ex. API_PORT=8002 pour viser le port Laravel).
 sandbox.window.API_PORT = process.env.API_PORT;
 vm.runInContext(fs.readFileSync(path.join(FE, 'js/config.js'), 'utf8'), sandbox, { filename: 'config.js' });

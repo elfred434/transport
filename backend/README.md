@@ -1,6 +1,6 @@
 # Backend Laravel — API de la plateforme de transport
 
-Port Laravel (framework 13.x, Sanctum) de l'API PHP vanilla située dans `../backend`.
+Port Laravel (framework 13.x, Sanctum) de l'API PHP vanilla située dans `../legacy/backend`.
 Il expose **exactement le même contrat** : mêmes 60 routes sous `/api/...`, mêmes
 verbes (GET/POST/DELETE), même enveloppe de réponse :
 
@@ -21,7 +21,7 @@ verbes (GET/POST/DELETE), même enveloppe de réponse :
   `Authorization: Bearer <token>`.
 - **Uploads** : même liste blanche (JPEG/PNG/GIF/WEBP vérifiés sur le contenu
   réel), mêmes noms aléatoires, même disque physique (`TRANSPORT_STORAGE_PATH`,
-  par défaut `../backend/storage`) — les fichiers déjà en ligne restent servis
+  par défaut `../legacy/backend/storage`) — les fichiers déjà en ligne restent servis
   via `GET /uploads/{path}` (garde realpath anti path-traversal, Content-Type
   forcé par l'extension).
 - **Comportements historiques préservés** (vérifiés par `tests/test_api.py`) :

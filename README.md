@@ -4,21 +4,23 @@ Plateforme de mise en relation entre expéditeurs de colis et transporteurs, ave
 suivi de livraison, paiement, messagerie et panneau d'administration.
 
 Le projet est séparé en deux applications indépendantes qui communiquent par une
-**API REST JSON** :
+**API REST JSON** (`{ "success": true, "data": … }` / `{ "success": false, "error": "…" }`,
+authentification par jeton Bearer) :
 
 ```
 transport/
-├── backend/     API PHP (JSON) — authentification par jeton Bearer
-├── frontend/    Site HTML/CSS/JS vanilla — consomme l'API via fetch
-├── sql/         Migrations de la base de données (à appliquer dans l'ordre)
-└── PHPMailer/   Bibliothèque d'envoi d'emails (dépendance du backend)
+├── backend/     API Laravel 13 (Sanctum) — backend principal
+├── frontend/    SPA React 19 + Vite + TypeScript — frontend principal
+├── legacy/      Version d'origine archivée (API PHP vanilla, site vanilla, PHPMailer)
+├── sql/         Schéma de la base (12 tables métier) — partagé par les deux stacks
+└── tests/       Suites d'acceptation (78 vérifications API + 25 vérifications frontend)
 ```
 
 ## Prérequis
 
-- PHP 8.1+ (avec `pdo_mysql`, `fileinfo`)
+- PHP 8.3+ (avec `pdo_mysql`, `fileinfo`) et Composer
+- Node.js 20+ et npm
 - MariaDB / MySQL
-- Un serveur web ou le serveur intégré de PHP
 
 ## 1. Base de données
 
@@ -31,82 +33,93 @@ mysql -u root -p transport_db < sql/001_messages_admin_et_compte_admin.sql
 mysql -u root -p transport_db < sql/002_api_tokens.sql
 ```
 
-- `000_schema_base.sql` — les 12 tables de l'application.
+- `000_schema_base.sql` — les 12 tables métier de l'application.
 - `001_…` — table `messages_admin` + compte administrateur initial.
-- `002_…` — table `api_tokens` (jetons d'authentification, hash SHA-256).
+- `002_…` — table `api_tokens` (jetons de l'API vanilla, conservée pour `legacy/`).
 
-Les migrations sont idempotentes (`IF NOT EXISTS` / insertions conditionnelles).
+Puis les tables d'infrastructure Laravel (cache, jobs, `personal_access_tokens`) :
+
+```bash
+cd backend && php artisan migrate --force
+```
+
+> ⚠️ Ne créez jamais la table `users` via une migration Laravel : le schéma
+> métier de `sql/000_schema_base.sql` est la seule source de vérité.
 
 **Compte admin initial** : `admin@transport.bj` / `Admin@12345`
 → **changez ce mot de passe après la première connexion.**
 
-## 2. Configuration
+## 2. Configuration du backend (`backend/.env`)
 
-Le backend se configure par variables d'environnement (valeurs par défaut entre
-parenthèses) :
+Copiez `backend/.env.example` vers `backend/.env`, générez la clé, renseignez la
+base. Variables spécifiques à l'application (le reste est du Laravel standard) :
 
-| Variable         | Rôle                                            | Défaut                     |
-|------------------|-------------------------------------------------|----------------------------|
-| `DB_HOST`        | Hôte de la base                                 | `localhost`                |
-| `DB_NAME`        | Nom de la base                                  | `transport_db`             |
-| `DB_USER`        | Utilisateur base                                | `root`                     |
-| `DB_PASS`        | Mot de passe base                               | *(vide)*                   |
-| `CORS_ORIGINS`   | Origines autorisées (séparées par `,`)          | `*`                        |
-| `TOKEN_TTL_DAYS` | Durée de vie des jetons (jours)                 | `30`                       |
-| `APP_URL`        | URL publique du **backend** (liens uploads)     | `http://localhost:8001`    |
-| `FRONTEND_URL`   | URL publique du **frontend** (liens emails)     | `http://localhost:8000`    |
-| `SMTP_USER`      | Utilisateur SMTP (reset mot de passe)           | *(vide = mode dev)*        |
-| `SMTP_PASS`      | Mot de passe / app password SMTP                | *(vide)*                   |
-| `SMTP_HOST`      | Hôte SMTP                                       | `smtp.gmail.com`           |
-| `SMTP_PORT`      | Port SMTP                                       | `587`                      |
+| Variable                  | Rôle                                                | Défaut                          |
+|---------------------------|-----------------------------------------------------|---------------------------------|
+| `DB_*`                    | Connexion à la base                                 | `transport_db`                  |
+| `CORS_ORIGINS`            | Origines autorisées (séparées par `,`)              | `*`                             |
+| `TOKEN_TTL_DAYS`          | Durée de vie des jetons (jours)                     | `30`                            |
+| `MAX_UPLOAD_SIZE`         | Taille maximale d'upload (octets)                   | `5242880`                       |
+| `FRONTEND_URL`            | URL publique du frontend (liens des emails)         | `http://localhost:8000`         |
+| `TRANSPORT_STORAGE_PATH`  | Racine du disque des uploads                        | `legacy/backend/storage`        |
+| `TRANSPORT_APP_URL`       | Préfixe des URLs de fichiers ; **vide = `/uploads/…` relatifs** | *(vide)*            |
+| `SMTP_USER` / `SMTP_PASS` | SMTP (reset mot de passe) ; vides = mode dev        | *(vide)*                        |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` | Hôte SMTP                         | `smtp.gmail.com` / `587`        |
 
-Sans SMTP configuré, le lien de réinitialisation de mot de passe est renvoyé dans
-la réponse (`dev_reset_link`) et journalisé — pratique en développement.
+Sans SMTP configuré, le lien de réinitialisation de mot de passe est renvoyé
+dans la réponse (`dev_reset_link`) et journalisé — pratique en développement.
 
-## 3. Démarrage
+Les uploads vivent dans `legacy/backend/storage/uploads/` (emplacement
+historique, ignoré par git) pour que les fichiers déjà en ligne restent servis.
+En production, fixez `TRANSPORT_STORAGE_PATH` vers un emplacement dédié.
 
-Deux processus distincts (deux ports) :
+## 3. Démarrage en développement
 
 ```bash
-# Backend — API sur le port 8001
-php -S 0.0.0.0:8001 -t backend/public backend/public/index.php
+# API Laravel — port 8002
+cd backend && php artisan serve --host=0.0.0.0 --port=8002
 
-# Frontend — site statique sur le port 8000
-php -S 0.0.0.0:8000 -t frontend
+# SPA React — port 8003 (proxy /api et /uploads vers 127.0.0.1:8002)
+cd frontend && npm install && npm run dev
 ```
 
-- Frontend : http://localhost:8000
-- API : http://localhost:8001/api (racine listant les endpoints)
-- Espace admin : http://localhost:8000/admin/login.html
+- SPA : http://localhost:8003
+- API : http://localhost:8002/api (racine listant les ~60 endpoints)
+- Espace admin : http://localhost:8003/admin/login
 
-Le frontend détecte automatiquement l'URL de l'API : en local il utilise
-`http://localhost:8001`, et derrière un proxy de prévisualisation de type
-`{port}-{hôte}` il bascule sur le port `8001` du même hôte (voir
-`frontend/js/config.js`).
+Le navigateur n'appelle que l'origine du SPA (pas de CORS en dev) ; la cible du
+proxy se change via `VITE_API_TARGET` dans `frontend/`.
 
-Les fichiers téléversés sont stockés dans `backend/storage/uploads/` (dossier
-ignoré par git) et servis par le backend sur `/uploads/...`.
+## 4. Production (mono-domaine)
 
-## Architecture
+```bash
+cd frontend && npm run build    # → frontend/dist/
+```
 
-### Backend (`backend/`)
+Le serveur web (Caddy/nginx) sert `frontend/dist/` en statique (avec repli SPA
+vers `index.html`), reverse-proxy `/api` vers php-fpm/Laravel et `/uploads`
+vers la route de distribution. Pensez au worker de queues
+(`php artisan queue:work`), à OPcache et à `php artisan config:cache`.
 
-- `public/index.php` — point d'entrée unique : routage, CORS, service des uploads.
-- `src/bootstrap.php` — connexion BDD, helpers JSON, auth Bearer, validation,
-  uploads sécurisés (liste blanche MIME via `finfo`, noms aléatoires).
-- `src/controllers/*.php` — un contrôleur par domaine
-  (`auth`, `users`, `colis`, `suivi`, `voyages`, `messages`, `contact`,
-  `paiements`, `avis`, `admin`).
+## 5. Tests
 
-**Conventions de l'API**
+Les deux suites valident le contrat complet (authentification, colis, paiement,
+voyages, réservations, suivi, commission, messagerie, modération, autorisations,
+CORS, sécurité des uploads) — **contre n'importe quel port backend** :
 
-- Authentification : jeton Bearer (`Authorization: Bearer <token>`), stocké côté
-  client, hashé (SHA-256) en base, expiration à `TOKEN_TTL_DAYS`.
-- Réponses : `{ "success": true, "data": … }` ou `{ "success": false, "error": "…" }`.
-- Codes HTTP explicites (200, 201, 400, 401, 403, 404, 409, 500).
-- ~60 endpoints. `GET /api` renvoie la liste et leur nombre.
+```bash
+# API (78 vérifications) — backend Laravel démarré sur 8002
+API_BASE=http://127.0.0.1:8002 python3 tests/test_api.py
 
-**Règles métier principales**
+# Intégration frontend↔API (25 vérifications)
+API_PORT=8002 API_EXPECTED=http://localhost:8002 node tests/test_frontend_integration.js
+```
+
+`tests/test_api.py` vérifie certains états en base via `sudo -n mariadb
+transport_db` (adapter si votre accès MySQL diffère). La suite d'intégration
+charge le vrai client JS de `legacy/frontend` (paramétrable via `FRONTEND_DIR`).
+
+## Règles métier principales
 
 - Prix d'un colis : `max(1000, 1000 + 1000 × poids) × 1.2` (arrondi, recalculé à
   chaque modification).
@@ -122,45 +135,49 @@ ignoré par git) et servis par le backend sur `/uploads/...`.
 - Avis : note 1–5, un seul avis par couple (utilisateur, transporteur), publié
   après modération.
 
-### Frontend (`frontend/`)
+## Architecture
 
-- `js/config.js` — résolution de `API_URL` selon l'hôte.
-- `js/api.js` — wrapper `fetch` (jeton Bearer, JSON/multipart, `ApiError`,
-  redirection sur 401).
-- `js/ui.js` — barre latérale, gardes d'authentification/admin, notifications,
-  échappement HTML, formatage.
-- `css/app.css` — styles partagés.
-- Pages publiques : `index`, `login`, `register`, `reset-request`,
-  `reset-password`, `contact`.
-- Pages authentifiées : `dashboard`, `poster-colis`, `colis`, `colis-detail`,
-  `suivi`, `recherche`, `reservation-colis`, `paiement`, `profil`,
-  `modifier-profil`, `devenir-transporteur`, `profil-transporteur`,
-  `transporteur-stats`, `reponses`, `liste-messagerie`, `messagerie`,
-  `messagerie-admin`.
-- `admin/` — `login.html`, `index.html` (tableau de bord complet),
-  `messagerie.html`.
+### Backend (`backend/` — Laravel 13)
 
-## Tests
+- Eloquent + query builder sur les tables existantes (aucune migration métier).
+- Contrôleurs par domaine (`Auth`, `Colis`, `Voyages`, `Reservations`, `Suivi`,
+  `Paiements`, `Avis`, `Messages`, `Contact`, `Admin`…), exceptions `ApiException`
+  avec les messages français exacts de l'API d'origine.
+- Jetons Sanctum (hashés en base), garde anti path-traversal sur la distribution
+  des uploads, CORS configurable.
+- Voir `backend/README.md` pour le détail.
 
-Deux suites (dans `tests/`) couvrent l'ensemble du parcours (authentification,
-colis, paiement, voyages, réservations, suivi, commission, messagerie,
-modération, autorisations, CORS, sécurité des uploads) :
+### Frontend (`frontend/` — React 19 + Vite + TS)
+
+- Une route par page du site d'origine (26 pages), mêmes classes CSS
+  (Bootstrap 5 + `app.css` repris tel quel), mêmes gardes d'authentification.
+- Client API avec enveloppe `{success, data|error}`, 401 → redirection login,
+  uploads multipart ; toasts, modales et onglets en état React (mêmes classes).
+- Les anciens chemins `*.html` (emails, favoris) sont redirigés vers les routes SPA.
+- Voir `frontend/README.md` pour le détail.
+
+### Legacy (`legacy/`)
+
+Version d'origine, archivée mais fonctionnelle — utilisée comme référence de
+parité et par la suite d'intégration :
 
 ```bash
-python3 tests/test_api.py                    # 77 vérifications API bout-en-bout
-node    tests/test_frontend_integration.js   # 25 vérifications frontend↔backend
+# API PHP vanilla — port 8001
+php -S 0.0.0.0:8001 -t legacy/backend/public legacy/backend/public/index.php
+# Site vanilla — port 8000
+php -S 0.0.0.0:8000 -t legacy/frontend
 ```
 
-Prérequis : les deux serveurs démarrés (backend `:8001`, frontend `:8000`) et la
-base `transport_db` accessible. `tests/test_api.py` vérifie certains états en
-base via `sudo -n mariadb transport_db` (adapter si votre accès MySQL diffère).
+`legacy/backend` lit ses variables d'environnement comme avant (`DB_*`,
+`APP_URL`, `FRONTEND_URL`, `SMTP_*`…) et dépend de `legacy/PHPMailer`.
 
 ## Sécurité
 
-- Hachage des mots de passe (`password_hash`), jetons d'API hashés.
-- Requêtes préparées partout (protection injection SQL).
-- Échappement HTML systématique côté frontend (`UI.esc`).
+- Hachage des mots de passe (`password_hash` / cast `hashed` Eloquent), jetons
+  d'API hashés en base (Sanctum).
+- Requêtes préparées partout (Eloquent / query builder — protection injection SQL).
+- Échappement automatique JSX côté React (pas d'`innerHTML`).
 - Uploads : liste blanche MIME (`finfo`), taille limitée, noms aléatoires,
-  service des fichiers avec garde `realpath` (anti path-traversal).
-- Séparation des rôles : `require_auth` / `require_admin`, vérifications de
+  distribution via route dédiée avec garde `realpath` (anti path-traversal).
+- Séparation des rôles : middleware `auth:sanctum` / `admin`, vérifications de
   propriété sur chaque ressource.

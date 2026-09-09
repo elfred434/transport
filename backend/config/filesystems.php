@@ -26,9 +26,10 @@ return [
         | Disque des fichiers uploadés de la plateforme
         |----------------------------------------------------------------------
         |
-        | Racine pointant hors du projet (backend/storage/uploads), à l'emplacement
-        | déjà utilisé par l'API d'origine : les fichiers existants restent lisibles
-        | et aucun doublon n'est créé pendant la migration.
+        | Racine pointant vers le stockage historique (legacy/backend/storage/uploads),
+        | à l'emplacement déjà utilisé par l'API d'origine : les fichiers existants
+        | restent lisibles et aucun doublon n'est créé pendant la migration.
+        | En production, fixez TRANSPORT_STORAGE_PATH vers un emplacement dédié.
         |
         | Ce disque n'est jamais servi directement par un serveur web : la
         | distribution passe par une route dédiée qui valide le chemin réel
@@ -38,7 +39,7 @@ return [
 
         'transport' => [
             'driver' => 'local',
-            'root' => env('TRANSPORT_STORAGE_PATH', dirname(__DIR__, 2) . '/backend/storage'),
+            'root' => env('TRANSPORT_STORAGE_PATH', dirname(__DIR__, 2) . '/legacy/backend/storage'),
             'visibility' => 'private',
             'throw' => false,
         ],
