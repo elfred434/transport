@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/functions.php';
+require_admin();
 
-require_once 'config.php';
 $messages = $pdo->query("SELECT * FROM messages_contact ORDER BY date_envoi DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>

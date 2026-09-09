@@ -1,16 +1,5 @@
 <?php
-session_start();
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
+require_once __DIR__ . '/functions.php';
 
 $token = $_GET['token'] ?? '';
 $error = $_GET['error'] ?? '';
@@ -21,7 +10,7 @@ $stmt->execute([$token]);
 $user = $stmt->fetch();
 
 if (!$user && $error !== 'invalid_token') {
-    header('Location: login.html?error=invalid_token');
+    header('Location: login.php?error=invalid_token');
     exit;
 }
 ?>
@@ -41,12 +30,16 @@ if (!$user && $error !== 'invalid_token') {
             
             <?php if ($error === 'invalid_token'): ?>
                 <div class="alert alert-danger">Le lien de réinitialisation est invalide ou a expiré.</div>
-                <a href="login.html" class="btn btn-primary w-100 fw-bold">
+                <a href="login.php" class="btn btn-primary w-100 fw-bold">
                     <i class="fa-solid fa-right-to-bracket"></i> Retour à la connexion
                 </a>
             <?php else: ?>
                 <form action="auth.php" method="POST" autocomplete="off">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                    <?php if ($error === 'weak_password'): ?>
+                        <div class="alert alert-danger">Le mot de passe doit contenir au moins 8 caractères.</div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <label for="new-password" class="form-label">Nouveau mot de passe</label>
                         <input type="password" id="new-password" name="password" class="form-control" required>

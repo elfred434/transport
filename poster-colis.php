@@ -1,0 +1,439 @@
+<?php
+require_once __DIR__ . '/functions.php';
+require_login();
+?><!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poster un colis - Agence de Transport de Colis</title>
+    
+    <link rel="stylesheet" href="bootstrap-5.3.3-dist/bootstrap-5.3.3-dist/css/bootstrap.min.css">
+    
+    <link rel="stylesheet" href="fontawesome-free-6.7.2-web/fontawesome-free-6.7.2-web/css/all.min.css">
+    <style>
+         .menu {
+            background-color: var(--primary-color);
+            color: var(--light-color);
+            padding: 0.8rem 1rem;
+            box-shadow: var(--box-shadow);
+            flex-shrink: 0;
+        }
+
+        .menu-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .menu-brand {
+            display: flex;
+            align-items: center;
+            font-size: 1.3rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--light-color);
+            gap: 0.5rem;
+        }
+
+        .menu-toggler {
+            background: none;
+            border: none;
+            color: var(--light-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: none;
+            padding: 0.5rem;
+        }
+
+        .menu-menu {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .menu-nav {
+            display: flex;
+            list-style: none;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            position: relative;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.6rem 1rem;
+            text-decoration: none;
+            color: var(--light-color);
+            font-weight: 500;
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-link i {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+        }
+           :root {
+            --primary-color: #2563eb;
+            --primary-light: #3b82f6;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --dark-color: #1e293b;
+            --light-color: #f8fafc;
+            --gray-light: #e2e8f0;
+            --text-color: #334155;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+            --radius-sm: 0.5rem;
+            --radius-md: 1rem;
+            --radius-lg: 1.5rem;
+            --transition: all 0.3s ease;
+            --border-radius: 10px;
+        }
+        .btn-deconnexion {
+            background-color: #c82333;
+            color: var(--light-color) !important;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn-deconnexion:hover {
+            background-color: #c82333;
+        }
+
+        body { background: #f7f7f7; }
+        .form-section-title { color: #007bff; font-weight: bold; margin-bottom: 1rem; }
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: #f1f8ff;
+            color: #007bff;
+            border: 2px dashed #007bff;
+            border-radius: 6px;
+            padding: 14px 0;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .file-upload-label:hover {
+            background: #e6f0ff;
+            border-color: #0056b3;
+        }
+        .file-upload-label i {
+            font-size: 22px;
+        }
+        .file-upload-input {
+            display: none;
+        }
+        .file-upload-filename {
+            display: block;
+            margin-top: 8px;
+            color: #333;
+            font-size: 15px;
+            text-align: center;
+            word-break: break-all;
+        }
+        .prix-estime {
+            background: #f1f8ff;
+            color: #007bff;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+                .containermy-5{
+margin-left: 12px;
+        }
+        .mb-a{
+display: flex;
+flex-direction: row;
+justify-content: space-around;
+        }
+        .fe{
+            margin-right: 150px;
+        }
+
+        /* Menu horizontal inspiré de menu.php */
+        .menu-horizontal {
+            width: 100%;
+            background: #3498db;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.01);
+            padding: 0.5rem 0;
+        }
+
+        .menu-horizontal .menu-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .menu-horizontal .menu-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .menu-horizontal .menu-brand img {
+            height: 38px;
+            border-radius: 50%;
+        }
+
+        .menu-horizontal .menu-brand span {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .menu-horizontal .menu-nav {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            gap: 5px;
+        }
+
+        .menu-horizontal .menu-nav li {
+            position: relative;
+        }
+
+        .menu-horizontal .menu-nav a {
+            display: flex;
+            align-items: center;
+            padding: 12px 18px;
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .menu-horizontal .menu-nav a:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-horizontal .menu-nav a i {
+            margin-right: 8px;
+        }
+
+        .menu-horizontal .btn-deconnexion {
+            background-color: #c82333;
+            color: #fff;
+            border-radius: 6px;
+            padding: 12px 18px;
+            text-decoration: none;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .menu-horizontal .btn-deconnexion:hover {
+            background-color: #bd2130;
+        }
+    </style>
+</head>
+<body>
+<?php if (!empty($_SESSION['error'])): ?>
+    <div style="max-width:900px;margin:15px auto;padding:12px 18px;background:#f8d7da;color:#721c24;border:1px solid #f5c2c7;border-radius:8px;"><?= htmlspecialchars($_SESSION['error']) ?></div>
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+<?php if (!empty($_SESSION['success'])): ?>
+    <div style="max-width:900px;margin:15px auto;padding:12px 18px;background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;border-radius:8px;"><?= htmlspecialchars($_SESSION['success']) ?></div>
+    <?php unset($_SESSION['success']); ?>
+<?php endif; ?>
+
+    <!-- Menu horizontal inspiré de menu.php -->
+<nav class="menu-horizontal">
+    <div class="menu-container">
+        <div class="menu-brand">
+            <img src="OIG1.jpeg" alt="Logo SPIISTMOVE">
+            <span>SPIISTMOVE</span>
+        </div>
+        <ul class="menu-nav">
+            <li><a href="dashboard.php"><i class="fas fa-home"></i>Accueil</a></li>
+            <li><a href="profil.php"><i class="fas fa-user"></i>Profil</a></li>
+            <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i>Messages</a></li>
+            <li><a href="devenir-transporteur.php"><i class="fas fa-id-badge"></i>Transporteur</a></li>
+            <li><a href="colis.php"><i class="fas fa-box-open"></i>Colis</a></li>
+            <li><a href="suivi.php"><i class="fas fa-search-location"></i>Suivi</a></li>
+            <li><a href="contact.php"><i class="fas fa-phone-alt"></i>Contact</a></li>
+            <li><a href="auth.php?logout=1" class="btn-deconnexion"><i class="fas fa-sign-out-alt"></i>Déconnexion</a></li>
+        </ul>
+    </div>
+</nav>
+
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-7 col-md-9">
+                <div class="card shadow-lg border-0 rounded-4">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4 text-primary"><i class="fa-solid fa-box"></i> Poster un colis</h2>
+                        <form action="traitement-colis.php" method="POST" enctype="multipart/form-data">
+                        <?= csrf_field() ?>
+                            
+                            <div class="mb-3">
+                                <label for="nom-colis" class="form-label">Nom du colis</label>
+                                <input type="text" id="nom-colis" name="nom-colis" class="form-control" required>
+                            </div>
+
+                            <div class="mb-3">
+    <label for="image-colis" class="form-label">Image du colis</label>
+    <div class="file-upload-wrapper">
+        <label for="image-colis" class="file-upload-label">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Choisir une image
+        </label>
+        <input type="file" id="image-colis" name="image-colis" class="file-upload-input" accept="image/*">
+        <span id="file-upload-filename" class="file-upload-filename"></span>
+    </div>
+    
+    <div id="image-preview-container" style="margin-top: 15px; display: none;">
+        <img id="image-preview" src="#" alt="Aperçu de l'image du colis" style="max-width: 200px; max-height: 200px; border-radius: 5px;">
+    </div>
+</div>
+
+                            <div class="mb-a">
+                                <div class="fe">
+                                <label for="type-produit" class="form-label">Type de produits</label>
+                                <select id="type-produit" name="type-produit" class="form-select" required style="width: 200px;">       
+                                    <option value="documents">Documents</option>
+                                    <option value="vetements">Vêtements</option>
+                                    <option value="electronique">Électronique</option>
+                                    <option value="alimentaire">Alimentaire</option>
+                                    <option value="autre">Autre</option>     
+                                </select>
+                            </div>
+                                <div class="prix-estime" style="width: 500px;">
+                                    Prix estimé : <span id="prix-estime">0 Fcfa</span>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <label for="nombre-produits" class="form-label">Nombre de produits</label>
+                                    <input type="number" id="nombre-produits" name="nombre-produits" min="1" class="form-control" required>
+                                </div>
+                                <div class="col">
+                                    <label for="poids" class="form-label">Poids estimé (kg)</label>
+                                    <input type="number" id="poids" name="poids" min="0.1" step="0.1" class="form-control" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="dimensions" class="form-label">Dimensions (cm) <span class="text-secondary fw-normal">(facultatif)</span></label>
+                                <input type="text" id="dimensions" name="dimensions" class="form-control" placeholder="L x l x h">
+                            </div>
+
+                            
+                            <div class="mb-3">
+                                <label for="pays" class="form-label">Pays de destination</label>
+                                <input type="text" id="pays" name="pays" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="ville" class="form-label">Ville de destination</label>
+                                <input type="text" id="ville" name="ville" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="date-limite" class="form-label">Date limite d’envoi</label>
+                                <input type="date" id="date-limite" name="date-limite" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="adresse-depart" class="form-label">Adresse de départ</label>
+                                <input type="text" id="adresse-depart" name="adresse-depart" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="adresse-destination" class="form-label">Adresse de destination</label>
+                                <input type="text" id="adresse-destination" name="adresse-destination" class="form-control" required>
+                            </div>
+
+                            
+                            <div class="mb-3 d-none">
+                                <label for="numero-suivi" class="form-label">Numéro de suivi <span class="text-secondary fw-normal">(généré automatiquement si vide)</span></label>
+                                <input type="text" id="numero-suivi" name="numero-suivi" class="form-control" placeholder="Laisser vi-de pour générer automatiquement" >
+                            </div>
+
+                            
+                            
+
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fa-solid fa-paper-plane"></i> Poster le colis
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<script>
+    function calculerPrix() {
+        const poids = parseFloat(document.getElementById('poids').value) || 0;
+        let prixBase = 1000 + (1000 * poids);
+        if (prixBase < 1000) prixBase = 1000;
+        
+        // Ajouter 20% de majoration
+        const prixFinal = prixBase * 1.20;
+        
+        document.getElementById('prix-estime').textContent = prixFinal.toFixed(0) + " F cfa";
+    }
+
+    window.onload = function() {
+        document.getElementById('prix-estime').textContent = "0 F cfa";
+        document.getElementById('poids').addEventListener('input', calculerPrix);
+
+        const fileInput = document.getElementById('image-colis');
+        const fileName = document.getElementById('file-upload-filename');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                // Afficher le nom du fichier
+                fileName.textContent = fileInput.files[0].name;
+                
+                // Afficher l'aperçu de l'image
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.style.display = 'block';
+                }
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                fileName.textContent = "";
+                imagePreviewContainer.style.display = 'none';
+            }
+        });
+    }       
+</script>
+</body>
+</html>

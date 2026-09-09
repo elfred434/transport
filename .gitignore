@@ -1,0 +1,12 @@
+# Fichiers temporaires / sensibles
+*.log
+.DS_Store
+Thumbs.db
+
+# Archives et binaires (ne pas commiter)
+*.rar
+*.zip
+*.exe
+
+# Configuration locale éventuelle
+.env

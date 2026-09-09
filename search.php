@@ -1,15 +1,6 @@
 <?php
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
+require_once __DIR__ . '/functions.php';
+require_login();
 
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 $colis = $voyages = [];

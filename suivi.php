@@ -1,19 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 $numero_suivi = isset($_GET['numero_suivi']) ? $_GET['numero_suivi'] : '';
@@ -250,7 +239,7 @@ if ($numero_suivi) {
         </div>
         <ul class="menu-items">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Accueil</a></li>
-            <li><a href="poster-colis.html"><i class="fas fa-box"></i> Poster colis</a></li>
+            <li><a href="poster-colis.php"><i class="fas fa-box"></i> Poster colis</a></li>
             <li><a href="profil.php"><i class="fas fa-user"></i> Profil</a></li>
             <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i> Messages</a></li>
             <li><a href="devenir-transporteur.php"><i class="fas fa-truck"></i> Devenir transporteur</a></li>

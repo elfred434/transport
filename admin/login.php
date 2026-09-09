@@ -1,20 +1,10 @@
 <?php
-session_start();
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données : ' . $e->getMessage());
-}
+require_once __DIR__ . '/../functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
+    csrf_check();
+    $email = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
+    $password = $_POST['password'] ?? '';
 
     if (empty($email) || empty($password)) {
         $error = "Veuillez remplir tous les champs.";
@@ -23,12 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($user && password_verify($password, $user['password'])) {
+        if ($user && $user['password'] && password_verify($password, $user['password'])) {
+            // Empêche la fixation de session
+            session_regenerate_id(true);
             // Connexion réussie, initialisation de la session
-            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_id'] = (int) $user['id'];
             $_SESSION['user_role'] = $user['role'];
+            $_SESSION['role'] = $user['role'];
             $_SESSION['user_nom'] = $user['nom'];
             $_SESSION['user_prenom'] = $user['prenom'];
+            $_SESSION['nom'] = $user['nom'];
+            $_SESSION['prenom'] = $user['prenom'];
+            $_SESSION['email'] = $user['email'];
+            $_SESSION['photo_profil'] = $user['photo_profil'];
             header('Location: admin.php');
             exit;
         } else {
@@ -70,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
         <form method="post">
+            <?= csrf_field() ?>
             <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
                 <input type="email" class="form-control" id="email" name="email" required>

@@ -1,19 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 // Vérification des paramètres
@@ -50,6 +39,7 @@ $operateurs_mobile = [
 
 // Traitement du formulaire
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer'])) {
+    csrf_check();
     // Récupération et validation des données
     $methode_paiement = $_POST['methode_paiement'] ?? '';
     $numero_carte = preg_replace('/\s+/', '', $_POST['numero_carte'] ?? '');
@@ -276,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payer'])) {
                     <hr>
 
                     <form method="POST" id="paymentFormElement">
+                        <?= csrf_field() ?>
                         <h5 class="mb-3">Méthode de paiement</h5>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">

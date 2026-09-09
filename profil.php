@@ -1,18 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
-}
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 $user_id = $_SESSION['user_id'];
 
@@ -561,7 +551,7 @@ $voyages = $voyages->fetchAll(PDO::FETCH_ASSOC);
                     <li class="nav-item"><a href="index.php" class="nav-link"><i class="fas fa-home"></i> Accueil</a></li>
                     <li class="nav-item"><a href="profil.php" class="nav-link"><i class="fas fa-user"></i> Profil</a></li>
                     <li class="nav-item"><a href="liste-messagerie.php" class="nav-link"><i class="fas fa-envelope"></i> Messagerie</a></li>
-                    <li class="nav-item"><a href="poster-colis.html" class="nav-link"><i class="fas fa-box"></i> Poster un colis</a></li>
+                    <li class="nav-item"><a href="poster-colis.php" class="nav-link"><i class="fas fa-box"></i> Poster un colis</a></li>
                     <li class="nav-item"><a href="devenir-transporteur.php" class="nav-link"><i class="fas fa-truck"></i> Devenir transporteur</a></li>
                 </ul>
                 <a href="auth.php?logout=1" class="btn-deconnexion"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
@@ -595,7 +585,7 @@ $voyages = $voyages->fetchAll(PDO::FETCH_ASSOC);
                     <a href="colis.php" class="btn btn-outline">
                         <i class="fa-solid fa-box"></i> Tous les colis
                     </a>
-                    <a href="poster-colis.html" class="btn btn-outline">
+                    <a href="poster-colis.php" class="btn btn-outline">
                         <i class="fa-solid fa-plus"></i> Poster un colis
                     </a>
                     <a href="devenir-transporteur.php" class="btn btn-outline">

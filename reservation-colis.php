@@ -1,29 +1,23 @@
 <?php
 
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
 $colis_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 
+// Le colis doit appartenir à l'utilisateur connecté (ou être admin)
 $stmt = $pdo->prepare("SELECT * FROM colis WHERE id = ?");
 $stmt->execute([$colis_id]);
 $colis = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$colis) {
     die("Colis introuvable.");
+}
+if (!is_admin() && (int) $colis['user_id'] !== (int) $_SESSION['user_id']) {
+    http_response_code(403);
+    die("Vous n'êtes pas autorisé à consulter les réservations de ce colis.");
 }
 
 
@@ -38,13 +32,21 @@ $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'], $_POST['action'])) {
+    csrf_check();
     $reservation_id = intval($_POST['reservation_id']);
     $action = $_POST['action'];
     
     // Vérifier que l'action est valide
     $actions_valides = ['accepte', 'refuse', 'annule'];
-    if (!in_array($action, $actions_valides)) {
+    if (!in_array($action, $actions_valides, true)) {
         die("Action non valide");
+    }
+
+    // La réservation doit concerner CE colis
+    $stmt = $pdo->prepare("SELECT id FROM reservations WHERE id = ? AND colis_id = ?");
+    $stmt->execute([$reservation_id, $colis_id]);
+    if (!$stmt->fetch()) {
+        die("Réservation introuvable pour ce colis.");
     }
     
     // Si c'est une annulation, on remet le statut à 'en_attente'
@@ -124,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'], $_P
                                 <td>
                                     <?php if ($r['statut'] == 'en_attente'): ?>
                                         <form method="post" class="d-inline">
+                                            <?= csrf_field() ?>
                                             <input type="hidden" name="reservation_id" value="<?= $r['id'] ?>">
                                             <button type="submit" name="action" value="accepte" class="btn btn-success btn-sm">
                                                 <i class="fa-solid fa-check"></i> Accepter
@@ -134,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'], $_P
                                         </form>
                                     <?php elseif ($r['statut'] == 'accepte'): ?>
                                         <form method="post" class="d-inline">
+                                            <?= csrf_field() ?>
                                             <input type="hidden" name="reservation_id" value="<?= $r['id'] ?>">
                                             <button type="submit" name="action" value="annule" class="btn btn-warning btn-sm">
                                                 <i class="fa-solid fa-rotate-left"></i> Annuler

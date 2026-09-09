@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 $is_connected = isset($_SESSION['user_id']);
 
 
@@ -64,12 +64,12 @@ if (isset($_SESSION['message'])) {
                 <?php if ($is_connected): ?>
                     <li><a href="profil.php">Profil</a></li>
                     <li><a href="liste-messagerie.php">Messagerie</a></li>
-                    <li><a href="poster-colis.html">Poster un colis</a></li>
+                    <li><a href="poster-colis.php">Poster un colis</a></li>
                     <li><a href="devenir-transporteur.php">Devenir transporteur</a></li>
                     <li><a href="auth.php?logout=1">Déconnexion</a></li>
                 <?php else: ?>
-                    <li><a href="login.html">Connexion</a></li>
-                    <li><a href="register.html">Inscription</a></li>
+                    <li><a href="login.php">Connexion</a></li>
+                    <li><a href="register.php">Inscription</a></li>
                 <?php endif; ?>
             </ul>
         </div>

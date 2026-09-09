@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../functions.php';
 
 // Vérifier si l'utilisateur est connecté et est un administrateur
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
@@ -7,15 +7,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     exit;
 }
 
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
+// Toute requête POST (actions de modération, réponses aux messages) exige un jeton CSRF valide
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
 }
 
 // Paramètres communs pour toutes les sections
@@ -109,32 +103,32 @@ if ($section === 'colis') {
     $total_pages = ceil($total_items / $items_per_page);
 
 
-    if (isset($_GET['approuve'])) {
-        $id = intval($_GET['approuve']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approuve'])) {
+        $id = intval($_POST['approuve']);
         $pdo->prepare("UPDATE colis SET statut = 'approuve' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Colis approuvé avec succès";
         header('Location: admin.php?section=colis');
         exit;
     }
 
-    if (isset($_GET['refuse'])) {
-        $id = intval($_GET['refuse']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refuse'])) {
+        $id = intval($_POST['refuse']);
         $pdo->prepare("UPDATE colis SET statut = 'refuse' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Colis refusé avec succès";
         header('Location: admin.php?section=colis');
         exit;
     }
 
-    if (isset($_GET['reset_status'])) {
-        $id = intval($_GET['reset_status']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_status'])) {
+        $id = intval($_POST['reset_status']);
         $pdo->prepare("UPDATE colis SET statut = 'en_attente' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Statut du colis réinitialisé avec succès";
         header('Location: admin.php?section=colis');
         exit;
     }
 
-    if (isset($_GET['delete'])) {
-        $id = intval($_GET['delete']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete'])) {
+        $id = intval($_POST['delete']);
 
         $stmt = $pdo->prepare("SELECT statut FROM suivi_colis WHERE colis_id = ? ORDER BY date_etape DESC LIMIT 1");
         $stmt->execute([$id]);
@@ -152,8 +146,8 @@ if ($section === 'colis') {
         exit;
     }
 
-    if (isset($_GET['confirmer_livraison'])) {
-        $id = intval($_GET['confirmer_livraison']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmer_livraison'])) {
+        $id = intval($_POST['confirmer_livraison']);
 
         // Récupérer les informations du colis et du transporteur
         $stmt = $pdo->prepare("
@@ -192,8 +186,8 @@ if ($section === 'colis') {
         exit;
     }
 
-    if (isset($_GET['refuser_livraison'])) {
-        $id = intval($_GET['refuser_livraison']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refuser_livraison'])) {
+        $id = intval($_POST['refuser_livraison']);
         $pdo->prepare("DELETE FROM suivi_colis WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Demande de livraison refusée";
         header('Location: admin.php?section=colis');
@@ -267,8 +261,8 @@ elseif ($section === 'utilisateurs') {
     $total_items = $stmt->fetchColumn();
     $total_pages = ceil($total_items / $items_per_page);
 
-    if (isset($_GET['delete'])) {
-        $id = intval($_GET['delete']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete'])) {
+        $id = intval($_POST['delete']);
         $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Utilisateur supprimé avec succès";
         header('Location: admin.php?section=utilisateurs');
@@ -354,22 +348,22 @@ elseif ($section === 'voyages') {
     $total_items = $stmt->fetchColumn();
     $total_pages = ceil($total_items / $items_per_page);
 
-    if (isset($_GET['approuve'])) {
-        $id = intval($_GET['approuve']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approuve'])) {
+        $id = intval($_POST['approuve']);
         $pdo->prepare("UPDATE voyages SET statut = 'approuve' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Voyage approuvé avec succès";
         header('Location: admin.php?section=voyages');
         exit;
     }
-    if (isset($_GET['refuse'])) {
-        $id = intval($_GET['refuse']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refuse'])) {
+        $id = intval($_POST['refuse']);
         $pdo->prepare("UPDATE voyages SET statut = 'refuse' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Voyage refusé avec succès";
         header('Location: admin.php?section=voyages');
         exit;
     }
-    if (isset($_GET['delete'])) {
-        $id = intval($_GET['delete']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete'])) {
+        $id = intval($_POST['delete']);
         $pdo->prepare("DELETE FROM voyages WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Voyage supprimé avec succès";
         header('Location: admin.php?section=voyages');
@@ -508,24 +502,24 @@ elseif ($section === 'paiements') {
     $total_items = $stmt->fetchColumn();
     $total_pages = ceil($total_items / $items_per_page);
 
-    if (isset($_GET['confirmer'])) {
-        $id = intval($_GET['confirmer']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmer'])) {
+        $id = intval($_POST['confirmer']);
         $pdo->prepare("UPDATE paiements SET statut = 'paye', date_paiement = NOW() WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Paiement confirmé avec succès";
         header('Location: admin.php?section=paiements');
         exit;
     }
 
-    if (isset($_GET['annuler'])) {
-        $id = intval($_GET['annuler']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['annuler'])) {
+        $id = intval($_POST['annuler']);
         $pdo->prepare("UPDATE paiements SET statut = 'annule' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Paiement annulé avec succès";
         header('Location: admin.php?section=paiements');
         exit;
     }
 
-    if (isset($_GET['marquer_echec'])) {
-        $id = intval($_GET['marquer_echec']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['marquer_echec'])) {
+        $id = intval($_POST['marquer_echec']);
         $pdo->prepare("UPDATE paiements SET statut = 'echec' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Paiement marqué comme échoué";
         header('Location: admin.php?section=paiements');
@@ -636,24 +630,24 @@ elseif ($section === 'avis') {
     $stmt->execute($params);
     $total_items = $stmt->fetchColumn();
     $total_pages = ceil($total_items / $items_per_page);
-    if (isset($_GET['approuve'])) {
-        $id = intval($_GET['approuve']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approuve'])) {
+        $id = intval($_POST['approuve']);
         $pdo->prepare("UPDATE avis SET statut = 'approuve' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Avis approuvé avec succès";
         header('Location: admin.php?section=avis');
         exit;
     }
 
-    if (isset($_GET['refuse'])) {
-        $id = intval($_GET['refuse']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refuse'])) {
+        $id = intval($_POST['refuse']);
         $pdo->prepare("UPDATE avis SET statut = 'refuse' WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Avis refusé avec succès";
         header('Location: admin.php?section=avis');
         exit;
     }
 
-    if (isset($_GET['delete'])) {
-        $id = intval($_GET['delete']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete'])) {
+        $id = intval($_POST['delete']);
         $pdo->prepare("DELETE FROM avis WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Avis supprimé avec succès";
         header('Location: admin.php?section=avis');
@@ -760,8 +754,8 @@ elseif ($section === 'messages') {
     }
 
     // Suppression d'un message
-    if (isset($_GET['delete_message'])) {
-        $id = intval($_GET['delete_message']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_message'])) {
+        $id = intval($_POST['delete_message']);
         $pdo->prepare("DELETE FROM messages_contact WHERE id = ?")->execute([$id]);
         $_SESSION['success'] = "Message supprimé avec succès";
         header('Location: admin.php?section=messages');
@@ -1197,9 +1191,13 @@ elseif ($section === 'messages') {
                                 <td><?= htmlspecialchars($u['date_inscription']) ?></td>
                                 <td>
                                     <div class="action-buttons">
-                                        <a href="?section=utilisateurs&delete=<?= $u['id'] ?>" class="btn btn-action btn-delete" onclick="return confirm('Supprimer cet utilisateur ?')">
+                                        <form method="post" action="?section=utilisateurs" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $u['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-delete" onclick="return confirm('Supprimer cet utilisateur ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -1419,33 +1417,57 @@ elseif ($section === 'messages') {
                                 <td>
                                     <div class="action-buttons">
                                         <?php if ($c['statut'] == 'en_attente'): ?>
-                                            <a href="?section=colis&approuve=<?= $c['id'] ?>" class="btn btn-action btn-approve">
+                                            <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="approuve" value="<?= $c['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-approve">
                                                 <i class="fas fa-check"></i> Approuver
-                                            </a>
-                                            <a href="?section=colis&refuse=<?= $c['id'] ?>" class="btn btn-action btn-refuse">
+                                            </button>
+                                        </form>
+                                            <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="refuse" value="<?= $c['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-refuse">
                                                 <i class="fas fa-times"></i> Refuser
-                                            </a>
+                                            </button>
+                                        </form>
                                         <?php elseif ($c['statut'] == 'approuve' || $c['statut'] == 'refuse'): ?>
-                                            <a href="?section=colis&reset_status=<?= $c['id'] ?>" class="btn btn-action btn-reset">
+                                            <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="reset_status" value="<?= $c['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-reset">
                                                 <i class="fas fa-undo"></i> Réinitialiser
-                                            </a>
+                                            </button>
+                                        </form>
                                         <?php endif; ?>
-                                        <a href="?section=colis&delete=<?= $c['id'] ?>"
+                                        <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $c['id'] ?>">
+                                            <button type="submit"
                                             class="btn btn-action btn-delete <?= (!empty($c['statut_livraison']) && $c['statut_livraison'] == 'En cours' ? 'disabled' : '') ?>"
                                             onclick="return confirm('Supprimer ce colis ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                                 <td>
                                     <?php if (isset($c['demande_livraison_id']) && $c['demande_livraison_id']): ?>
                                         <div class="action-buttons">
-                                            <a href="?section=colis&confirmer_livraison=<?= $c['demande_livraison_id'] ?>" class="btn btn-action btn-confirm">
+                                            <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="confirmer_livraison" value="<?= $c['demande_livraison_id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-confirm">
                                                 <i class="fas fa-check"></i> Confirmer
-                                            </a>
-                                            <a href="?section=colis&refuser_livraison=<?= $c['demande_livraison_id'] ?>" class="btn btn-action btn-refuse">
+                                            </button>
+                                        </form>
+                                            <form method="post" action="?section=colis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="refuser_livraison" value="<?= $c['demande_livraison_id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-refuse">
                                                 <i class="fas fa-times"></i> Refuser
-                                            </a>
+                                            </button>
+                                        </form>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -1593,17 +1615,29 @@ elseif ($section === 'messages') {
                                 <td>
                                     <div class="action-buttons">
                                         <?php if (!isset($v['statut']) || $v['statut'] == 'en_attente'): ?>
-                                            <a href="?section=voyages&approuve=<?= $v['id'] ?>" class="btn btn-action btn-approve">
+                                            <form method="post" action="?section=voyages" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="approuve" value="<?= $v['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-approve">
                                                 <i class="fas fa-check"></i> Approuver
-                                            </a>
-                                            <a href="?section=voyages&refuse=<?= $v['id'] ?>" class="btn btn-action btn-refuse" onclick="return confirm('Refuser ce voyage ?')">
+                                            </button>
+                                        </form>
+                                            <form method="post" action="?section=voyages" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="refuse" value="<?= $v['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-refuse" onclick="return confirm('Refuser ce voyage ?')">
                                                 <i class="fas fa-times"></i> Refuser
-                                            </a>
+                                            </button>
+                                        </form>
                                         <?php endif; ?>
 
-                                        <a href="?section=voyages&delete=<?= $v['id'] ?>" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce voyage ?')">
+                                        <form method="post" action="?section=voyages" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $v['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce voyage ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -1667,7 +1701,11 @@ elseif ($section === 'messages') {
                                 <td><?= htmlspecialchars($t['pays']) ?></td>
                                 <td><?= htmlspecialchars($t['date_creation']) ?></td>
                                 <td>
-                                    <a href="?section=transporteurs&delete=<?= $t['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Supprimer ce transporteur ?')">Supprimer</a>
+                                    <form method="post" action="?section=transporteurs" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $t['id'] ?>">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Supprimer ce transporteur ?')">Supprimer</button>
+                                        </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -1780,16 +1818,28 @@ elseif ($section === 'messages') {
                                 <td>
                                     <div class="action-buttons">
                                         <?php if ($p['statut'] == 'en_attente'): ?>
-                                            <a href="?section=paiements&confirmer=<?= $p['id'] ?>" class="btn btn-action btn-confirm">
+                                            <form method="post" action="?section=paiements" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="confirmer" value="<?= $p['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-confirm">
                                                 <i class="fas fa-check"></i> Confirmer
-                                            </a>
-                                            <a href="?section=paiements&annuler=<?= $p['id'] ?>" class="btn btn-action btn-refuse">
+                                            </button>
+                                        </form>
+                                            <form method="post" action="?section=paiements" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="annuler" value="<?= $p['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-refuse">
                                                 <i class="fas fa-times"></i> Annuler
-                                            </a>
+                                            </button>
+                                        </form>
                                         <?php endif; ?>
-                                        <a href="?section=paiements&delete=<?= $p['id'] ?>" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce paiement ?')">
+                                        <form method="post" action="?section=paiements" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $p['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce paiement ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -1841,16 +1891,28 @@ elseif ($section === 'messages') {
                                 <td>
                                     <div class="action-buttons">
                                         <?php if ($a['statut'] == 'en_attente'): ?>
-                                            <a href="?section=avis&approuve=<?= $a['id'] ?>" class="btn btn-action btn-approve">
+                                            <form method="post" action="?section=avis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="approuve" value="<?= $a['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-approve">
                                                 <i class="fas fa-check"></i> Approuver
-                                            </a>
-                                            <a href="?section=avis&refuse=<?= $a['id'] ?>" class="btn btn-action btn-refuse">
+                                            </button>
+                                        </form>
+                                            <form method="post" action="?section=avis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="refuse" value="<?= $a['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-refuse">
                                                 <i class="fas fa-times"></i> Refuser
-                                            </a>
+                                            </button>
+                                        </form>
                                         <?php endif; ?>
-                                        <a href="?section=avis&delete=<?= $a['id'] ?>" class="btn btn-action btn-delete" onclick="return confirm('Supprimer cet avis ?')">
+                                        <form method="post" action="?section=avis" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete" value="<?= $a['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-delete" onclick="return confirm('Supprimer cet avis ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -1910,9 +1972,13 @@ elseif ($section === 'messages') {
                                         <button class="btn btn-action btn-confirm" data-bs-toggle="modal" data-bs-target="#modalReponse<?= $m['id'] ?>">
                                             <i class="fas fa-reply"></i> Répondre
                                         </button>
-                                        <a href="?section=messages&delete_message=<?= $m['id'] ?>" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce message ?')">
+                                        <form method="post" action="?section=messages" class="d-inline">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="delete_message" value="<?= $m['id'] ?>">
+                                            <button type="submit" class="btn btn-action btn-delete" onclick="return confirm('Supprimer ce message ?')">
                                             <i class="fas fa-trash"></i> Supprimer
-                                        </a>
+                                        </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -1926,6 +1992,7 @@ elseif ($section === 'messages') {
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <form method="post" action="?section=messages">
+                                            <?= csrf_field() ?>
                                             <div class="modal-body">
                                                 <div class="mb-3">
                                                     <label class="form-label">Message original:</label>

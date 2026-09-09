@@ -1,23 +1,12 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['email'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
 
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
 
 // Récupérer les réponses pour l'utilisateur connecté
 $email = $_SESSION['email'];

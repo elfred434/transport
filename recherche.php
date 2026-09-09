@@ -1,24 +1,13 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
 
 // Connexion à la base de données
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
 // Initialiser les variables de recherche
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $type = isset($_GET['type']) ? trim($_GET['type']) : 'transporteurs';

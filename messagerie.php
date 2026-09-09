@@ -1,21 +1,10 @@
 <?php
 
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
 $expediteur_id = $_SESSION['user_id'];
 $destinataire_id = isset($_GET['destinataire_id']) ? intval($_GET['destinataire_id']) : 0;
 $colis_id = isset($_GET['colis_id']) ? intval($_GET['colis_id']) : null;
@@ -531,6 +520,7 @@ $is_online = $destinataire_id && (time() % 2 == 0);
     <script>
         const expediteur_id = <?= (int)$expediteur_id ?>;
         const destinataire_id = <?= (int)$destinataire_id ?>;
+        const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
 
         function escapeHtml(text) {
             var map = {
@@ -634,6 +624,7 @@ $is_online = $destinataire_id && (time() % 2 == 0);
             const form = e.target;
             const formData = new FormData(form);
             formData.append('destinataire_id', destinataire_id);
+            formData.append('csrf_token', CSRF_TOKEN);
             fetch('ajax_messagerie.php', {
                     method: 'POST',
                     body: formData

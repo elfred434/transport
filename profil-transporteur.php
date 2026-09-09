@@ -1,7 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
 
@@ -10,17 +10,6 @@ if ($_SESSION['role'] !== 'transporteur') {
     $_SESSION['message'] = "Vous n'êtes pas un transporteur";
     header('Location: index.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 $transporteur_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -480,6 +469,7 @@ if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $transporteur_id) {
                             </div>
                             <div class="card-body">
                                 <form action="traitement-avis.php" method="POST" class="avis-form">
+                                    <?= csrf_field() ?>
                                     <input type="hidden" name="transporteur_id" value="<?= $transporteur_id ?>">
 
                                     <div class="mb-4">

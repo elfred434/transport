@@ -1,52 +1,61 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 $user_id = $_SESSION['user_id'];
 $msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nom = trim($_POST['nom']);
-    $prenom = trim($_POST['prenom']);
-    $email = trim($_POST['email']);
-    $telephone = trim($_POST['telephone']);
-    $photo_profil = null;
+    csrf_check();
 
-    if (isset($_FILES['photo_profil']) && $_FILES['photo_profil']['error'] === UPLOAD_ERR_OK) {
-        $tmp_name = $_FILES['photo_profil']['tmp_name'];
-        $ext = strtolower(pathinfo($_FILES['photo_profil']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
-        if (in_array($ext, $allowed)) {
-            $photo_profil = 'uploads/profil_' . $user_id . '_' . time() . '.' . $ext;
-            move_uploaded_file($tmp_name, $photo_profil);
+    $nom = trim($_POST['nom'] ?? '');
+    $prenom = trim($_POST['prenom'] ?? '');
+    $email = strtolower(trim($_POST['email'] ?? ''));
+    $telephone = trim($_POST['telephone'] ?? '');
+
+    if ($nom === '' || $prenom === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $msg = "Nom, prénom et email valide sont obligatoires.";
+    } else {
+        // Email déjà pris par un autre compte ?
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+        $stmt->execute([$email, $user_id]);
+        if ($stmt->fetch()) {
+            $msg = "Cet email est déjà utilisé par un autre compte.";
+        } else {
+            $photo_profil = null;
+            try {
+                $photo_profil = handle_image_upload($_FILES['photo_profil'] ?? [], '', 'profil_' . $user_id);
+            } catch (RuntimeException $e) {
+                $msg = $e->getMessage();
+            }
+
+            if (!$msg) {
+                $sql = "UPDATE users SET nom = ?, prenom = ?, email = ?, telephone = ?";
+                $params = [htmlspecialchars($nom), htmlspecialchars($prenom), $email, htmlspecialchars($telephone)];
+                if ($photo_profil) {
+                    $sql .= ", photo_profil = ?";
+                    $params[] = $photo_profil;
+                }
+                $sql .= " WHERE id = ?";
+                $params[] = $user_id;
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+
+                // Garder la session synchronisée
+                $_SESSION['nom'] = htmlspecialchars($nom);
+                $_SESSION['prenom'] = htmlspecialchars($prenom);
+                $_SESSION['email'] = $email;
+                if ($photo_profil) {
+                    $_SESSION['photo_profil'] = $photo_profil;
+                }
+
+                $msg = "Profil mis à jour avec succès.";
+            }
         }
     }
-
-    $sql = "UPDATE users SET nom = ?, prenom = ?, email = ?, telephone = ?";
-    $params = [$nom, $prenom, $email, $telephone];
-    if ($photo_profil) {
-        $sql .= ", photo_profil = ?";
-        $params[] = $photo_profil;
-    }
-    $sql .= " WHERE id = ?";
-    $params[] = $user_id;
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $msg = "Profil mis à jour avec succès.";
 }
 
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
@@ -310,7 +319,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
         <ul class="menu-items">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Accueil</a></li>
-            <li><a href="poster-colis.html"><i class="fas fa-box"></i> Poster colis</a></li>
+            <li><a href="poster-colis.php"><i class="fas fa-box"></i> Poster colis</a></li>
             <li><a href="profil.php"><i class="fas fa-user"></i> Profil</a></li>
             <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i> Messages</a></li>
             <li><a href="devenir-transporteur.php"><i class="fas fa-truck"></i> Devenir transporteur</a></li>
@@ -335,6 +344,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
             ?>
             <img src="<?= $img ?>" alt="Photo de profil" class="avatar">
             <form method="post" enctype="multipart/form-data">
+                <?= csrf_field() ?>
                 <label for="nom">Nom</label>
                 <input type="text" id="nom" name="nom" required value="<?= htmlspecialchars($user['nom']) ?>">
 

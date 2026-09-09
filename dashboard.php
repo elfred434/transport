@@ -1,19 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 $user_id = $_SESSION['user_id'];
@@ -440,7 +429,7 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
         </div>
         <ul class="menu-items">
             <li><a href="dashboard.php" class="active"><i class="fas fa-home"></i> Accueil</a></li>
-            <li><a href="poster-colis.html"><i class="fas fa-box"></i> Poster colis</a></li>
+            <li><a href="poster-colis.php"><i class="fas fa-box"></i> Poster colis</a></li>
             <li><a href="profil.php"><i class="fas fa-user"></i> Profil</a></li>
             <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i> Messages</a></li>
             <li><a href="devenir-transporteur.php"><i class="fas fa-truck"></i> Devenir transporteur</a></li>
@@ -549,6 +538,7 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <form action="update_colis.php" method="post" enctype="multipart/form-data">
+                                            <?= csrf_field() ?>
                                             <div class="modal-body">
                                                 <input type="hidden" name="colis_id" value="<?= $c['id'] ?>">
 
@@ -930,7 +920,18 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
                 </table>
             </div>
 
-            <?php if (isset($_COOKIE['transporteur']) && $_COOKIE['transporteur'] == '1' && isset($_COOKIE['voyage_id'])): ?>
+            <?php
+            // Réservations reçues sur MES voyages — lu en base, plus de cookies client falsifiables
+            $stmt = $pdo->prepare("SELECT r.*, c.nom_colis, c.pays, c.ville, c.poids, c.image_colis
+                FROM reservations r
+                JOIN voyages v ON v.id = r.voyage_id
+                JOIN colis c ON c.id = r.colis_id
+                WHERE v.user_id = ?
+                ORDER BY r.date_reservation DESC");
+            $stmt->execute([(int) $_SESSION['user_id']]);
+            $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            ?>
+            <?php if ($reservations): ?>
 
                 <h2 class="text-success text-center mb-4 mt-5"><i class="fa-solid fa-handshake"></i> Mes réservations</h2>
                 <div class="table-responsive mb-5">
@@ -947,15 +948,6 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
                         </thead>
                         <tbody>
                             <?php
-                            $voyage_id = intval($_COOKIE['voyage_id']);
-                            $stmt = $pdo->prepare("SELECT r.*, c.nom_colis, c.pays, c.ville, c.poids, c.image_colis 
-                                FROM reservations r 
-                                JOIN colis c ON r.colis_id = c.id 
-                                WHERE r.voyage_id = ? 
-                                ORDER BY r.date_reservation DESC");
-                            $stmt->execute([$voyage_id]);
-                            $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
                             foreach ($reservations as $r):
                                 $stmt = $pdo->prepare("SELECT statut FROM suivi_colis WHERE colis_id = ? ORDER BY date_etape DESC LIMIT 1");
                                 $stmt->execute([$r['colis_id']]);
@@ -985,6 +977,7 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
                                   <?php if ($statut_suivi != 'Livré'): ?>
 <td>
     <form method="post" action="update_suivi_colis.php" class="d-inline">
+        <?= csrf_field() ?>
         <input type="hidden" name="colis_id" value="<?= $r['colis_id'] ?>">
         <select name="statut" class="form-select form-select-sm d-inline-block" style="width: auto;">
             <option value="En attente" <?= $statut_suivi == 'En attente' ? 'selected' : '' ?>>En attente</option>
@@ -1182,14 +1175,14 @@ $stats_paiements = $stats_paiements->fetch(PDO::FETCH_ASSOC);
 
            <?php if (isset($_SESSION['success'])): ?>
     <script>
-        showToast("<?= addslashes($_SESSION['success']) ?>", "success");
+        window.addEventListener('DOMContentLoaded', function () { showToast(<?= json_encode($_SESSION['success']) ?>, "success"); });
     </script>
     <?php unset($_SESSION['success']); ?>
 <?php endif; ?>
 
 <?php if (isset($_SESSION['error'])): ?>
     <script>
-        showToast("<?= addslashes($_SESSION['error']) ?>", "error");
+        window.addEventListener('DOMContentLoaded', function () { showToast(<?= json_encode($_SESSION['error']) ?>, "error"); });
     </script>
     <?php unset($_SESSION['error']); ?>
 <?php endif; ?>

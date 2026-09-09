@@ -1,19 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
 }
 
 $user_id = $_SESSION['user_id'];
@@ -245,6 +234,15 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     </style>
 </head>
 <body>
+<?php if (!empty($_SESSION['error'])): ?>
+    <div style="max-width:900px;margin:15px auto;padding:12px 18px;background:#f8d7da;color:#721c24;border:1px solid #f5c2c7;border-radius:8px;"><?= htmlspecialchars($_SESSION['error']) ?></div>
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+<?php if (!empty($_SESSION['success'])): ?>
+    <div style="max-width:900px;margin:15px auto;padding:12px 18px;background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;border-radius:8px;"><?= htmlspecialchars($_SESSION['success']) ?></div>
+    <?php unset($_SESSION['success']); ?>
+<?php endif; ?>
+
     <!-- Mobile Menu Toggle Button -->
     <button class="mobile-menu-toggle" id="mobileMenuToggle">
         <i class="fas fa-bars"></i>
@@ -257,7 +255,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
         <ul class="menu-items">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Accueil</a></li>
-            <li><a href="poster-colis.html"><i class="fas fa-box"></i> Poster colis</a></li>
+            <li><a href="poster-colis.php"><i class="fas fa-box"></i> Poster colis</a></li>
             <li><a href="profil.php"><i class="fas fa-user"></i> Profil</a></li>
             <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i> Messages</a></li>
             <li><a href="devenir-transporteur.php" class="active"><i class="fas fa-truck"></i> Devenir transporteur</a></li>
@@ -273,6 +271,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
         <div class="form-container">
             <h1>Devenir transporteur</h1>
             <form action="traitement-transporteur.php" method="POST" enctype="multipart/form-data">
+                <?= csrf_field() ?>
                 <label for="numero_permis">Numéro de permis :</label>
                 <input type="text" id="numero_permis" name="numero_permis" required>
 

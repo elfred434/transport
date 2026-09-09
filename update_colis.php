@@ -1,17 +1,11 @@
 <?php
-session_start();
+require_once __DIR__ . '/functions.php';
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
+    header('Location: login.php');
     exit;
 }
 
-// Configuration de la base de données (identique à dashboard.php)
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-$options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
+csrf_check();
 
 $colis_id = $_POST['colis_id'] ?? null;
 $user_id = $_SESSION['user_id'];
@@ -23,8 +17,6 @@ if (!$colis_id) {
 }
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-    
     // Vérifier que le colis appartient bien à l'utilisateur
     $stmt = $pdo->prepare("SELECT * FROM colis WHERE id = ? AND user_id = ?");
     $stmt->execute([$colis_id, $user_id]);
@@ -36,39 +28,33 @@ try {
         exit;
     }
     
-    // Traitement de l'image
+    // Traitement de l'image (validation MIME centralisée)
     $image_colis = $colis['image_colis'];
-    if (!empty($_FILES['image_colis']['name'])) {
-        $uploadDir = 'uploads/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
-        $fileName = 'colis_' . uniqid() . '.' . pathinfo($_FILES['image_colis']['name'], PATHINFO_EXTENSION);
-        $uploadFile = $uploadDir . $fileName;
-        
-        // Vérifier le type de fichier
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        $fileType = mime_content_type($_FILES['image_colis']['tmp_name']);
-        
-        if (in_array($fileType, $allowedTypes)) {
-            if (move_uploaded_file($_FILES['image_colis']['tmp_name'], $uploadFile)) {
-                $image_colis = $uploadFile;
-                // Supprimer l'ancienne image si elle existe
-                if ($colis['image_colis'] && file_exists($colis['image_colis'])) {
-                    unlink($colis['image_colis']);
-                }
-            } else {
-                $_SESSION['error'] = "Erreur lors du téléchargement de l'image";
-                header('Location: dashboard.php');
-                exit;
+    try {
+        $nouvelle_image = handle_image_upload($_FILES['image_colis'] ?? [], 'colis', 'colis');
+        if ($nouvelle_image) {
+            $image_colis = $nouvelle_image;
+            // Supprimer l'ancienne image si elle existe (dans uploads/ uniquement)
+            if ($colis['image_colis'] && str_starts_with($colis['image_colis'], 'uploads/')
+                && is_file(__DIR__ . '/' . $colis['image_colis'])) {
+                unlink(__DIR__ . '/' . $colis['image_colis']);
             }
-        } else {
-            $_SESSION['error'] = "Type de fichier non autorisé";
-            header('Location: dashboard.php');
-            exit;
         }
+    } catch (RuntimeException $e) {
+        $_SESSION['error'] = $e->getMessage();
+        header('Location: dashboard.php');
+        exit;
     }
     
+    // Validation et recalcul du prix côté serveur (jamais celui du formulaire)
+    $poids = (float) str_replace(',', '.', $_POST['poids'] ?? 0);
+    if ($poids <= 0 || $poids > 1000) {
+        $_SESSION['error'] = "Poids invalide.";
+        header('Location: dashboard.php');
+        exit;
+    }
+    $prix_estime = round(max(1000, 1000 + (1000 * $poids)) * 1.2, 2);
+
     // Mise à jour des données
     $stmt = $pdo->prepare("UPDATE colis SET 
         nom_colis = ?, 
@@ -90,14 +76,14 @@ try {
         $image_colis,
         $_POST['type_produit'],
         $_POST['nombre_produits'],
-        $_POST['poids'],
+        $poids,
         $_POST['dimensions'],
         $_POST['pays'],
         $_POST['ville'],
         $_POST['date_limite'],
         $_POST['adresse_depart'],
         $_POST['adresse_destination'],
-        $_POST['prix_estime'],
+        $prix_estime,
         $colis_id
     ]);
     

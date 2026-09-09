@@ -1,26 +1,20 @@
 <?php
 
-session_start();
+require_once __DIR__ . '/functions.php';
 
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
+require_admin();
 
-
-if (isset($_GET['action'], $_GET['id'])) {
-    $id = intval($_GET['id']);
-    if ($_GET['action'] === 'approuver') {
+// Actions de modération en POST uniquement (protégées par jeton CSRF)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['id'])) {
+    csrf_check();
+    $id = intval($_POST['id']);
+    if ($_POST['action'] === 'approuver') {
         $pdo->prepare("UPDATE colis SET statut = 'approuve' WHERE id = ?")->execute([$id]);
+        $_SESSION['success'] = "Colis approuvé avec succès";
     }
-    if ($_GET['action'] === 'refuser') {
+    if ($_POST['action'] === 'refuser') {
         $pdo->prepare("UPDATE colis SET statut = 'refuse' WHERE id = ?")->execute([$id]);
+        $_SESSION['success'] = "Colis refusé";
     }
     header('Location: admin_colis.php');
     exit;
@@ -67,8 +61,12 @@ $colis = $pdo->query("SELECT * FROM colis WHERE statut = 'en_attente' ORDER BY d
                 <td><?= htmlspecialchars($c['pays']) ?>, <?= htmlspecialchars($c['ville']) ?></td>
                 <td><?= htmlspecialchars($c['date_limite']) ?></td>
                 <td>
-                    <a href="?action=approuver&id=<?= $c['id'] ?>" class="btn btn-approve">Approuver</a>
-                    <a href="?action=refuser&id=<?= $c['id'] ?>" class="btn btn-refuse">Refuser</a>
+                    <form method="post" class="d-inline" action="admin_colis.php">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
+                        <button type="submit" name="action" value="approuver" class="btn btn-approve">Approuver</button>
+                        <button type="submit" name="action" value="refuser" class="btn btn-refuse">Refuser</button>
+                    </form>
                 </td>
             </tr>
             <?php endforeach; ?>

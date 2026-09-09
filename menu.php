@@ -1,22 +1,7 @@
 <?php
-
-
-// Vérifier si l'utilisateur est connecté et est un administrateur
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
-    header('Location: login.php');
-    exit;
-}
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
+require_once __DIR__ . '/functions.php';
+// Menu latéral partagé : accessible à tout utilisateur connecté (la garde
+// d'authentification est assurée par chaque page qui inclut ce menu).
 ?>
 
 <!DOCTYPE html>
@@ -95,7 +80,7 @@ try {
         </div>
         <ul class="menu-items">
             <li><a href="dashboard.php"><i class="fas fa-home"></i> Accueil</a></li>
-            <li><a href="poster-colis.html"><i class="fas fa-box"></i> Postez Colis</a></li>
+            <li><a href="poster-colis.php"><i class="fas fa-box"></i> Postez Colis</a></li>
             <li><a href="profil.php"><i class="fas fa-user"></i> Profil</a></li>
             <li><a href="liste-messagerie.php"><i class="fas fa-envelope"></i> Messages</a></li>
             <li><a href="devenir-transporteur.php"><i class="fas fa-id-badge"></i> Devenir Transporteur</a></li>
@@ -134,7 +119,8 @@ try {
                     ?>
                 </a>
             </li>
-            <li><a href="aut.php?logout=1"><i class="fas fa-sign-out-alt"></i> Déconnexion</a></li>
+            <li><a href="messagerie-admin.php"><i class="fas fa-headset"></i> Contacter l'admin</a></li>
+            <li><a href="auth.php?logout=1"><i class="fas fa-sign-out-alt"></i> Déconnexion</a></li>
         </ul>
     </div>
 </body>

@@ -1,36 +1,43 @@
 <?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
+/**
+ * AJAX (admin) — conversation entre l'admin connecté et un utilisateur donné.
+ */
+require_once __DIR__ . '/../functions.php';
+
+if (!is_logged_in() || !is_admin()) {
+    http_response_code(403);
     exit('Accès non autorisé');
 }
 
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
+header('Content-Type: text/html; charset=UTF-8');
+
+$adminId = (int) $_SESSION['user_id'];
+$userId  = (int) ($_GET['user_id'] ?? 0);
+
+if ($userId <= 0) {
+    exit('');
 }
 
-$user_id = $_GET['user_id'];
-$is_admin = $_GET['is_admin'] === 'true';
-$admin_id = 1; // ID de l'administrateur (à adapter)
-
-$stmt = $pdo->prepare("
-    SELECT m.*, u.nom, u.prenom 
-    FROM messages_admin m
-    JOIN users u ON m.expediteur_id = u.id
-    WHERE (m.expediteur_id = :user_id AND m.destinataire_id = :admin_id)
-       OR (m.expediteur_id = :admin_id AND m.destinataire_id = :user_id)
-    ORDER BY m.date_envoi ASC
-");
-$stmt->execute(['user_id' => $user_id, 'admin_id' => $admin_id]);
+$stmt = $pdo->prepare(
+    "SELECT m.*, u.nom, u.prenom
+     FROM messages_admin m
+     JOIN users u ON m.expediteur_id = u.id
+     WHERE (m.expediteur_id = :user AND m.destinataire_id = :admin)
+        OR (m.expediteur_id = :admin AND m.destinataire_id = :user)
+     ORDER BY m.date_envoi ASC"
+);
+$stmt->execute(['user' => $userId, 'admin' => $adminId]);
 $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($messages as $message) {
-    $class = $message['expediteur_id'] == $user_id ? 'user' : 'admin';
-    echo "<div class='message $class'><strong>{$message['prenom']} {$message['nom']}:</strong> {$message['contenu']}</div>";
+    $class = ((int) $message['expediteur_id'] === $adminId) ? 'admin' : 'user';
+    $date  = e($message['date_envoi']);
+    echo "<div class='message " . $class . "'><strong>"
+        . e($message['prenom'] . ' ' . $message['nom']) . " :</strong> "
+        . nl2br(e($message['contenu']))
+        . " <small style='opacity:.7'>(" . $date . ")</small></div>";
 }
+
+// Marquer comme lus les messages reçus de cet utilisateur
+$pdo->prepare("UPDATE messages_admin SET lu = 1 WHERE expediteur_id = ? AND destinataire_id = ? AND lu = 0")
+    ->execute([$userId, $adminId]);

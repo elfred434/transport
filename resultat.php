@@ -1,17 +1,7 @@
 <?php
 
-session_start();
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
+require_once __DIR__ . '/functions.php';
+require_login();
 if (!isset($_GET['colis_id'])) {
     die("Aucun colis sélectionné.");
 }

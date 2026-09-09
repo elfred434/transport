@@ -1,17 +1,5 @@
 <?php
-session_start();
-
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
+require_once __DIR__ . '/functions.php';
 
 $nom_session = isset($_SESSION['prenom']) && isset($_SESSION['nom']) ? $_SESSION['prenom'] . ' ' . $_SESSION['nom'] : '';
 $email_session = isset($_SESSION['email']) ? $_SESSION['email'] : '';
@@ -19,6 +7,7 @@ $email_session = isset($_SESSION['email']) ? $_SESSION['email'] : '';
 $success = false;
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
     $nom = htmlspecialchars(trim($_POST['nom']));
     $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
     $message = htmlspecialchars(trim($_POST['message']));
@@ -97,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="msg-error"><?= $error ?></div>
                 <?php endif; ?>
                 <form method="post" action="contact.php">
+                    <?= csrf_field() ?>
                     <label for="nom">Nom</label>
                     <input type="text" id="nom" name="nom" required 
     value="<?= isset($_POST['nom']) ? htmlspecialchars($_POST['nom']) : ($nom_session ?: '') ?>">

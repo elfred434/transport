@@ -1,24 +1,12 @@
 <?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.html');
-    exit;
-}
+/**
+ * Messagerie utilisateur ↔ administrateur (page utilisateur).
+ */
+require_once __DIR__ . '/functions.php';
+require_login();
 
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données');
-}
-
-$user_id = $_SESSION['user_id'];
-$is_admin = ($_SESSION['role'] === 'admin');
-$admin_id = 1; // ID de l'administrateur (à adapter selon votre base de données)
+$user_id  = (int) $_SESSION['user_id'];
+$admin_id = get_admin_id();
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -33,50 +21,84 @@ $admin_id = 1; // ID de l'administrateur (à adapter selon votre base de donnée
         .container { max-width: 800px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px #0001; }
         .messages { max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
         .message { padding: 10px; border-radius: 8px; margin-bottom: 10px; }
-        .message.admin { background: #007bff; color: #fff; text-align: right; }
-        .message.user { background: #f1f1f1; color: #333; text-align: left; }
+        .message.admin { background: #007bff; color: #fff; }
+        .message.user { background: #f1f1f1; color: #333; text-align: right; }
         .form-control { resize: none; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2 class="text-center"><i class="fa-solid fa-envelope"></i> Messagerie</h2>
-    <div class="messages" id="messages"></div>
-    <form id="messageForm">
-        <textarea class="form-control" id="messageContent" rows="3" placeholder="Écrivez votre message..." required></textarea>
-        <button type="submit" class="btn btn-primary w-100 mt-2"><i class="fa-solid fa-paper-plane"></i> Envoyer</button>
-    </form>
+    <h2 class="text-center"><i class="fa-solid fa-headset"></i> Contacter l'administrateur</h2>
+
+    <?php if (!$admin_id): ?>
+        <div class="alert alert-warning">Aucun administrateur n'est disponible pour le moment.</div>
+    <?php else: ?>
+        <div class="messages" id="messages"><p class="text-muted text-center">Chargement…</p></div>
+        <form id="messageForm">
+            <textarea class="form-control" id="messageContent" rows="3" maxlength="5000" placeholder="Écrivez votre message..." required></textarea>
+            <button type="submit" class="btn btn-primary w-100 mt-2"><i class="fa-solid fa-paper-plane"></i> Envoyer</button>
+        </form>
+        <div id="formError" class="alert alert-danger mt-2 d-none"></div>
+        <p class="text-center mt-3"><a href="dashboard.php">← Retour au tableau de bord</a></p>
+    <?php endif; ?>
 </div>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script src="bootstrap-5.3.3-dist/bootstrap-5.3.3-dist/js/bootstrap.bundle.min.js"></script>
+<?php if ($admin_id): ?>
 <script>
-    const userId = <?= $user_id ?>;
-    const isAdmin = <?= $is_admin ? 'true' : 'false' ?>;
-    const adminId = <?= $admin_id ?>;
+    const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
 
     function loadMessages() {
-        $.get('ajax_get_messages.php', { user_id: userId, is_admin: isAdmin }, function(data) {
-            $('#messages').html(data);
-            $('#messages').scrollTop($('#messages')[0].scrollHeight);
-        });
+        fetch('ajax_get_messages.php', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.text())
+            .then(html => {
+                const zone = document.getElementById('messages');
+                const atBottom = zone.scrollTop + zone.clientHeight >= zone.scrollHeight - 40;
+                zone.innerHTML = html;
+                if (atBottom) zone.scrollTop = zone.scrollHeight;
+            })
+            .catch(() => {});
     }
 
-    $('#messageForm').on('submit', function(e) {
+    document.getElementById('messageForm').addEventListener('submit', function (e) {
         e.preventDefault();
-        const content = $('#messageContent').val();
-        if (content.trim() === '') return;
+        const textarea = document.getElementById('messageContent');
+        const contenu = textarea.value.trim();
+        if (contenu === '') return;
 
-        $.post('ajax_send_message.php', {
-            expediteur_id: userId,
-            destinataire_id: isAdmin ? $('#userId').val() : adminId,
-            contenu: content
-        }, function() {
-            $('#messageContent').val('');
-            loadMessages();
+        const body = new URLSearchParams();
+        body.append('contenu', contenu);
+
+        fetch('ajax_send_message.php', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': CSRF_TOKEN
+            },
+            body: body
+        })
+        .then(r => r.json())
+        .then(data => {
+            const err = document.getElementById('formError');
+            if (data.success) {
+                textarea.value = '';
+                err.classList.add('d-none');
+                loadMessages();
+            } else {
+                err.textContent = data.error || "Erreur lors de l'envoi.";
+                err.classList.remove('d-none');
+            }
+        })
+        .catch(() => {
+            const err = document.getElementById('formError');
+            err.textContent = "Erreur réseau lors de l'envoi.";
+            err.classList.remove('d-none');
         });
     });
 
-    setInterval(loadMessages, 3000); // Rafraîchit les messages toutes les 3 secondes
     loadMessages();
+    setInterval(loadMessages, 5000);
 </script>
+<?php endif; ?>
 </body>
 </html>

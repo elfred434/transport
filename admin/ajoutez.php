@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../functions.php';
 
 // Générer un jeton CSRF si non défini
 if (!isset($_SESSION['csrf_token'])) {
@@ -7,17 +7,6 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 
 // Connexion à la base de données
-$host = 'localhost';
-$db = 'transport_db';
-$user = 'root';
-$pass = '';
-$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die('Erreur de connexion à la base de données : ' . $e->getMessage());
-}
 
 // Vérifier si l'utilisateur est connecté et est un administrateur
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
@@ -62,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Régénérer le jeton CSRF après soumission réussie
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                 } catch (Exception $e) {
-                    $error = "Erreur lors de la création de l'utilisateur : " . $e->getMessage();
+                    error_log("Erreur création utilisateur : " . $e->getMessage());
+                    $error = "Erreur lors de la création de l'utilisateur.";
                 }
             }
         }
