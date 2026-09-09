@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminGate, AppLayout, PublicLayout } from './components/Layouts'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -48,7 +48,51 @@ import AdminLogin from './pages/admin/AdminLogin'
  *   reponses.html           → /reponses
  *   admin/login.html        → /admin/login    admin/index.html    → /admin
  *   admin/messagerie.html   → /admin/messagerie
+ *
+ * Les anciens chemins `*.html` (liens de mails, favoris, backend FRONTEND_URL)
+ * sont redirigés vers les routes SPA en conservant la query string.
  */
+
+/** Redirection d'un ancien chemin `.html` vers sa route SPA, query string conservée. */
+function LegacyRedirect({ to }: { to: string }) {
+  const { search } = useLocation()
+  // Cas particulier : colis-detail.html?id=N → /colis/N
+  if (to === '/colis/:id') {
+    const id = new URLSearchParams(search).get('id')
+    return <Navigate to={id ? '/colis/' + encodeURIComponent(id) : '/colis'} replace />
+  }
+  return <Navigate to={to + search} replace />
+}
+
+const LEGACY_ROUTES: [string, string][] = [
+  ['/index.html', '/'],
+  ['/login.html', '/login'],
+  ['/register.html', '/register'],
+  ['/reset-request.html', '/reset-request'],
+  ['/reset-password.html', '/reset-password'],
+  ['/contact.html', '/contact'],
+  ['/suivi.html', '/suivi'],
+  ['/dashboard.html', '/dashboard'],
+  ['/poster-colis.html', '/poster-colis'],
+  ['/colis.html', '/colis'],
+  ['/colis-detail.html', '/colis/:id'],
+  ['/recherche.html', '/recherche'],
+  ['/reservation-colis.html', '/reservation-colis'],
+  ['/paiement.html', '/paiement'],
+  ['/profil.html', '/profil'],
+  ['/modifier-profil.html', '/modifier-profil'],
+  ['/devenir-transporteur.html', '/devenir-transporteur'],
+  ['/transporteur-stats.html', '/transporteur-stats'],
+  ['/profil-transporteur.html', '/profil-transporteur'],
+  ['/liste-messagerie.html', '/liste-messagerie'],
+  ['/messagerie.html', '/messagerie'],
+  ['/messagerie-admin.html', '/messagerie-admin'],
+  ['/reponses.html', '/reponses'],
+  ['/admin/login.html', '/admin/login'],
+  ['/admin/index.html', '/admin'],
+  ['/admin/messagerie.html', '/admin/messagerie'],
+]
+
 export default function App() {
   return (
     <Routes>
@@ -103,6 +147,11 @@ export default function App() {
           }
         />
       </Route>
+
+      {/* --- Anciens chemins .html → routes SPA (query string conservée) --- */}
+      {LEGACY_ROUTES.map(([from, to]) => (
+        <Route key={from} path={from} element={<LegacyRedirect to={to} />} />
+      ))}
     </Routes>
   )
 }
