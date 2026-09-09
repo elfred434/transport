@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import { date, datetime, money, SmartImg, StatusBadge } from '../lib/format'
-import { useAuth, type Me } from '../context/AuthContext'
+import { date, datetime, money, SmartImg } from '../lib/format'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toasts'
+import '../styles/dashboard-originale.css'
 
 /**
- * Tableau de bord — port de dashboard.html.
- * 4 onglets : mes colis, mes voyages, réservations reçues, mes paiements.
- * Les onglets et la modale d'édition sont gérés en état React (le vanilla
- * utilisait les plugins Bootstrap tab/modal — rendu visuel identique).
+ * Tableau de bord — port React de dashboard.php (design d'origine conservé) :
+ * carte de recherche transporteur, table « Mes colis postés » avec modale à
+ * onglets (Détails / Statut / Transporteurs), « Mes voyages proposés »,
+ * « Mes réservations » (transporteur), « Mes paiements » (cartes + table +
+ * modale), carte solde et menu inférieur mobile.
+ * Les modales et onglets Bootstrap sont gérés en état React.
  */
+
+/* ================================ TYPES ================================== */
 
 interface ReservationAffectee {
   transporteur_id: number
   nom: string
   prenom: string
+  email: string | null
+  telephone: string | null
+  photo_url: string | null
   note_moyenne: number | null
 }
 
@@ -37,21 +45,6 @@ interface ColisMine {
   reservations: ReservationAffectee[]
 }
 
-interface ReservationDetail {
-  id: number
-  statut: string
-  date_reservation: string
-  transporteur_id: number
-  nom: string
-  prenom: string
-  email: string | null
-  telephone: string | null
-  pays_depart: string
-  pays_destination: string
-  date_depart: string
-  heure_depart: string | null
-}
-
 interface VoyageMine {
   id: number
   pays_depart: string
@@ -59,6 +52,7 @@ interface VoyageMine {
   date_depart: string
   heure_depart: string | null
   poids_max: string | number
+  telephone: string | null
   nb_reservations: number
   statut: string
 }
@@ -68,10 +62,9 @@ interface ReservationRecue {
   nom_colis: string
   image_url: string | null
   numero_suivi: string
-  client_id: number | null
-  client_nom: string | null
-  client_prenom: string | null
-  client_tel: string | null
+  poids: string | number
+  ville: string
+  pays: string
   pays_depart: string
   pays_destination: string
   date_depart: string
@@ -97,317 +90,607 @@ interface PaiementsStats {
   montant_total: number
   montant_paye: number
   montant_en_attente: number
+  nb_payes: number
+  nb_en_attente: number
 }
 
-type Tab = 'colis' | 'voyages' | 'reservations' | 'paiements'
+interface TransporteurStats {
+  note_moyenne: number | null
+  nb_avis: number
+  nb_colis_transportes: number
+}
 
-export default function Dashboard() {
-  const { me } = useAuth()
-  const { toast } = useToast()
-  const [tab, setTab] = useState<Tab>('colis')
+interface TransporteurData {
+  user: { id: number; nom: string; prenom: string }
+  stats: TransporteurStats
+}
 
+interface Avis {
+  prenom: string
+  nom: string
+  note: number
+  commentaire: string
+  date_avis: string
+}
+
+/* =============================== HELPERS ================================= */
+
+const TYPE_LABELS: Record<string, string> = {
+  documents: 'Documents',
+  vetements: 'Vêtements',
+  electronique: 'Électronique',
+  alimentaire: 'Alimentaire',
+  autre: 'Autre',
+}
+
+function BadgeColis({ statut }: { statut: string }) {
+  if (statut === 'en_attente') return <span className="badge bg-warning text-dark">En attente</span>
+  if (statut === 'approuve') return <span className="badge bg-success">Approuvé</span>
+  if (statut === 'refuse') return <span className="badge bg-danger">Refusé</span>
+  return <span className="badge bg-light text-dark">{statut}</span>
+}
+
+function BadgeReservation({ statut }: { statut: string }) {
+  if (statut === 'en_attente') return <span className="badge bg-warning text-dark">En attente</span>
+  if (statut === 'accepte') return <span className="badge bg-success">Accepté</span>
+  if (statut === 'refuse') return <span className="badge bg-danger">Refusé</span>
+  if (statut === 'annule') return <span className="badge bg-secondary">Annulé</span>
+  return <span className="badge bg-light text-dark">{statut}</span>
+}
+
+function BadgePaiement({ statut }: { statut: string }) {
+  if (statut === 'paye') return <span className="badge bg-success">Payé</span>
+  if (statut === 'en_attente') return <span className="badge bg-warning text-dark">En attente</span>
+  if (statut === 'echec') return <span className="badge bg-danger">Échec</span>
+  if (statut === 'annule') return <span className="badge bg-secondary">Annulé</span>
+  return <span className="badge bg-light text-dark">{statut}</span>
+}
+
+function Stars({ note }: { note: number | null }) {
+  const n = Math.round(Number(note || 0))
   return (
-    <>
-      <h2 className="mb-4">Tableau de bord</h2>
-
-      <ul className="nav nav-tabs mb-4" role="tablist">
-        {(
-          [
-            ['colis', 'Mes colis'],
-            ['voyages', 'Mes voyages'],
-            ['reservations', 'Réservations reçues'],
-            ['paiements', 'Mes paiements'],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <li className="nav-item" key={key}>
-            <button
-              type="button"
-              className={'nav-link' + (tab === key ? ' active' : '')}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <div className="tab-content">
-        {tab === 'colis' && <TabColis me={me} toast={toast} />}
-        {tab === 'voyages' && <TabVoyages me={me} />}
-        {tab === 'reservations' && <TabReservations me={me} toast={toast} />}
-        {tab === 'paiements' && <TabPaiements />}
-      </div>
-    </>
+    <div className="text-warning">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <i
+          key={i}
+          className={i <= n ? 'fas fa-star' : 'fa-solid fa-star text-muted opacity-25'}
+        />
+      ))}
+    </div>
   )
 }
 
-interface ToastFn {
-  toast: (message: string, type?: 'success' | 'error' | 'info') => void
-}
+/* ============================== DASHBOARD ================================ */
 
-/* =============================== MES COLIS =============================== */
+export default function Dashboard() {
+  const { me, logout } = useAuth()
+  const { toast } = useToast()
+  const navigate = useNavigate()
 
-function TabColis({ me, toast }: { me: Me | null } & ToastFn) {
-  const [list, setList] = useState<ColisMine[] | null>(null)
+  const [colis, setColis] = useState<ColisMine[] | null>(null)
+  const [voyages, setVoyages] = useState<VoyageMine[] | null>(null)
+  const [reservations, setReservations] = useState<ReservationRecue[] | null>(null)
+  const [paiements, setPaiements] = useState<PaiementMine[] | null>(null)
+  const [stats, setStats] = useState<PaiementsStats | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [editing, setEditing] = useState<ColisMine | null>(null)
 
-  const load = useCallback(async () => {
+  const [detailsColis, setDetailsColis] = useState<ColisMine | null>(null)
+  const [detailsVoyage, setDetailsVoyage] = useState<VoyageMine | null>(null)
+  const [detailsPaiement, setDetailsPaiement] = useState<PaiementMine | null>(null)
+
+  const [searchColisId, setSearchColisId] = useState('')
+
+  const loadColis = useCallback(async () => {
     try {
       setError(null)
-      setList(await api.get<ColisMine[]>('/api/colis/mine'))
+      setColis(await api.get<ColisMine[]>('/api/colis/mine'))
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
     }
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [load])
-
-  void me
-
-  return (
-    <div className="tab-pane fade show active">
-      <div className="page-card">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="mb-0">Mes colis</h5>
-          <Link to="/poster-colis" className="btn btn-primary">
-            <i className="fa-solid fa-box"></i> Poster un colis
-          </Link>
-        </div>
-
-        {error && <div className="alert alert-danger">{error}</div>}
-        {!list && !error && <div className="text-center text-muted py-4">Chargement…</div>}
-        {list && list.length === 0 && (
-          <p className="text-muted text-center py-4">
-            Aucun colis pour le moment. <Link to="/poster-colis">Poster un colis</Link>
-          </p>
-        )}
-
-        {list?.map((c) => (
-          <ColisRow key={c.id} c={c} toast={toast} onEdit={() => setEditing(c)} onReload={load} />
-        ))}
-      </div>
-
-      {editing && (
-        <EditColisModal
-          colisId={editing.id}
-          onClose={() => setEditing(null)}
-          onSaved={(prix) => {
-            setEditing(null)
-            toast('Colis mis à jour. Nouveau prix estimé : ' + money(prix))
-            load()
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-function ColisRow({
-  c,
-  toast,
-  onEdit,
-  onReload,
-}: {
-  c: ColisMine
-  onEdit: () => void
-  onReload: () => void
-} & ToastFn) {
-  const [showRes, setShowRes] = useState(false)
-  const [resList, setResList] = useState<ReservationDetail[] | null>(null)
-  const [resError, setResError] = useState<string | null>(null)
-
-  const toggleReservations = async () => {
-    if (showRes) {
-      setShowRes(false)
-      return
-    }
-    setShowRes(true)
-    setResList(null)
-    setResError(null)
+  const loadVoyages = useCallback(async () => {
     try {
-      setResList(await api.get<ReservationDetail[]>(`/api/colis/${c.id}/reservations`))
-    } catch (e) {
-      setResError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+      setVoyages(await api.get<VoyageMine[]>('/api/voyages/mine'))
+    } catch {
+      setVoyages([])
     }
+  }, [])
+
+  const loadReservations = useCallback(async () => {
+    try {
+      setReservations(await api.get<ReservationRecue[]>('/api/reservations/recues'))
+    } catch {
+      setReservations([])
+    }
+  }, [])
+
+  const loadPaiements = useCallback(async () => {
+    try {
+      const data = await api.get<{ paiements: PaiementMine[]; stats: PaiementsStats }>(
+        '/api/paiements/mine',
+      )
+      setPaiements(data.paiements || [])
+      setStats(data.stats || null)
+    } catch {
+      setPaiements([])
+    }
+  }, [])
+
+  useEffect(() => {
+    loadColis()
+    loadVoyages()
+    loadPaiements()
+  }, [loadColis, loadVoyages, loadPaiements])
+
+  useEffect(() => {
+    if (me?.is_transporteur) loadReservations()
+  }, [me, loadReservations])
+
+  const onLogout = async () => {
+    await logout()
+    navigate('/')
   }
 
-  const action = async (id: number, act: string) => {
-    const labels: Record<string, string> = {
-      accepte: 'accepter',
-      refuse: 'refuser',
-      annule: 'annuler (supprime le suivi)',
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchColisId) navigate('/recherche?colis_id=' + encodeURIComponent(searchColisId))
+  }
+
+  const onSuivi = async (colisId: number, statut: string) => {
+    if (!statut) return
+    if (statut === 'Livré' && !window.confirm("Marquer comme livré ? L'agence devra confirmer.")) {
+      loadReservations()
+      return
     }
-    if (!window.confirm('Confirmez-vous : ' + labels[act] + ' ?')) return
     try {
-      await api.post(`/api/reservations/${id}/action`, { action: act })
-      toast('Réservation mise à jour.')
-      onReload()
-      // Recharger aussi le détail ouvert.
-      setResList(await api.get<ReservationDetail[]>(`/api/colis/${c.id}/reservations`))
+      const data = await api.post<{ message?: string }>('/api/suivi', { colis_id: colisId, statut })
+      toast(data.message || 'Statut mis à jour.')
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Erreur inconnue', 'error')
     }
+    loadReservations()
   }
 
   return (
-    <div className="border rounded-3 p-3 mb-3">
-      <div className="d-flex flex-wrap gap-3 align-items-center">
-        <SmartImg url={c.image_url} alt={c.nom_colis} className="img-colis" />
-        <div className="flex-grow-1">
-          <div className="fw-bold">
-            <Link to={`/colis/${c.id}`} className="text-decoration-none">
-              {c.nom_colis}
-            </Link>{' '}
-            <StatusBadge statut={c.statut} />{' '}
-            {c.statut_livraison && <StatusBadge statut={c.statut_livraison} />}{' '}
-            {c.demande_livraison && !c.suivi_confirme_par_admin && (
-              <span className="badge bg-info text-dark">
-                Livraison en attente de confirmation admin
-              </span>
-            )}
-          </div>
-          <div className="small text-muted">
-            {c.ville}, {c.pays} · {c.poids} kg · {c.type_produit || ''} · Prix :{' '}
-            <strong>{money(c.prix_estime)}</strong> · Suivi : <code>{c.numero_suivi}</code> ·
-            Limite : {date(c.date_limite)}
-          </div>
-          {c.reservations && c.reservations.length > 0 && (
-            <div className="small mt-1">
-              <i className="fa-solid fa-truck text-primary"></i> Transporteur(s) affecté(s) :{' '}
-              {c.reservations.map((r, i) => (
-                <span key={r.transporteur_id}>
-                  {i > 0 && ', '}
-                  <Link to={`/profil-transporteur?id=${r.transporteur_id}`}>
-                    {r.prenom} {r.nom}
-                  </Link>
-                  {r.note_moyenne ? ` (${r.note_moyenne}★)` : ''}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="d-flex gap-2 flex-wrap">
-          {c.statut === 'en_attente' && (
-            <>
-              <button className="btn btn-sm btn-outline-primary" onClick={onEdit}>
-                <i className="fa-solid fa-pen"></i> Modifier
-              </button>
-              <Link className="btn btn-sm btn-outline-success" to={`/paiement?colis_id=${c.id}`}>
-                <i className="fa-solid fa-credit-card"></i> Payer
-              </Link>
-            </>
-          )}
-          {c.statut === 'approuve' && (
-            <>
-              <Link
-                className="btn btn-sm btn-outline-info"
-                to={'/suivi?numero_suivi=' + encodeURIComponent(c.numero_suivi)}
-              >
-                <i className="fa-solid fa-search-location"></i> Suivre
-              </Link>
-              <Link className="btn btn-sm btn-outline-secondary" to={`/recherche?colis_id=${c.id}`}>
-                <i className="fa-solid fa-plane"></i> Voyages compatibles
-              </Link>
-              <button className="btn btn-sm btn-outline-dark" onClick={toggleReservations}>
-                <i className="fa-solid fa-list"></i> Réservations
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+    <div className="dashboard-originale">
+      <div className="container py-3">
+        {error && <div className="alert alert-danger">{error}</div>}
 
-      {showRes && (
-        <div className="mt-3">
-          {resError && <div className="alert alert-danger small">{resError}</div>}
-          {!resList && !resError && <p className="text-muted small">Chargement…</p>}
-          {resList && resList.length === 0 && (
-            <p className="text-muted small mb-0">Aucune réservation pour ce colis.</p>
-          )}
-          {resList && resList.length > 0 && (
-            <div className="table-responsive">
-              <table className="table table-sm align-middle mb-0">
+        {/* Déconnexion (comme l'original, en haut à droite) */}
+        <div className="d-flex justify-content-end mb-3">
+          <button type="button" onClick={onLogout} className="btn btn-danger btn-sm">
+            <i className="fa-solid fa-right-from-bracket"></i> Déconnexion
+          </button>
+        </div>
+
+        {/* Recherche d'un transporteur pour un colis */}
+        <div className="card shadow-sm mb-4">
+          <div className="card-body">
+            <form onSubmit={onSearch} className="row g-2 align-items-end">
+              <div className="col-md-8">
+                <label htmlFor="colis_id" className="form-label fw-bold">
+                  <i className="fa-solid fa-search"></i> Rechercher un transporteur :
+                </label>
+                <select
+                  name="colis_id"
+                  id="colis_id"
+                  className="form-select"
+                  required
+                  value={searchColisId}
+                  onChange={(e) => setSearchColisId(e.target.value)}
+                >
+                  <option value="">-- Sélectionnez un colis --</option>
+                  {(colis || []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nom_colis} ({c.pays})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-4">
+                <button type="submit" className="btn btn-primary w-100">
+                  <i className="fa-solid fa-truck"></i> Rechercher
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* ========================= MES COLIS POSTÉS ========================= */}
+        <h2 className="text-primary text-center mb-4">
+          <i className="fa-solid fa-box"></i> Mes colis postés
+        </h2>
+        <div className="table-responsive mb-5">
+          <table className="table table-bordered align-middle shadow-sm">
+            <thead className="table-light">
+              <tr>
+                <th>Nom</th>
+                <th className="mobile-hide">Image</th>
+                <th className="mobile-hide">Type</th>
+                <th>Poids</th>
+                <th>Destination</th>
+                <th className="mobile-hide">Date limite</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!colis && (
+                <tr>
+                  <td colSpan={8} className="text-center text-muted">
+                    Chargement…
+                  </td>
+                </tr>
+              )}
+              {colis && colis.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center text-muted">
+                    Aucun colis posté. <Link to="/poster-colis">Poster un colis</Link>
+                  </td>
+                </tr>
+              )}
+              {(colis || []).map((c) => (
+                <tr key={c.id}>
+                  <td>{c.nom_colis}</td>
+                  <td className="mobile-hide">
+                    <SmartImg url={c.image_url} alt={c.nom_colis} className="rounded" />
+                  </td>
+                  <td className="mobile-hide">{TYPE_LABELS[c.type_produit || ''] || c.type_produit || '—'}</td>
+                  <td>{c.poids} kg</td>
+                  <td>
+                    {c.ville}, {c.pays}
+                  </td>
+                  <td className="mobile-hide">{date(c.date_limite)}</td>
+                  <td>
+                    <BadgeColis statut={c.statut} />
+                  </td>
+                  <td>
+                    <div className="d-flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-info"
+                        onClick={() => setDetailsColis(c)}
+                      >
+                        <i className="fas fa-info-circle"></i>
+                        <span className="d-none d-md-inline"> Détails</span>
+                      </button>
+                      <Link to={`/reservation-colis?id=${c.id}`} className="btn btn-sm btn-primary">
+                        <i className="fa-solid fa-eye"></i>
+                        <span className="d-none d-md-inline"> Réservations</span>
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ====================== MES VOYAGES PROPOSÉS ======================= */}
+        <h2 className="text-primary text-center mb-4">
+          <i className="fa-solid fa-truck"></i> Mes voyages proposés
+        </h2>
+        <div className="table-responsive">
+          <table className="table table-bordered align-middle shadow-sm">
+            <thead className="table-light">
+              <tr>
+                <th>Départ</th>
+                <th>Destination</th>
+                <th className="mobile-hide">Date</th>
+                <th className="mobile-hide">Heure</th>
+                <th>Poids max</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!voyages && (
+                <tr>
+                  <td colSpan={6} className="text-center text-muted">
+                    Chargement…
+                  </td>
+                </tr>
+              )}
+              {voyages && voyages.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center text-muted">
+                    Aucun voyage proposé.{' '}
+                    <Link to="/devenir-transporteur">Proposer un voyage</Link>
+                  </td>
+                </tr>
+              )}
+              {(voyages || []).map((v) => (
+                <tr key={v.id}>
+                  <td>{v.pays_depart}</td>
+                  <td>{v.pays_destination}</td>
+                  <td className="mobile-hide">{date(v.date_depart)}</td>
+                  <td className="mobile-hide">{(v.heure_depart || '').substring(0, 5) || '—'}</td>
+                  <td>{v.poids_max} kg</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-info"
+                      onClick={() => setDetailsVoyage(v)}
+                    >
+                      <i className="fas fa-info-circle"></i>
+                      <span className="d-none d-md-inline"> Détails</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ==================== MES RÉSERVATIONS (TRANSPORTEUR) ==================== */}
+        {me?.is_transporteur && (
+          <>
+            <h2 className="text-success text-center mb-4 mt-5">
+              <i className="fa-solid fa-handshake"></i> Mes réservations
+            </h2>
+            <div className="table-responsive mb-5">
+              <table className="table table-bordered align-middle shadow-sm">
                 <thead className="table-light">
                   <tr>
-                    <th>Transporteur</th>
-                    <th>Voyage</th>
-                    <th>Date</th>
+                    <th>Colis</th>
+                    <th className="mobile-hide">Image</th>
+                    <th>Poids</th>
+                    <th>Destination</th>
                     <th>Statut</th>
-                    <th className="text-end">Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resList.map((r) => (
-                    <tr key={r.id}>
+                  {!reservations && (
+                    <tr>
+                      <td colSpan={6} className="text-center text-muted">
+                        Chargement…
+                      </td>
+                    </tr>
+                  )}
+                  {reservations && reservations.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="text-center text-muted">
+                        Aucune réservation sur vos voyages.
+                      </td>
+                    </tr>
+                  )}
+                  {(reservations || []).map((r, idx) => (
+                    <tr key={`${r.colis_id}-${idx}`}>
                       <td>
-                        <Link to={`/profil-transporteur?id=${r.transporteur_id}`}>
-                          {r.prenom} {r.nom}
-                        </Link>
+                        <Link to={`/colis/${r.colis_id}`}>{r.nom_colis}</Link>
                         <div className="small text-muted">
-                          {r.email || ''} · {r.telephone || ''}
+                          <code>{r.numero_suivi}</code>
                         </div>
                       </td>
-                      <td>
-                        {r.pays_depart} → {r.pays_destination}
-                        <div className="small text-muted">
-                          {date(r.date_depart)} {r.heure_depart || ''}
-                        </div>
+                      <td className="mobile-hide">
+                        <SmartImg url={r.image_url} alt={r.nom_colis} className="rounded" />
                       </td>
-                      <td className="small">{datetime(r.date_reservation)}</td>
+                      <td>{r.poids} kg</td>
                       <td>
-                        <StatusBadge statut={r.statut} />
+                        {r.ville}, {r.pays}
                       </td>
-                      <td className="text-end">
-                        {r.statut === 'en_attente' && (
-                          <>
-                            <button
-                              className="btn btn-sm btn-success me-1"
-                              title="Accepter"
-                              onClick={() => action(r.id, 'accepte')}
-                            >
-                              <i className="fa-solid fa-check"></i>
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              title="Refuser"
-                              onClick={() => action(r.id, 'refuse')}
-                            >
-                              <i className="fa-solid fa-xmark"></i>
-                            </button>
-                          </>
+                      <td>
+                        <BadgeReservation statut={r.statut} />
+                      </td>
+                      <td>
+                        {r.statut_suivi !== 'Livré' ? (
+                          <SuiviRow
+                            colisId={r.colis_id}
+                            initial={r.statut_suivi}
+                            onSubmit={onSuivi}
+                          />
+                        ) : (
+                          <span className="badge bg-success">Livré</span>
                         )}
-                        {r.statut === 'accepte' && (
-                          <button
-                            className="btn btn-sm btn-outline-secondary me-1"
-                            title="Annuler"
-                            onClick={() => action(r.id, 'annule')}
-                          >
-                            <i className="fa-solid fa-ban"></i>
-                          </button>
-                        )}
-                        <Link
-                          className="btn btn-sm btn-outline-primary"
-                          to={`/messagerie?destinataire_id=${r.transporteur_id}`}
-                          title="Message"
-                        >
-                          <i className="fa-solid fa-envelope"></i>
-                        </Link>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </>
+        )}
+
+        {/* ========================== MES PAIEMENTS ========================== */}
+        <h2 className="text-primary text-center mb-4">
+          <i className="fas fa-money-bill-wave"></i> Mes paiements
+        </h2>
+
+        <div className="row mb-4">
+          <div className="col-md-4 mb-3">
+            <div className="card bg-primary text-white">
+              <div className="card-body text-center">
+                <h3>{money(stats?.montant_paye ?? 0)}</h3>
+                <p className="mb-0">Total payé</p>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4 mb-3">
+            <div className="card bg-success text-white">
+              <div className="card-body text-center">
+                <h3>{stats?.nb_payes ?? 0}</h3>
+                <p className="mb-0">Paiements réussis</p>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4 mb-3">
+            <div className="card bg-warning text-dark">
+              <div className="card-body text-center">
+                <h3>{stats?.nb_en_attente ?? 0}</h3>
+                <p className="mb-0">En attente</p>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <div className="table-responsive mb-5">
+          <table className="table table-bordered align-middle shadow-sm">
+            <thead className="table-light">
+              <tr>
+                <th>Référence</th>
+                <th>Colis</th>
+                <th>Montant</th>
+                <th>Méthode</th>
+                <th>Opérateur</th>
+                <th>Date</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!paiements && (
+                <tr>
+                  <td colSpan={8} className="text-center text-muted">
+                    Chargement…
+                  </td>
+                </tr>
+              )}
+              {paiements && paiements.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center text-muted">
+                    Aucun paiement enregistré
+                  </td>
+                </tr>
+              )}
+              {(paiements || []).map((p) => (
+                <tr key={p.id}>
+                  <td>{p.reference}</td>
+                  <td>
+                    {p.nom_colis || 'N/A'}
+                    {p.nom_colis && (
+                      <small className="text-muted d-block">ID: {p.colis_id}</small>
+                    )}
+                  </td>
+                  <td>{money(p.montant)}</td>
+                  <td>{p.methode_paiement || '—'}</td>
+                  <td>{(p.details_paiement && p.details_paiement.operateur) || '—'}</td>
+                  <td>{datetime(p.date_creation)}</td>
+                  <td>
+                    <BadgePaiement statut={p.statut} />
+                  </td>
+                  <td>
+                    <div className="d-flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-info"
+                        onClick={() => setDetailsPaiement(p)}
+                      >
+                        <i className="fas fa-info-circle"></i>
+                        <span className="d-none d-md-inline"> Détails</span>
+                      </button>
+                      {p.statut === 'en_attente' && (
+                        <Link
+                          to={`/paiement?colis_id=${p.colis_id}`}
+                          className="btn btn-sm btn-success"
+                        >
+                          <i className="fas fa-money-bill-wave"></i>
+                          <span className="d-none d-md-inline"> Payer</span>
+                        </Link>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ============================= SOLDE =============================== */}
+        <div className="card bg-info text-white">
+          <div className="card-body text-center">
+            <h3>{money(me?.solde ?? 0)}</h3>
+            <p className="mb-0">Votre solde</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Menu inférieur mobile (design d'origine) */}
+      <nav className="mobile-bottom-menu">
+        <ul>
+          <li>
+            <NavLink to="/dashboard">
+              <i className="fas fa-home"></i> Accueil
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/colis">
+              <i className="fas fa-box"></i> Colis
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/liste-messagerie">
+              <i className="fas fa-envelope"></i> Messages
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/profil">
+              <i className="fas fa-user"></i> Profil
+            </NavLink>
+          </li>
+        </ul>
+      </nav>
+
+      {/* ============================= MODALES ============================== */}
+      {detailsColis && (
+        <ColisDetailsModal
+          c={detailsColis}
+          onClose={() => setDetailsColis(null)}
+          onSaved={(prix) => {
+            setDetailsColis(null)
+            toast('Colis mis à jour. Nouveau prix estimé : ' + money(prix))
+            loadColis()
+          }}
+          toast={toast}
+        />
+      )}
+      {detailsVoyage && (
+        <VoyageDetailsModal v={detailsVoyage} onClose={() => setDetailsVoyage(null)} />
+      )}
+      {detailsPaiement && (
+        <PaiementDetailsModal p={detailsPaiement} onClose={() => setDetailsPaiement(null)} />
       )}
     </div>
   )
 }
 
-/* ====================== MODALE D'ÉDITION D'UN COLIS ====================== */
+/* ================== SUIVI (ligne « Mes réservations ») ==================== */
+
+function SuiviRow({
+  colisId,
+  initial,
+  onSubmit,
+}: {
+  colisId: number
+  initial: string
+  onSubmit: (colisId: number, statut: string) => void
+}) {
+  const [statut, setStatut] = useState(initial || 'En attente')
+  return (
+    <span className="d-inline-flex gap-1 align-items-center">
+      <select
+        name="statut"
+        className="form-select form-select-sm d-inline-block"
+        style={{ width: 'auto' }}
+        value={statut}
+        onChange={(e) => setStatut(e.target.value)}
+      >
+        <option value="En attente">En attente</option>
+        <option value="En cours">En cours</option>
+        <option value="Livré">Livré</option>
+      </select>
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-success"
+        onClick={() => onSubmit(colisId, statut)}
+      >
+        <i className="fas fa-sync-alt"></i>
+      </button>
+    </span>
+  )
+}
+
+/* ==================== MODALE DÉTAILS / ÉDITION COLIS ====================== */
 
 interface ColisEditFields {
   nom_colis: string
@@ -422,46 +705,77 @@ interface ColisEditFields {
   adresse_destination: string
 }
 
-function EditColisModal({
-  colisId,
+type ColisTab = 'details' | 'statut' | 'transporteurs'
+
+function ColisDetailsModal({
+  c,
   onClose,
   onSaved,
+  toast,
 }: {
-  colisId: number
+  c: ColisMine
   onClose: () => void
   onSaved: (prixEstime: number) => void
+  toast: (message: string, type?: 'success' | 'error' | 'info') => void
 }) {
   const [fields, setFields] = useState<ColisEditFields | null>(null)
+  const [prixEstime, setPrixEstime] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [tab, setTab] = useState<ColisTab>('details')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     ;(async () => {
       try {
-        const c = await api.get<Record<string, unknown>>(`/api/colis/${colisId}`)
+        const d = await api.get<Record<string, unknown>>(`/api/colis/${c.id}`)
         setFields({
-          nom_colis: String(c.nom_colis ?? ''),
-          type_produit: String(c.type_produit ?? 'autre'),
-          nombre_produits: String(c.nombre_produits ?? 1),
-          poids: String(c.poids ?? ''),
-          dimensions: String(c.dimensions ?? ''),
-          date_limite: String(c.date_limite ?? '').substring(0, 10),
-          pays: String(c.pays ?? ''),
-          ville: String(c.ville ?? ''),
-          adresse_depart: String(c.adresse_depart ?? ''),
-          adresse_destination: String(c.adresse_destination ?? ''),
+          nom_colis: String(d.nom_colis ?? ''),
+          type_produit: String(d.type_produit ?? 'autre'),
+          nombre_produits: String(d.nombre_produits ?? 1),
+          poids: String(d.poids ?? ''),
+          dimensions: String(d.dimensions ?? ''),
+          date_limite: String(d.date_limite ?? '').substring(0, 10),
+          pays: String(d.pays ?? ''),
+          ville: String(d.ville ?? ''),
+          adresse_depart: String(d.adresse_depart ?? ''),
+          adresse_destination: String(d.adresse_destination ?? ''),
         })
+        setPrixEstime(String(d.prix_estime ?? ''))
       } catch (e) {
         setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
       } finally {
         setLoading(false)
       }
     })()
-  }, [colisId])
+  }, [c.id])
 
-  const set = (key: keyof ColisEditFields) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setFields((f) => (f ? { ...f, [key]: e.target.value } : f))
+  const set =
+    (key: keyof ColisEditFields) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setFields((f) => (f ? { ...f, [key]: e.target.value } : f))
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null
+    setFile(f)
+    if (f) {
+      const reader = new FileReader()
+      reader.onload = (ev) => setPreview(String(ev.target?.result || ''))
+      reader.readAsDataURL(f)
+    } else {
+      setPreview(null)
+    }
+  }
+
+  const copySuivi = async () => {
+    try {
+      await navigator.clipboard.writeText(c.numero_suivi)
+      toast('Numéro de suivi copié !')
+    } catch {
+      toast('Erreur lors de la copie', 'error')
+    }
+  }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -469,7 +783,7 @@ function EditColisModal({
     setError(null)
     try {
       const data = await api.upload<{ prix_estime: number }>(
-        `/api/colis/${colisId}`,
+        `/api/colis/${c.id}`,
         { ...fields },
         { image_colis: file },
       )
@@ -479,88 +793,374 @@ function EditColisModal({
     }
   }
 
+  const hasTransporteurs = (c.reservations || []).length > 0
+
   return (
-    <div className="modal fade show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,.5)' }}>
-      <div className="modal-dialog modal-lg">
+    <div
+      className="modal fade show d-block"
+      tabIndex={-1}
+      style={{ backgroundColor: 'rgba(0,0,0,.5)' }}
+    >
+      <div className="modal-dialog modal-dialog-centered modal-lg">
         <div className="modal-content">
+          <div className="modal-header bg-light">
+            <h5 className="modal-title">Détails du colis: {c.nom_colis}</h5>
+            <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
+          </div>
           <form onSubmit={onSubmit}>
-            <div className="modal-header">
-              <h5 className="modal-title">Modifier le colis</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
-            </div>
             <div className="modal-body">
               {error && <div className="alert alert-danger">{error}</div>}
               {loading && <p className="text-muted text-center py-3">Chargement…</p>}
               {fields && (
-                <div className="row g-3">
-                  <div className="col-md-6">
-                    <label className="form-label">Nom du colis</label>
-                    <input type="text" className="form-control" maxLength={100} value={fields.nom_colis} onChange={set('nom_colis')} required />
+                <div className="row">
+                  {/* Colonne de gauche — image et suivi */}
+                  <div className="col-md-4 mb-3 mb-md-0">
+                    <div className="card border-0 shadow-sm h-100">
+                      <div className="card-body text-center">
+                        <SmartImg
+                          url={preview || c.image_url}
+                          alt={c.nom_colis}
+                          className="img-fluid rounded mb-3 preview-image"
+                        />
+
+                        {/* Numéro de suivi */}
+                        <div className="tracking-info bg-light p-3 rounded border">
+                          <h6 className="text-muted mb-2">
+                            <i className="fas fa-barcode"></i> Numéro de suivi
+                          </h6>
+                          <div className="d-flex justify-content-between align-items-center">
+                            <code className="text-primary fs-6">{c.numero_suivi}</code>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary copy-btn"
+                              title="Copier dans le presse-papier"
+                              onClick={copySuivi}
+                            >
+                              <i className="fas fa-copy"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Upload image */}
+                        <div className="mt-3">
+                          <label htmlFor="image_colis" className="form-label small text-muted">
+                            Changer l'image
+                          </label>
+                          <input
+                            type="file"
+                            className="form-control form-control-sm"
+                            id="image_colis"
+                            name="image_colis"
+                            accept="image/*"
+                            onChange={onFile}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-md-3">
-                    <label className="form-label">Type de produit</label>
-                    <select className="form-select" value={fields.type_produit} onChange={set('type_produit')} required>
-                      <option value="alimentaire">Alimentaire</option>
-                      <option value="electronique">Électronique</option>
-                      <option value="vetements">Vêtements</option>
-                      <option value="documents">Documents</option>
-                      <option value="autre">Autre</option>
-                    </select>
-                  </div>
-                  <div className="col-md-3">
-                    <label className="form-label">Nombre de produits</label>
-                    <input type="number" min={1} max={10000} className="form-control" value={fields.nombre_produits} onChange={set('nombre_produits')} required />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label">Poids (kg)</label>
-                    <input type="number" step="0.01" min="0.01" max="1000" className="form-control" value={fields.poids} onChange={set('poids')} required />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label">Dimensions (LxlxH cm)</label>
-                    <input type="text" className="form-control" maxLength={50} value={fields.dimensions} onChange={set('dimensions')} />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label">Date limite</label>
-                    <input type="date" className="form-control" value={fields.date_limite} onChange={set('date_limite')} required />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Pays (destination)</label>
-                    <input type="text" className="form-control" value={fields.pays} onChange={set('pays')} required />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Ville (destination)</label>
-                    <input type="text" className="form-control" value={fields.ville} onChange={set('ville')} required />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Adresse de départ</label>
-                    <input type="text" className="form-control" value={fields.adresse_depart} onChange={set('adresse_depart')} required />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Adresse de destination</label>
-                    <input type="text" className="form-control" value={fields.adresse_destination} onChange={set('adresse_destination')} required />
-                  </div>
-                  <div className="col-12">
-                    <label className="form-label">Nouvelle photo (optionnel)</label>
-                    <input
-                      type="file"
-                      className="form-control"
-                      accept="image/jpeg,image/png,image/gif,image/webp"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    />
+
+                  {/* Colonne de droite — formulaire à onglets */}
+                  <div className="col-md-8">
+                    <div className="card border-0 shadow-sm h-100">
+                      <div className="card-body">
+                        <ul className="nav nav-tabs mb-4" role="tablist">
+                          <li className="nav-item" role="presentation">
+                            <button
+                              type="button"
+                              className={'nav-link' + (tab === 'details' ? ' active' : '')}
+                              onClick={() => setTab('details')}
+                            >
+                              <i className="fas fa-info-circle me-1"></i> Détails
+                            </button>
+                          </li>
+                          <li className="nav-item" role="presentation">
+                            <button
+                              type="button"
+                              className={'nav-link' + (tab === 'statut' ? ' active' : '')}
+                              onClick={() => setTab('statut')}
+                            >
+                              <i className="fas fa-truck me-1"></i> Statut
+                            </button>
+                          </li>
+                          {hasTransporteurs && (
+                            <li className="nav-item" role="presentation">
+                              <button
+                                type="button"
+                                className={'nav-link' + (tab === 'transporteurs' ? ' active' : '')}
+                                onClick={() => setTab('transporteurs')}
+                              >
+                                <i className="fas fa-users me-1"></i> Transporteurs
+                              </button>
+                            </li>
+                          )}
+                        </ul>
+
+                        <div className="tab-content">
+                          {/* Onglet Détails */}
+                          {tab === 'details' && (
+                            <div className="tab-pane fade show active" role="tabpanel">
+                              <div className="row g-3">
+                                <div className="col-md-6">
+                                  <label htmlFor="nom_colis" className="form-label">
+                                    Nom du colis*
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    id="nom_colis"
+                                    name="nom_colis"
+                                    maxLength={100}
+                                    value={fields.nom_colis}
+                                    onChange={set('nom_colis')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label htmlFor="type_produit" className="form-label">
+                                    Type de produit*
+                                  </label>
+                                  <select
+                                    className="form-select"
+                                    id="type_produit"
+                                    name="type_produit"
+                                    value={fields.type_produit}
+                                    onChange={set('type_produit')}
+                                    required
+                                  >
+                                    <option value="documents">Documents</option>
+                                    <option value="vetements">Vêtements</option>
+                                    <option value="electronique">Électronique</option>
+                                    <option value="alimentaire">Alimentaire</option>
+                                    <option value="autre">Autre</option>
+                                  </select>
+                                </div>
+                                <div className="col-md-4">
+                                  <label htmlFor="nombre_produits" className="form-label">
+                                    Quantité*
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    className="form-control"
+                                    id="nombre_produits"
+                                    name="nombre_produits"
+                                    value={fields.nombre_produits}
+                                    onChange={set('nombre_produits')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-md-4">
+                                  <label htmlFor="poids" className="form-label">
+                                    Poids (kg)*
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    className="form-control"
+                                    id="poids"
+                                    name="poids"
+                                    value={fields.poids}
+                                    onChange={set('poids')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-md-4">
+                                  <label htmlFor="prix_estime" className="form-label">
+                                    Prix estimé (F CFA)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    id="prix_estime"
+                                    name="prix_estime"
+                                    value={prixEstime}
+                                    readOnly
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label htmlFor="pays" className="form-label">
+                                    Pays de destination*
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    id="pays"
+                                    name="pays"
+                                    value={fields.pays}
+                                    onChange={set('pays')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label htmlFor="ville" className="form-label">
+                                    Ville de destination*
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    id="ville"
+                                    name="ville"
+                                    value={fields.ville}
+                                    onChange={set('ville')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label htmlFor="date_limite" className="form-label">
+                                    Date limite*
+                                  </label>
+                                  <input
+                                    type="date"
+                                    className="form-control"
+                                    id="date_limite"
+                                    name="date_limite"
+                                    value={fields.date_limite}
+                                    onChange={set('date_limite')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-12">
+                                  <label htmlFor="adresse_depart" className="form-label">
+                                    Adresse de départ*
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    id="adresse_depart"
+                                    name="adresse_depart"
+                                    value={fields.adresse_depart}
+                                    onChange={set('adresse_depart')}
+                                    required
+                                  />
+                                </div>
+                                <div className="col-12">
+                                  <label htmlFor="adresse_destination" className="form-label">
+                                    Adresse de destination*
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    id="adresse_destination"
+                                    name="adresse_destination"
+                                    value={fields.adresse_destination}
+                                    onChange={set('adresse_destination')}
+                                    required
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Onglet Statut */}
+                          {tab === 'statut' && (
+                            <div className="tab-pane fade show active" role="tabpanel">
+                              <div className="status-section mb-4">
+                                <h5 className="d-flex align-items-center mb-3">
+                                  <i className="fas fa-info-circle text-primary me-2"></i>
+                                  <span>Statut du colis</span>
+                                </h5>
+                                <div className="d-flex align-items-center p-3 bg-light rounded border-start border-primary border-4">
+                                  {c.statut === 'en_attente' && (
+                                    <>
+                                      <span className="badge bg-warning text-dark me-3">
+                                        En attente
+                                      </span>
+                                      <p className="mb-0">
+                                        En attente d'approbation par l'administrateur
+                                      </p>
+                                    </>
+                                  )}
+                                  {c.statut === 'approuve' && (
+                                    <>
+                                      <span className="badge bg-success me-3">Approuvé</span>
+                                      <p className="mb-0">
+                                        Votre colis a été approuvé et est visible par les
+                                        transporteurs
+                                      </p>
+                                    </>
+                                  )}
+                                  {c.statut === 'refuse' && (
+                                    <>
+                                      <span className="badge bg-danger me-3">Refusé</span>
+                                      <p className="mb-0">Votre colis a été refusé</p>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {c.statut === 'approuve' && (
+                                <div className="status-section">
+                                  <h5 className="d-flex align-items-center mb-3">
+                                    <i className="fas fa-truck text-primary me-2"></i>
+                                    <span>Statut de livraison</span>
+                                  </h5>
+                                  <div className="d-flex align-items-center p-3 bg-light rounded border-start border-primary border-4">
+                                    {(!c.statut_livraison || c.statut_livraison === 'En attente') && (
+                                      <>
+                                        <span className="badge bg-secondary me-3">En attente</span>
+                                        <p className="mb-0">
+                                          En attente de prise en charge par un transporteur
+                                        </p>
+                                      </>
+                                    )}
+                                    {c.statut_livraison === 'En cours' && (
+                                      <>
+                                        <span className="badge bg-info me-3">En cours</span>
+                                        <p className="mb-0">Votre colis est en cours de livraison</p>
+                                      </>
+                                    )}
+                                    {c.statut_livraison === 'Livré' &&
+                                      (c.suivi_confirme_par_admin ? (
+                                        <>
+                                          <span className="badge bg-success me-3">Livré</span>
+                                          <p className="mb-0">
+                                            Votre colis a été livré avec succès
+                                          </p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="badge bg-warning me-3">
+                                            En attente de confirmation
+                                          </span>
+                                          <p className="mb-0">
+                                            Le transporteur a marqué le colis comme « Livré », en
+                                            attente de confirmation par l'admin
+                                          </p>
+                                        </>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Onglet Transporteurs */}
+                          {tab === 'transporteurs' && hasTransporteurs && (
+                            <div className="tab-pane fade show active" role="tabpanel">
+                              {c.reservations.map((r) => (
+                                <TransporteurCard
+                                  key={r.transporteur_id}
+                                  res={r}
+                                  colisId={c.id}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-              <p className="text-muted small mt-3 mb-0">
-                <i className="fa-solid fa-circle-info"></i> Le prix estimé est recalculé
-                automatiquement selon le poids.
-              </p>
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
-                Annuler
+                Fermer
               </button>
               <button type="submit" className="btn btn-primary" disabled={!fields}>
-                Enregistrer
+                Enregistrer les modifications
               </button>
             </div>
           </form>
@@ -570,354 +1170,247 @@ function EditColisModal({
   )
 }
 
-/* =============================== MES VOYAGES ============================== */
+/* =============== CARTE TRANSPORTEUR (onglet Transporteurs) ================ */
 
-function TabVoyages({ me }: { me: Me | null }) {
-  const [list, setList] = useState<VoyageMine[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+function TransporteurCard({ res, colisId }: { res: ReservationAffectee; colisId: number }) {
+  const [data, setData] = useState<TransporteurData | null>(null)
+  const [avis, setAvis] = useState<Avis[] | null>(null)
 
   useEffect(() => {
-    if (!me?.is_transporteur) return
     ;(async () => {
       try {
-        setList(await api.get<VoyageMine[]>('/api/voyages/mine'))
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+        const [d, a] = await Promise.all([
+          api.get<TransporteurData>(`/api/transporteurs/${res.transporteur_id}`),
+          api.get<Avis[]>(`/api/transporteurs/${res.transporteur_id}/avis`),
+        ])
+        setData(d)
+        setAvis(a)
+      } catch {
+        setData(null)
+        setAvis([])
       }
     })()
-  }, [me])
+  }, [res.transporteur_id])
+
+  const note = data?.stats?.note_moyenne ?? res.note_moyenne ?? null
+  const nbAvis = data?.stats?.nb_avis ?? 0
+  const nbColis = data?.stats?.nb_colis_transportes ?? 0
+  const derniers = (avis || []).slice(0, 3)
 
   return (
-    <div className="tab-pane fade show active">
-      <div className="page-card">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="mb-0">Mes voyages</h5>
-          <span>
-            {me?.is_transporteur && (
-              <span className="badge bg-success me-2">Solde : {money(me.solde)}</span>
-            )}
-            <Link to="/devenir-transporteur" className="btn btn-primary">
-              <i className="fa-solid fa-plane-departure"></i> Proposer un voyage
+    <div className="card mb-3">
+      <div className="card-body">
+        <div className="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 className="card-title mb-1">
+              {res.prenom} {res.nom}
+            </h5>
+            {res.email && <small className="text-muted d-block">{res.email}</small>}
+            {res.telephone && <small className="text-muted">Tél: {res.telephone}</small>}
+          </div>
+          <div className="d-flex gap-2">
+            <Link
+              to={`/messagerie?destinataire_id=${res.transporteur_id}&colis_id=${colisId}`}
+              className="btn btn-sm btn-primary"
+            >
+              <i className="fas fa-envelope"></i> Contacter
             </Link>
-          </span>
+            <Link
+              to={`/profil-transporteur?id=${res.transporteur_id}`}
+              className="btn btn-sm btn-info"
+            >
+              <i className="fas fa-user"></i> Profil
+            </Link>
+          </div>
         </div>
 
-        {!me?.is_transporteur ? (
-          <div className="alert alert-info mb-0">
-            Proposez un voyage pour devenir transporteur.{' '}
-            <Link to="/devenir-transporteur" className="alert-link">
-              Candidater
-            </Link>
-          </div>
-        ) : (
-          <>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {!list && !error && <div className="text-center text-muted py-4">Chargement…</div>}
-            {list && list.length === 0 && (
-              <p className="text-muted text-center py-4">
-                Aucun voyage proposé. <Link to="/devenir-transporteur">Proposer un voyage</Link>
-              </p>
-            )}
-            {list && list.length > 0 && (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Trajet</th>
-                      <th>Départ</th>
-                      <th>Poids max</th>
-                      <th>Réservations</th>
-                      <th>Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((v) => (
-                      <tr key={v.id}>
-                        <td>
-                          {v.pays_depart} → {v.pays_destination}
-                        </td>
-                        <td>
-                          {date(v.date_depart)}{' '}
-                          <span className="text-muted small">
-                            {(v.heure_depart || '').substring(0, 5)}
-                          </span>
-                        </td>
-                        <td>{v.poids_max} kg</td>
-                        <td>
-                          <span className="badge bg-secondary">{v.nb_reservations}</span>
-                        </td>
-                        <td>
-                          <StatusBadge statut={v.statut} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* Statistiques du transporteur */}
+        <div className="row mb-3">
+          <div className="col-md-4">
+            <div className="d-flex align-items-center">
+              <div className="me-3">
+                <span className="display-6 fw-bold">{Number(note || 0).toFixed(1)}</span>
+                <span className="text-muted">/5</span>
               </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
+              <div>
+                <Stars note={note} />
+                <small className="text-muted">{nbAvis} avis</small>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="d-flex align-items-center h-100">
+              <i className="fas fa-box-open fa-2x text-primary me-3"></i>
+              <div>
+                <div className="fw-bold">{nbColis}</div>
+                <small className="text-muted">Colis transportés</small>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="d-flex align-items-center h-100">
+              <i className="fas fa-check-circle fa-2x text-success me-3"></i>
+              <div>
+                <div className="fw-bold">100%</div>
+                <small className="text-muted">Livraisons réussies</small>
+              </div>
+            </div>
+          </div>
+        </div>
 
-/* ========================= RÉSERVATIONS REÇUES ============================ */
-
-function TabReservations({ me, toast }: { me: Me | null } & ToastFn) {
-  const [list, setList] = useState<ReservationRecue[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      setError(null)
-      setList(await api.get<ReservationRecue[]>('/api/reservations/recues'))
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
-    }
-  }, [])
-
-  useEffect(() => {
-    if (me?.is_transporteur) load()
-  }, [me, load])
-
-  const onSuivi = async (colisId: number, statut: string) => {
-    if (!statut) return
-    if (statut === 'Livré' && !window.confirm("Marquer comme livré ? L'agence devra confirmer.")) {
-      load() // réinitialiser le select
-      return
-    }
-    try {
-      const data = await api.post<{ message?: string }>('/api/suivi', { colis_id: colisId, statut })
-      toast(data.message || 'Statut mis à jour.')
-      load()
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Erreur inconnue', 'error')
-      load()
-    }
-  }
-
-  return (
-    <div className="tab-pane fade show active">
-      <div className="page-card">
-        <h5 className="mb-3">Réservations sur mes voyages</h5>
-
-        {!me?.is_transporteur ? (
-          <p className="text-muted text-center py-4">Réservé aux transporteurs.</p>
-        ) : (
+        {/* Avis récents */}
+        {derniers.length > 0 ? (
           <>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {!list && !error && <div className="text-center text-muted py-4">Chargement…</div>}
-            {list && list.length === 0 && (
-              <p className="text-muted text-center py-4">
-                Aucune réservation sur vos voyages. <Link to="/colis">Voir les colis disponibles</Link>
-              </p>
-            )}
-            {list && list.length > 0 && (
-              <>
-                <div className="table-responsive">
-                  <table className="table align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Colis</th>
-                        <th>Client</th>
-                        <th>Voyage</th>
-                        <th>Prix</th>
-                        <th>Statut</th>
-                        <th>Suivi</th>
-                        <th className="text-end">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.map((r, idx) => (
-                        <tr key={`${r.colis_id}-${idx}`}>
-                          <td>
-                            <SmartImg url={r.image_url} alt={r.nom_colis} className="img-colis" />
-                            <Link to={`/colis/${r.colis_id}`} className="ms-2">
-                              {r.nom_colis}
-                            </Link>
-                            <div className="small text-muted">
-                              <code>{r.numero_suivi}</code>
-                            </div>
-                          </td>
-                          <td>
-                            {r.client_prenom || ''} {r.client_nom || ''}
-                            <div className="small text-muted">{r.client_tel || ''}</div>
-                          </td>
-                          <td>
-                            {r.pays_depart} → {r.pays_destination}
-                            <div className="small text-muted">{date(r.date_depart)}</div>
-                          </td>
-                          <td>{money(r.prix_estime)}</td>
-                          <td>
-                            <StatusBadge statut={r.statut} />
-                          </td>
-                          <td>
-                            <StatusBadge statut={r.statut_suivi} />
-                          </td>
-                          <td className="text-end">
-                            {r.statut === 'accepte' && r.statut_suivi !== 'Livré' && (
-                              <select
-                                className="form-select form-select-sm d-inline-block me-1"
-                                style={{ width: 160 }}
-                                defaultValue=""
-                                onChange={(e) => onSuivi(r.colis_id, e.target.value)}
-                              >
-                                <option value="">Mettre à jour…</option>
-                                <option value="En attente">En attente</option>
-                                <option value="En cours">En cours</option>
-                                <option value="Livré">Livré</option>
-                              </select>
-                            )}
-                            {r.client_id && (
-                              <Link
-                                className="btn btn-sm btn-outline-primary"
-                                to={`/messagerie?destinataire_id=${r.client_id}`}
-                                title="Message"
-                              >
-                                <i className="fa-solid fa-envelope"></i>
-                              </Link>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <h6 className="mt-3 mb-2">Avis récents :</h6>
+            <div className="border-top pt-2">
+              {derniers.map((a, i) => (
+                <div key={i} className="mb-3 pb-2 border-bottom">
+                  <div className="d-flex justify-content-between">
+                    <div className="fw-bold">
+                      {a.prenom} {a.nom}
+                    </div>
+                    <Stars note={a.note} />
+                  </div>
+                  <div className="small text-muted">{date(a.date_avis)}</div>
+                  <div className="mt-1">{a.commentaire}</div>
                 </div>
-                <p className="text-muted small mb-0">
-                  <i className="fa-solid fa-circle-info"></i> Marquer « Livré » envoie une demande
-                  de confirmation à l'agence. La commission de 5 % est versée à la confirmation.
-                </p>
-              </>
-            )}
+              ))}
+              <Link
+                to={`/profil-transporteur?id=${res.transporteur_id}#avis`}
+                className="btn btn-sm btn-outline-primary"
+              >
+                Voir tous les avis
+              </Link>
+            </div>
           </>
+        ) : (
+          <div className="alert alert-info mb-0">Ce transporteur n'a pas encore reçu d'avis.</div>
         )}
       </div>
     </div>
   )
 }
 
-/* ============================== MES PAIEMENTS ============================= */
+/* ======================= MODALE DÉTAILS VOYAGE ============================ */
 
-function TabPaiements() {
-  const [list, setList] = useState<PaiementMine[] | null>(null)
-  const [stats, setStats] = useState<PaiementsStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
+function VoyageDetailsModal({ v, onClose }: { v: VoyageMine; onClose: () => void }) {
+  return (
+    <div
+      className="modal fade show d-block"
+      tabIndex={-1}
+      style={{ backgroundColor: 'rgba(0,0,0,.5)' }}
+    >
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Détails du voyage</h5>
+            <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
+          </div>
+          <div className="modal-body">
+            <ul className="list-group list-group-flush">
+              <li className="list-group-item">
+                <strong>De:</strong> {v.pays_depart}
+              </li>
+              <li className="list-group-item">
+                <strong>À:</strong> {v.pays_destination}
+              </li>
+              <li className="list-group-item">
+                <strong>Date:</strong> {date(v.date_depart)}
+              </li>
+              <li className="list-group-item">
+                <strong>Heure:</strong> {(v.heure_depart || '').substring(0, 5) || '—'}
+              </li>
+              <li className="list-group-item">
+                <strong>Poids max:</strong> {v.poids_max} kg
+              </li>
+              <li className="list-group-item">
+                <strong>Contact:</strong> {v.telephone || '—'}
+              </li>
+            </ul>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const data = await api.get<{ paiements: PaiementMine[]; stats: PaiementsStats }>(
-          '/api/paiements/mine',
-        )
-        setList(data.paiements || [])
-        setStats(data.stats || null)
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
-      }
-    })()
-  }, [])
+/* ====================== MODALE DÉTAILS PAIEMENT =========================== */
 
-  const methode = (p: PaiementMine) =>
-    p.methode_paiement === 'carte_credit' ? (
-      <>
-        <i className="fa-solid fa-credit-card"></i> Carte
-      </>
-    ) : p.methode_paiement === 'mobile_money' ? (
-      <>
-        <i className="fa-solid fa-mobile-screen"></i> Mobile Money
-      </>
-    ) : (
-      p.methode_paiement || '—'
-    )
+function PaiementDetailsModal({ p, onClose }: { p: PaiementMine; onClose: () => void }) {
+  const details = p.details_paiement
+    ? Object.entries(p.details_paiement).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    : []
 
   return (
-    <div className="tab-pane fade show active">
-      <div className="page-card">
-        <h5 className="mb-3">Mes paiements</h5>
-
-        {stats && (
-          <div className="row g-3 mb-3">
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 text-center">
-                <div className="text-muted small">Total</div>
-                <div className="fs-5 fw-bold">{money(stats.montant_total)}</div>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 text-center">
-                <div className="text-muted small">Payé</div>
-                <div className="fs-5 fw-bold text-success">{money(stats.montant_paye)}</div>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 text-center">
-                <div className="text-muted small">En attente</div>
-                <div className="fs-5 fw-bold text-warning">{money(stats.montant_en_attente)}</div>
-              </div>
-            </div>
+    <div
+      className="modal fade show d-block"
+      tabIndex={-1}
+      style={{ backgroundColor: 'rgba(0,0,0,.5)' }}
+    >
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Détails du paiement #{p.reference}</h5>
+            <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
           </div>
-        )}
-
-        {error && <div className="alert alert-danger">{error}</div>}
-        {!list && !error && <div className="text-center text-muted py-4">Chargement…</div>}
-        {list && list.length === 0 && <p className="text-muted text-center py-4">Aucun paiement.</p>}
-
-        {list && list.length > 0 && (
-          <div className="table-responsive">
-            <table className="table align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th>Colis</th>
-                  <th>Montant</th>
-                  <th>Méthode</th>
-                  <th>Détails</th>
-                  <th>Référence</th>
-                  <th>Date</th>
-                  <th>Statut</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.nom_colis || 'Colis #' + p.colis_id}</td>
-                    <td>{money(p.montant)}</td>
-                    <td>{methode(p)}</td>
-                    <td className="small">
-                      {(p.details_paiement &&
-                        (p.details_paiement.numero_masque || p.details_paiement.operateur)) ||
-                        '—'}
-                    </td>
-                    <td className="small text-muted">
-                      {p.reference}
-                      {p.numero_transaction && (
-                        <>
-                          <br />
-                          {p.numero_transaction}
-                        </>
-                      )}
-                    </td>
-                    <td className="small">{datetime(p.date_creation)}</td>
-                    <td>
-                      <StatusBadge statut={p.statut} />
-                    </td>
-                    <td>
-                      {p.statut === 'en_attente' && (
-                        <Link
-                          className="btn btn-sm btn-outline-success"
-                          to={`/paiement?colis_id=${p.colis_id}`}
-                        >
-                          <i className="fa-solid fa-credit-card"></i> Payer
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="modal-body">
+            <ul className="list-group list-group-flush">
+              <li className="list-group-item">
+                <strong>Référence:</strong> {p.reference}
+              </li>
+              <li className="list-group-item">
+                <strong>Montant:</strong> {money(p.montant)}
+              </li>
+              <li className="list-group-item">
+                <strong>Méthode:</strong> {p.methode_paiement || '—'}
+              </li>
+              <li className="list-group-item">
+                <strong>Opérateur:</strong> {(p.details_paiement && p.details_paiement.operateur) || 'N/A'}
+              </li>
+              <li className="list-group-item">
+                <strong>Numéro transaction:</strong> {p.numero_transaction || 'N/A'}
+              </li>
+              <li className="list-group-item">
+                <strong>Date création:</strong> {datetime(p.date_creation)}
+              </li>
+              <li className="list-group-item">
+                <strong>Statut:</strong> <BadgePaiement statut={p.statut} />
+              </li>
+              {details.length > 0 && (
+                <li className="list-group-item">
+                  <strong>Détails:</strong>
+                  <div className="mt-2 p-2 bg-light rounded">
+                    <ul className="list-unstyled mb-0">
+                      {details.map(([key, value]) => (
+                        <li key={key}>
+                          <strong>
+                            {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                          </strong>{' '}
+                          {String(value)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </li>
+              )}
+            </ul>
           </div>
-        )}
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Fermer
+            </button>
+            {p.statut === 'en_attente' && (
+              <Link to={`/paiement?colis_id=${p.colis_id}`} className="btn btn-success">
+                <i className="fas fa-money-bill-wave"></i> Payer maintenant
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

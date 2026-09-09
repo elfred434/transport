@@ -76,13 +76,17 @@ class PaiementController extends Controller
             'montant_total' => 0.0,
             'montant_paye' => 0.0,
             'montant_en_attente' => 0.0,
+            'nb_payes' => 0,
+            'nb_en_attente' => 0,
         ];
         foreach ($paiements as $p) {
             $stats['montant_total'] += (float) $p['montant'];
             if ($p['statut'] === Paiement::STATUT_PAYE) {
                 $stats['montant_paye'] += (float) $p['montant'];
+                $stats['nb_payes']++;
             } elseif ($p['statut'] === Paiement::STATUT_EN_ATTENTE) {
                 $stats['montant_en_attente'] += (float) $p['montant'];
+                $stats['nb_en_attente']++;
             }
         }
 

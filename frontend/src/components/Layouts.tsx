@@ -62,7 +62,9 @@ export function AppLayout() {
       <div id="sidebar">
         <div className="vertical-menu">
           <div className="logo-container">
-            <img src="/assets/img/OIG1.jpeg" alt="Logo SPIISTMOVE" className="logo" />
+            <Link to="/">
+              <img src="/assets/img/OIG1.jpeg" alt="Logo SPIISTMOVE" className="logo" />
+            </Link>
           </div>
           <div className="user-box">
             {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" /> : null}
