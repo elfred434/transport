@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import '../styles/contact-originale.css'
 
 /**
- * Contactez-nous — port React de contact.php (design d'origine conservé :
- * carte blanche 900px, formulaire + encart d'informations + carte OpenStreetMap).
- * Le nom et l'email sont pré-remplis depuis le profil connecté, comme
- * $nom_session/$email_session de l'original.
+ * Contact — design vanilla (contact.html)
+ * public-container avec adresse + formulaire
  */
 export default function Contact() {
   const { me } = useAuth()
@@ -21,8 +18,8 @@ export default function Contact() {
 
   useEffect(() => {
     if (!me) return
-    setNom((v) => v || [me.prenom, me.nom].filter(Boolean).join(' '))
-    setEmail((v) => v || me.email || '')
+    setNom(v => v || [me.prenom, me.nom].filter(Boolean).join(' '))
+    setEmail(v => v || me.email || '')
   }, [me])
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -35,90 +32,57 @@ export default function Contact() {
       setSuccess(true)
       setMessage('')
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erreur lors de l'enregistrement du message."
-      )
+      setError(err instanceof Error ? err.message : "Erreur lors de l'envoi.")
     } finally {
       setSending(false)
     }
   }
 
   return (
-    <div className="contact-originale">
-      <div className="container">
-        <h2>
-          <i className="fa-solid fa-envelope"></i> Contactez-nous
-        </h2>
-        <div className="contact-row">
-          <div className="contact-form">
-            {success && <div className="msg-success">Votre message a bien été envoyé. Merci !</div>}
-            {error && <div className="msg-error">{error}</div>}
-            <form onSubmit={onSubmit}>
-              <label htmlFor="nom">Nom</label>
-              <input
-                type="text"
-                id="nom"
-                name="nom"
-                required
-                value={nom}
-                onChange={(e) => setNom(e.target.value)}
-              />
+    <div className="public-body">
+      <div className="public-container" style={{ maxWidth: 900 }}>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h2 className="text-primary mb-0"><i className="fa-solid fa-phone-alt"></i> Nous contacter</h2>
+          <Link to="/" className="btn btn-outline-primary">← Accueil</Link>
+        </div>
 
-              <label htmlFor="email">Email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-
-              <label htmlFor="message">Message</label>
-              <textarea
-                id="message"
-                name="message"
-                required
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-              ></textarea>
-
-              <button type="submit" disabled={sending}>
-                <i className="fa-solid fa-paper-plane"></i> Envoyer
-              </button>
-            </form>
-          </div>
-
-          <div>
-            <div className="contact-infos">
-              <div>
-                <i className="fa-solid fa-envelope"></i> contact@transportcolis.com
+        <div className="row g-4">
+          <div className="col-md-5">
+            <div className="page-card h-100">
+              <h5><i className="fa-solid fa-location-dot text-primary"></i> Adresse</h5>
+              <p>Porto-Novo, quartier Hinkoudé, Bénin</p>
+              <h5 className="mt-4"><i className="fa-solid fa-envelope text-primary"></i> Email</h5>
+              <p><a href="mailto:contact@spiistmove.bj">contact@spiistmove.bj</a></p>
+              <div className="alert alert-info small mb-0">
+                Connecté ? Utilisez <Link to="/messagerie-admin" className="alert-link">la messagerie admin</Link> pour un suivi de vos demandes.
               </div>
-              <div>
-                <i className="fa-solid fa-phone"></i> +229 97 00 00 00
-              </div>
-              <div>
-                <i className="fa-solid fa-location-dot"></i> Porto-Novo, Quartier Hinkoudé, Bénin
+              <div className="mt-3">
+                <Link to="/reponses" className="btn btn-outline-primary btn-sm"><i className="fas fa-reply"></i> Voir mes réponses</Link>
               </div>
             </div>
-            <div className="map-container">
-              <iframe
-                src="https://www.openstreetmap.org/export/embed.html?bbox=2.6015%2C6.4855%2C2.6115%2C6.4955&amp;layer=mapnik&amp;marker=6.4905,2.6065"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Localisation — Porto-Novo, Quartier Hinkoudé, Bénin"
-              ></iframe>
-            </div>
           </div>
-
-          <div className="text-center mt-4">
-            <Link to="/reponses" className="btn btn-outline-primary">
-              <i className="fas fa-reply"></i> Voir mes réponses
-            </Link>
+          <div className="col-md-7">
+            <div className="page-card h-100">
+              {success && <div className="alert alert-success">Votre message a bien été envoyé. Merci !</div>}
+              {error && <div className="alert alert-danger">{error}</div>}
+              <form onSubmit={onSubmit} autoComplete="off">
+                <div className="mb-3">
+                  <label className="form-label">Votre nom</label>
+                  <input type="text" className="form-control" required value={nom} onChange={e=>setNom(e.target.value)} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Votre email</label>
+                  <input type="email" className="form-control" required value={email} onChange={e=>setEmail(e.target.value)} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Message</label>
+                  <textarea className="form-control" rows={4} required value={message} onChange={e=>setMessage(e.target.value)}></textarea>
+                </div>
+                <button type="submit" className="btn btn-primary w-100 fw-bold" disabled={sending}>
+                  <i className="fa-solid fa-paper-plane"></i> {sending ? 'Envoi…' : 'Envoyer'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>

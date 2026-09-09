@@ -27,36 +27,8 @@ import AdminIndex from './pages/admin/AdminIndex'
 import AdminMessagerie from './pages/admin/AdminMessagerie'
 import AdminLogin from './pages/admin/AdminLogin'
 
-/**
- * Routage du SPA — une route par page du frontend vanilla :
- *
- *   index.html              → /
- *   login.html              → /login          register.html       → /register
- *   reset-request.html      → /reset-request  reset-password.html → /reset-password
- *   contact.html            → /contact        dashboard.html      → /dashboard
- *   poster-colis.html       → /poster-colis   colis.html          → /colis
- *   colis-detail.html?id=   → /colis/:id      recherche.html      → /recherche
- *   reservation-colis.html  → /reservation-colis?id=
- *   paiement.html?id=       → /paiement?id=   suivi.html          → /suivi
- *   profil.html             → /profil         modifier-profil     → /modifier-profil
- *   devenir-transporteur    → /devenir-transporteur
- *   transporteur-stats      → /transporteur-stats
- *   profil-transporteur?id= → /profil-transporteur?id=
- *   liste-messagerie.html   → /liste-messagerie
- *   messagerie.html?destinataire_id= → /messagerie?destinataire_id=
- *   messagerie-admin.html   → /messagerie-admin
- *   reponses.html           → /reponses
- *   admin/login.html        → /admin/login    admin/index.html    → /admin
- *   admin/messagerie.html   → /admin/messagerie
- *
- * Les anciens chemins `*.html` (liens de mails, favoris, backend FRONTEND_URL)
- * sont redirigés vers les routes SPA en conservant la query string.
- */
-
-/** Redirection d'un ancien chemin `.html` vers sa route SPA, query string conservée. */
 function LegacyRedirect({ to }: { to: string }) {
   const { search } = useLocation()
-  // Cas particulier : colis-detail.html?id=N → /colis/N
   if (to === '/colis/:id') {
     const id = new URLSearchParams(search).get('id')
     return <Navigate to={id ? '/colis/' + encodeURIComponent(id) : '/colis'} replace />
@@ -96,17 +68,16 @@ const LEGACY_ROUTES: [string, string][] = [
 export default function App() {
   return (
     <Routes>
-      {/* --- Accueil : design d'origine (navbar + footer intégrés à la page) --- */}
+      {/* Pages publiques vanilla — sans sidebar */}
       <Route path="/" element={<Home />} />
-
-      {/* --- Authentification (carte centrée, sans topbar) --- */}
+      <Route path="/contact" element={<Contact />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/reset-request" element={<ResetRequest />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* --- Espace utilisateur (sidebar) --- */}
+      {/* Espace utilisateur — sidebar vanilla */}
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/poster-colis" element={<PosterColis />} />
@@ -125,28 +96,11 @@ export default function App() {
         <Route path="/messagerie" element={<Messagerie />} />
         <Route path="/messagerie-admin" element={<MessagerieAdmin />} />
         <Route path="/reponses" element={<Reponses />} />
-        <Route path="/contact" element={<Contact />} />
 
-        {/* --- Administration --- */}
-        <Route
-          path="/admin"
-          element={
-            <AdminGate>
-              <AdminIndex />
-            </AdminGate>
-          }
-        />
-        <Route
-          path="/admin/messagerie"
-          element={
-            <AdminGate>
-              <AdminMessagerie />
-            </AdminGate>
-          }
-        />
+        <Route path="/admin" element={<AdminGate><AdminIndex /></AdminGate>} />
+        <Route path="/admin/messagerie" element={<AdminGate><AdminMessagerie /></AdminGate>} />
       </Route>
 
-      {/* --- Anciens chemins .html → routes SPA (query string conservée) --- */}
       {LEGACY_ROUTES.map(([from, to]) => (
         <Route key={from} path={from} element={<LegacyRedirect to={to} />} />
       ))}

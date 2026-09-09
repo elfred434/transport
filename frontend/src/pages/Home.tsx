@@ -1,308 +1,115 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Auth } from '../lib/api'
-import '../styles/home-originale.css'
 
 /**
- * Page d'accueil — design d'origine (index.php du premier dépôt) converti en React.
- * Navbar SPIISTMOVE + logo OIG1.jpeg, header dégradé, 4 sections,
- * bouton « vidéo explicative » ouvrant la modale Animaker.mp4, footer.
+ * Page d'accueil — design vanilla (frontend/index.html)
+ * Topbar SPIISTMOVE + logo.jpeg, hero dégradé, suivi colis, 3 étapes, footer.
  */
 export default function Home() {
-  const { me, logout } = useAuth()
+  const { me } = useAuth()
   const navigate = useNavigate()
   const loggedIn = me !== null || Auth.isLoggedIn()
+  const [trackNum, setTrackNum] = useState('')
 
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [videoOpen, setVideoOpen] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  // Comportement d'origine : la vidéo démarre à l'ouverture de la modale.
-  useEffect(() => {
-    if (videoOpen) videoRef.current?.play().catch(() => {})
-  }, [videoOpen])
-
-  const closeVideo = () => {
-    videoRef.current?.pause()
-    setVideoOpen(false)
-  }
-
-  const onLogout = async (e: React.MouseEvent) => {
+  const onTrack = (e: React.FormEvent) => {
     e.preventDefault()
-    await logout()
-    navigate('/')
+    const num = trackNum.trim()
+    if (num) navigate(`/suivi?numero_suivi=${encodeURIComponent(num)}`)
   }
-
-  const closeMenu = () => setMenuOpen(false)
 
   return (
-    <div className="home-originale">
-      <nav className="main-navbar">
-        <div className="container-navbar">
-          <Link to="/" className="nav-logo">
-            <img
-              src="/assets/img/OIG1.jpeg"
-              alt="Logo"
-              style={{ height: 38, verticalAlign: 'middle', borderRadius: '50%', marginRight: 8 }}
-            />
-            <span>SPIISTMOVE</span>
-          </Link>
-          <button className="menu-toggle" aria-label="Menu" onClick={() => setMenuOpen((o) => !o)}>
-            <i className="fas fa-bars"></i>
-          </button>
-          <ul className={'nav-links' + (menuOpen ? ' active' : '')}>
-            <li>
-              <Link to="/" onClick={closeMenu}>
-                Accueil
+    <div className="public-body">
+      <div className="topbar d-flex justify-content-between align-items-center">
+        <div className="fw-bold text-primary">
+          <img src="/assets/img/logo.jpeg" alt="" style={{ height: 38, borderRadius: 6 }} className="me-2" />
+          SPIISTMOVE
+        </div>
+        <div>
+          {loggedIn ? (
+            <Link to="/dashboard" className="btn btn-primary fw-bold">
+              <i className="fa-solid fa-gauge"></i> Mon espace
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="btn btn-outline-primary fw-bold me-2">
+                Connexion
               </Link>
-            </li>
-            {loggedIn ? (
-              <>
-                <li>
-                  <Link to="/profil" onClick={closeMenu}>
-                    Profil
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/liste-messagerie" onClick={closeMenu}>
-                    Messagerie
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/poster-colis" onClick={closeMenu}>
-                    Poster un colis
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/devenir-transporteur" onClick={closeMenu}>
-                    Devenir transporteur
-                  </Link>
-                </li>
-                <li>
-                  <a href="#" onClick={onLogout}>
-                    Déconnexion
-                  </a>
-                </li>
-              </>
-            ) : (
-              <>
-                <li>
-                  <Link to="/login" onClick={closeMenu}>
-                    Connexion
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/register" onClick={closeMenu}>
-                    Inscription
-                  </Link>
-                </li>
-              </>
-            )}
-          </ul>
+              <Link to="/register" className="btn btn-primary fw-bold">
+                Inscription
+              </Link>
+            </>
+          )}
         </div>
-      </nav>
-
-      <header>
-        <div className="container header-content">
-          <div className="header-text">
-            <h1>
-              Envoyez vos colis partout,
-              <br />
-              simplement et rapidement !
-            </h1>
-          </div>
-          <div className="btn-group">
-            <Link to="/poster-colis" className="btn btn-primary">
-              <i className="fas fa-box"></i> Poster un colis
-            </Link>
-            <Link to="/devenir-transporteur" className="btn btn-outline">
-              <i className="fas fa-truck"></i> Devenir transporteur
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="container">
-        <section className="section">
-          <h2 className="section-title">Comment ça marche ?</h2>
-          <div className="grid grid-3">
-            <div className="card">
-              <div className="card-icon">
-                <i className="fas fa-clipboard-list"></i>
-              </div>
-              <h3 className="card-title">1. Déposez votre annonce</h3>
-              <p>Décrivez votre colis et sa destination en quelques clics.</p>
-            </div>
-            <div className="card">
-              <div className="card-icon">
-                <i className="fas fa-user-check"></i>
-              </div>
-              <h3 className="card-title">2. Trouvez un transporteur</h3>
-              <p>Sélectionnez un transporteur disponible et fiable.</p>
-            </div>
-            <div className="card">
-              <div className="card-icon">
-                <i className="fas fa-truck-fast"></i>
-              </div>
-              <h3 className="card-title">3. Envoyez votre colis</h3>
-              <p>Suivez la livraison en temps réel jusqu'à la réception.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="section">
-          <h2 className="section-title">Nos avantages</h2>
-          <div className="grid grid-3">
-            <div className="feature-card">
-              <div className="feature-icon">
-                <i className="fas fa-shield-halved"></i>
-              </div>
-              <h3 className="feature-title">Sécurité</h3>
-              <p>Assurance colis et suivi en temps réel.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <i className="fas fa-bolt"></i>
-              </div>
-              <h3 className="feature-title">Rapidité</h3>
-              <p>Livraison express et transporteurs partout en France.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <i className="fas fa-coins"></i>
-              </div>
-              <h3 className="feature-title">Économie</h3>
-              <p>Tarifs compétitifs et offres personnalisées.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="section">
-          <h2 className="section-title">Nos chiffres clés</h2>
-          <div className="grid grid-3">
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-users"></i>
-              </div>
-              <div className="stat-number">+10 000</div>
-              <p>Utilisateurs inscrits</p>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-boxes-packing"></i>
-              </div>
-              <div className="stat-number">+25 000</div>
-              <p>Colis envoyés</p>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-globe"></i>
-              </div>
-              <div className="stat-number">15</div>
-              <p>Pays desservis</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="section">
-          <h2 className="section-title">Ils nous font confiance</h2>
-          <div className="grid grid-3">
-            <div className="testimonial">
-              <p className="testimonial-text">Service rapide et fiable, mon colis est arrivé en avance !</p>
-              <p className="testimonial-author">- Marie D.</p>
-            </div>
-            <div className="testimonial">
-              <p className="testimonial-text">J'ai pu envoyer un colis à l'étranger sans stress. Merci !</p>
-              <p className="testimonial-author">- Ahmed B.</p>
-            </div>
-            <div className="testimonial">
-              <p className="testimonial-text">Interface simple et transporteurs très professionnels.</p>
-              <p className="testimonial-author">- Sophie L.</p>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Bloc bouton vidéo explicative */}
-      <div className="text-center my-5">
-        <button
-          id="ouvrirModale"
-          className="btn btn-primary"
-          style={{ fontSize: '1.1rem' }}
-          onClick={() => setVideoOpen(true)}
-        >
-          <i className="fas fa-play-circle"></i> Voir la vidéo explicative
-        </button>
       </div>
 
-      {/* Modale vidéo */}
-      {videoOpen && (
-        <div
-          className="modale"
-          id="modaleVideo"
-          style={{
-            display: 'flex',
-            position: 'fixed',
-            zIndex: 1000,
-            left: 0,
-            top: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.6)',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onClick={(e) => {
-            // Clic sur l'arrière-plan = fermer (comportement d'origine)
-            if (e.target === e.currentTarget) closeVideo()
-          }}
-        >
-          <div
-            className="contenu-modale"
-            style={{
-              background: '#fff',
-              maxWidth: 700,
-              width: '90%',
-              borderRadius: 12,
-              boxShadow: '0 8px 32px #0003',
-              position: 'relative',
-              padding: '1.5rem',
-            }}
-          >
-            <span
-              className="fermer"
-              style={{ position: 'absolute', top: 10, right: 20, fontSize: '2rem', cursor: 'pointer', color: '#2563eb' }}
-              onClick={closeVideo}
-            >
-              &times;
-            </span>
-            <video
-              src="/assets/video/Animaker.mp4"
-              id="video"
-              ref={videoRef}
-              style={{ width: '100%', height: 'auto', maxHeight: '60vh', borderRadius: 8 }}
-              controls
-            />
-          </div>
+      <div className="hero">
+        <h1><i className="fa-solid fa-truck-fast"></i> Agence de Transport de Colis</h1>
+        <p className="lead mt-3">Postez vos colis, trouvez des transporteurs vérifiés et suivez vos envois en temps réel.</p>
+        <div className="mt-4 d-flex gap-3 justify-content-center flex-wrap">
+          <Link to="/register" className="btn btn-light btn-lg fw-bold">
+            <i className="fa-solid fa-user-plus"></i> Créer un compte
+          </Link>
+          <Link to="/login" className="btn btn-outline-light btn-lg fw-bold">
+            <i className="fa-solid fa-right-to-bracket"></i> Se connecter
+          </Link>
         </div>
-      )}
 
-      <footer>
-        <div className="container">
-          <div className="footer-links">
-            <Link to="/contact" className="footer-link">
-              Contact
-            </Link>
-            <a href="#" className="footer-link">
-              FAQ
-            </a>
-            <a href="#" className="footer-link">
-              CGU
-            </a>
+        <div className="container mt-5" style={{ maxWidth: 640 }}>
+          <div className="card shadow border-0 rounded-4 p-3 text-start text-dark">
+            <label className="form-label fw-bold"><i className="fa-solid fa-search-location"></i> Suivre un colis</label>
+            <form onSubmit={onTrack} className="d-flex gap-2">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Numéro de suivi (ex. COLIS...)"
+                value={trackNum}
+                onChange={(e) => setTrackNum(e.target.value)}
+                required
+              />
+              <button className="btn btn-primary fw-bold" type="submit">Suivre</button>
+            </form>
           </div>
-          <p className="copyright">&copy; 2025 Agence de Transport de Colis</p>
         </div>
+      </div>
+
+      <div className="container py-5">
+        <h2 className="text-center text-primary mb-5">Comment ça marche ?</h2>
+        <div className="row g-4">
+          <div className="col-md-4">
+            <div className="card step-card p-4 text-center">
+              <div className="step-icon"><i className="fa-solid fa-box"></i></div>
+              <h5 className="mt-3">1. Postez votre colis</h5>
+              <p className="text-muted mb-0">Décrivez votre colis (poids, destination, photos) et recevez un numéro de suivi unique.</p>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="card step-card p-4 text-center">
+              <div className="step-icon"><i className="fa-solid fa-handshake"></i></div>
+              <h5 className="mt-3">2. Choisissez un transporteur</h5>
+              <p className="text-muted mb-0">Comparez les voyages disponibles, les avis, puis acceptez une réservation.</p>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="card step-card p-4 text-center">
+              <div className="step-icon"><i className="fa-solid fa-search-location"></i></div>
+              <h5 className="mt-3">3. Suivez la livraison</h5>
+              <p className="text-muted mb-0">Suivez chaque étape jusqu'à la livraison, confirmée par l'agence.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center mt-5">
+          <Link to="/contact" className="btn btn-outline-primary btn-lg">
+            <i className="fa-solid fa-phone-alt"></i> Nous contacter
+          </Link>
+        </div>
+      </div>
+
+      <footer className="text-center text-muted py-4 border-top bg-white">
+        <p className="mb-1"><strong>Agence de Transport de Colis</strong> — Porto-Novo, quartier Hinkoudé, Bénin</p>
+        <p className="mb-0 small">© 2025 SPIISTMOVE</p>
       </footer>
     </div>
   )
