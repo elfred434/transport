@@ -39,8 +39,13 @@ export default function SuperAdmin() {
     try { setAdmins(await api.get<AdminUser[]>('/api/super-admin/admins')) } catch (e) { toast(errMsg(e), 'error') }
   }, [toast])
   const loadUsers = useCallback(async () => {
-    const p = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''
-    try { setUsers(await api.get<AdminUser[]>(`/api/admin/users${p}`)) } catch {}
+    const qp = new URLSearchParams({ all: '1' })
+    if (search.trim()) qp.set('search', search.trim())
+    try {
+      const raw = await api.get<AdminUser[] | { data: AdminUser[] }>(`/api/admin/users?${qp.toString()}`)
+      // Si le backend renvoie un objet paginé { data: [...], pagination }, on extrait data.
+      setUsers(Array.isArray(raw) ? raw : (raw?.data ?? []))
+    } catch {}
   }, [search])
 
   useEffect(() => { loadStats(); loadAdmins(); loadUsers() }, [loadStats, loadAdmins, loadUsers])
