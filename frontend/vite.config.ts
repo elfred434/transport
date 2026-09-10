@@ -24,21 +24,23 @@ export default defineConfig({
     allowedHosts: ['.e2b.app', '.ngrok-free.app', '.ngrok.io', 'localhost'],
     proxy: {
       '/api': {
-        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
+        // Si VITE_API_TARGET finit par '/api' (ex: ngrok pointant directement sur l'API),
+        // on le retire pour éviter le double préfixe /api/api/.
+        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
       },
       '/storage': {
-        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
+        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
       },
       '/uploads': {
-        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
+        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
         changeOrigin: true,
       },
     },
