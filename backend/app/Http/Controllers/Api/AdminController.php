@@ -31,8 +31,8 @@ class AdminController extends Controller
      * Helper de pagination : prend un QueryBuilder et retourne un objet
      * paginé standard pour l'API : { data, pagination: {page, per_page, total, last_page} }
      *
-     * Si $defaultOrder est fourni, ajoute automatiquement un orderByDesc SAUF si
-     * la query contient déjà un ORDER BY (détecté via les propriétés de la query).
+     * Utilise reorder() pour éviter les doublons d'ORDER BY : remplace tout ORDER BY
+     * existant par $defaultOrder DESC (si fourni).
      */
     private function paginate($query, Request $request, ?callable $mapFn = null, ?string $defaultOrder = null): array
     {
@@ -41,15 +41,12 @@ class AdminController extends Controller
         if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
         if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
 
-        // Éviter de doubler l'ORDER BY
-        $orders = $query->getQuery()->orders ?? null;
-        $hasOrder = !empty($orders);
-        if ($defaultOrder !== null && !$hasOrder) {
-            $query->orderByDesc($defaultOrder);
-        }
+        // Compter sans ORDER BY ni LIMIT/OFFSET (important pour les perf et éviter erreurs)
+        $total = (int)(clone $query)->reorder()->count();
 
-        $total = (clone $query)->count();
-        // Reset ORDER BY sur le clone de count? Pas nécessaire, count() avec Laravel builder ignore orders.
+        if ($defaultOrder !== null) {
+            $query->reorder($defaultOrder, 'desc');
+        }
         $rows = $query->offset(($page-1)*$perPage)->limit($perPage)->get();
 
         $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r) => (array)$r)->all();
@@ -59,7 +56,7 @@ class AdminController extends Controller
             'pagination' => [
                 'page' => $page,
                 'per_page' => $perPage,
-                'total' => (int) $total,
+                'total' => $total,
                 'last_page' => (int) max(1, ceil($total / $perPage)),
                 'from' => $total === 0 ? 0 : ($page-1)*$perPage + 1,
                 'to' => (int) min($total, $page*$perPage),

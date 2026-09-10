@@ -28,17 +28,14 @@ class RetraitController extends Controller
         $perPage = In::int($request, 'per_page') ?: self::DEFAULT_PER_PAGE;
         if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
         if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
-        $orders = $query->getQuery()->orders ?? null;
-        if ($defaultOrder !== null && empty($orders)) {
-            $query->orderByDesc($defaultOrder);
-        }
-        $total = (clone $query)->count();
+        $total = (int)(clone $query)->reorder()->count();
+        if ($defaultOrder !== null) $query->reorder($defaultOrder, 'desc');
         $rows = $query->offset(($page-1)*$perPage)->limit($perPage)->get();
         $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r)=>(array)$r)->all();
         return [
             'data'=>$data,
             'pagination'=>[
-                'page'=>$page,'per_page'=>$perPage,'total'=>(int)$total,
+                'page'=>$page,'per_page'=>$perPage,'total'=>$total,
                 'last_page'=>(int)max(1,ceil($total/$perPage)),
                 'from'=>$total===0?0:($page-1)*$perPage+1,
                 'to'=>(int)min($total,$page*$perPage),
