@@ -23,6 +23,9 @@ class Paiement extends Model
 
     public const METHODE_CARTE = 'carte_credit';
     public const METHODE_MOBILE = 'mobile_money';
+    public const METHODE_KKIAPAY = 'kkiapay';
+    public const METHODE_AUTRE = 'autre';
+    public const METHODE_VIREMENT = 'virement';
 
     protected $table = 'paiements';
 

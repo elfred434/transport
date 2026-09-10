@@ -181,6 +181,7 @@ class PaiementController extends Controller
         }
 
         // Mettre à jour paiement
+        // NOTE: colonne methode_paiement est enum('mobile_money','carte_credit','virement','autre') -> on utilise 'autre' pour kkiapay
         $details = [
             'kkiapay' => $verification,
             'methode' => 'kkiapay',
@@ -189,13 +190,14 @@ class PaiementController extends Controller
             'amount_verified' => $amount,
             'transactionId' => $transactionId,
             'montant' => $paiement->montant,
+            'sandbox_fallback' => $verification['sandbox_fallback'] ?? false,
         ];
 
         $paiement->forceFill([
             'statut' => Paiement::STATUT_PAYE,
-            'methode_paiement' => 'kkiapay',
+            'methode_paiement' => 'autre', // enum compatible, vrai méthode dans details
             'numero_transaction' => $transactionId,
-            'operateur' => $source,
+            'operateur' => substr((string)$source, 0, 50),
             'details_paiement' => $details,
             'date_paiement' => now()->toDateTimeString(),
             'ip_client' => $request->ip(),
