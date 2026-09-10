@@ -29,7 +29,7 @@ export function useSidebarLinks() {
     // Section Transporteur
     { to: '/devenir-transporteur', icon: 'fa-id-badge', label: 'Devenir Transporteur', section: 'Transporteur', show: !me.is_transporteur && me.role !== 'transporteur' },
     { to: '/transporteur-stats', icon: 'fa-chart-line', label: 'Mes statistiques', section: 'Transporteur', show: !!me.is_transporteur },
-    { to: '/profil-transporteur', icon: 'fa-user-tie', label: 'Profil Transporteur', section: 'Transporteur', show: !!me.is_transporteur },
+    { to: `/profil-transporteur?id=${me.id}`, icon: 'fa-user-tie', label: 'Profil Transporteur', section: 'Transporteur', show: !!me.is_transporteur },
     
     // Section Messagerie
     { to: '/liste-messagerie', icon: 'fa-envelope', label: 'Messages', section: 'Messagerie' },

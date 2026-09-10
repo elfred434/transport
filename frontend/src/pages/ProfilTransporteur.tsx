@@ -67,8 +67,8 @@ function stars(note: number | null) {
 
 export default function ProfilTransporteur() {
   const [params] = useSearchParams()
-  const id = params.get('id')
   const { me } = useAuth()
+  const id = params.get('id') || (me?.is_transporteur ? String(me.id) : null)
 
   const [data, setData] = useState<TransporteurData | null>(null)
   const [avis, setAvis] = useState<Avis[] | null>(null)
