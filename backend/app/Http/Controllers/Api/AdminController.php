@@ -30,16 +30,27 @@ class AdminController extends Controller
     /**
      * Helper de pagination : prend un QueryBuilder et retourne un objet
      * paginé standard pour l'API : { data, pagination: {page, per_page, total, last_page} }
+     *
+     * Si $defaultOrder est fourni, ajoute automatiquement un orderByDesc SAUF si
+     * la query contient déjà un ORDER BY (détecté via les propriétés de la query).
      */
-    private function paginate($query, Request $request, callable $mapFn = null, string $defaultOrder = 'id', string $defaultDir = 'desc'): array
+    private function paginate($query, Request $request, ?callable $mapFn = null, ?string $defaultOrder = null): array
     {
         $page = max(1, In::int($request, 'page') ?: 1);
         $perPage = In::int($request, 'per_page') ?: self::DEFAULT_PER_PAGE;
         if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
         if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
 
+        // Éviter de doubler l'ORDER BY
+        $orders = $query->getQuery()->orders ?? null;
+        $hasOrder = !empty($orders);
+        if ($defaultOrder !== null && !$hasOrder) {
+            $query->orderByDesc($defaultOrder);
+        }
+
         $total = (clone $query)->count();
-        $rows = $query->orderByDesc($defaultOrder)->offset(($page-1)*$perPage)->limit($perPage)->get();
+        // Reset ORDER BY sur le clone de count? Pas nécessaire, count() avec Laravel builder ignore orders.
+        $rows = $query->offset(($page-1)*$perPage)->limit($perPage)->get();
 
         $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r) => (array)$r)->all();
 
@@ -49,9 +60,9 @@ class AdminController extends Controller
                 'page' => $page,
                 'per_page' => $perPage,
                 'total' => (int) $total,
-                'last_page' => (int) ceil($total / $perPage),
+                'last_page' => (int) max(1, ceil($total / $perPage)),
                 'from' => $total === 0 ? 0 : ($page-1)*$perPage + 1,
-                'to' => min($total, $page*$perPage),
+                'to' => (int) min($total, $page*$perPage),
             ],
         ];
     }
@@ -75,7 +86,7 @@ class AdminController extends Controller
             ->select(
                 's.id as suivi_id','s.date_etape',
                 'c.id as colis_id','c.nom_colis','c.numero_suivi','c.prix_estime','c.poids','c.ville','c.pays',
-                'c.description','c.adresse_depart','c.adresse_destination','c.image_colis','c.date_post',
+                'c.adresse_depart','c.adresse_destination','c.image_colis','c.date_post',
                 'uc.id as client_id','uc.nom as client_nom','uc.prenom as client_prenom','uc.telephone as client_tel','uc.email as client_email',
                 'ut.id as transporteur_id','ut.nom as transporteur_nom','ut.prenom as transporteur_prenom',
                 'ut.telephone as transporteur_tel','ut.email as transporteur_email',
@@ -262,7 +273,7 @@ class AdminController extends Controller
             $query->where('role', $role);
         }
 
-        $result = $this->paginate($query->orderByDesc('date_inscription'), $request, function($u){
+        $result = $this->paginate($query, $request, function($u){
             $u = (array)$u;
             $u['photo_url'] = Files::url($u['photo_profil']);
             unset($u['photo_profil']);
@@ -397,16 +408,25 @@ class AdminController extends Controller
     /** GET /api/admin/livraisons — liste paginée des livraisons à confirmer + détails complets */
     public function livraisons(Request $request): JsonResponse
     {
-        $query = $this->pendingLivraisonsQuery();
-        $result = $this->paginate($query, $request, function($row){
-            $r = (array)$row;
-            $r['image_url'] = Files::url($r['image_colis'] ?? null);
-            unset($r['image_colis']);
-            $r['commission_transporteur'] = Pricing::commissionTransporteur((float)$r['prix_estime']);
-            $r['commission_admin'] = Pricing::commissionAdmin((float)$r['prix_estime']);
-            return $r;
-        }, 's.date_etape');
-        return ApiResponse::success($result);
+        try {
+            $query = $this->pendingLivraisonsQuery();
+            $result = $this->paginate($query, $request, function($row){
+                $r = (array)$row;
+                $r['image_url'] = Files::url($r['image_colis'] ?? null);
+                unset($r['image_colis']);
+                $r['commission_transporteur'] = Pricing::commissionTransporteur((float)($r['prix_estime'] ?? 0));
+                $r['commission_admin'] = Pricing::commissionAdmin((float)($r['prix_estime'] ?? 0));
+                return $r;
+            }, 's.date_etape');
+            return ApiResponse::success($result);
+        } catch (\Throwable $e) {
+            Log::error('Erreur admin/livraisons: '.$e->getMessage());
+            return ApiResponse::success([
+                'data' => [],
+                'pagination' => ['page'=>1,'per_page'=>self::DEFAULT_PER_PAGE,'total'=>0,'last_page'=>1,'from'=>0,'to'=>0],
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /** POST /api/admin/livraisons/bulk-action — confirmer/refuser plusieurs suivis d'un coup */

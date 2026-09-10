@@ -22,22 +22,26 @@ class RetraitController extends Controller
     private const DEFAULT_PER_PAGE = 15;
     private const MAX_PER_PAGE = 100;
 
-    private function paginate($query, Request $request, ?callable $mapFn = null, string $defaultOrder = 'date_demande'): array
+    private function paginate($query, Request $request, ?callable $mapFn = null, ?string $defaultOrder = 'date_demande'): array
     {
         $page = max(1, In::int($request, 'page') ?: 1);
         $perPage = In::int($request, 'per_page') ?: self::DEFAULT_PER_PAGE;
         if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
         if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
+        $orders = $query->getQuery()->orders ?? null;
+        if ($defaultOrder !== null && empty($orders)) {
+            $query->orderByDesc($defaultOrder);
+        }
         $total = (clone $query)->count();
-        $rows = $query->orderByDesc($defaultOrder)->offset(($page-1)*$perPage)->limit($perPage)->get();
+        $rows = $query->offset(($page-1)*$perPage)->limit($perPage)->get();
         $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r)=>(array)$r)->all();
         return [
             'data'=>$data,
             'pagination'=>[
                 'page'=>$page,'per_page'=>$perPage,'total'=>(int)$total,
-                'last_page'=>(int)ceil($total/$perPage),
+                'last_page'=>(int)max(1,ceil($total/$perPage)),
                 'from'=>$total===0?0:($page-1)*$perPage+1,
-                'to'=>min($total,$page*$perPage),
+                'to'=>(int)min($total,$page*$perPage),
             ]
         ];
     }

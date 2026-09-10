@@ -34,7 +34,6 @@ interface PendingLivraison {
   poids: string | number
   ville: string
   pays: string
-  description: string | null
   adresse_depart: string | null
   adresse_destination: string | null
   image_url: string | null
