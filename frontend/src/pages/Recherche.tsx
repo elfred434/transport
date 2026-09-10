@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, money, SmartImg, StatusBadge } from '../lib/format'
+import { CountrySelect } from '../components/LocationSelect'
 
 /** Recherche (colis / voyages + voyages compatibles) — port de recherche.html. */
 
@@ -233,12 +234,23 @@ export default function Recherche() {
                   />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Pays</label>
-                  <input type="text" className="form-control" value={cPays} onChange={(e) => setCPays(e.target.value)} />
+                  <CountrySelect
+                    label="Pays"
+                    value={cPays}
+                    onChange={(v) => { setCPays(v); if (cPays !== v) setCVille('') }}
+                    placeholder="Tous les pays…"
+                    className="mb-0"
+                  />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Ville</label>
-                  <input type="text" className="form-control" value={cVille} onChange={(e) => setCVille(e.target.value)} />
+                  <CitySelect
+                    label="Ville"
+                    pays={cPays}
+                    value={cVille}
+                    onChange={setCVille}
+                    placeholder="Toutes les villes…"
+                    className="mb-0"
+                  />
                 </div>
                 <div className="col-md-2">
                   <button className="btn btn-primary w-100" type="submit">
@@ -309,16 +321,21 @@ export default function Recherche() {
                   />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Pays de départ</label>
-                  <input type="text" className="form-control" value={vDepart} onChange={(e) => setVDepart(e.target.value)} />
+                  <CountrySelect
+                    label="Pays de départ"
+                    value={vDepart}
+                    onChange={setVDepart}
+                    placeholder="Tous les départs…"
+                    className="mb-0"
+                  />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Pays de destination</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <CountrySelect
+                    label="Pays de destination"
                     value={vDestination}
-                    onChange={(e) => setVDestination(e.target.value)}
+                    onChange={setVDestination}
+                    placeholder="Toutes les destinations…"
+                    className="mb-0"
                   />
                 </div>
                 <div className="col-md-2">

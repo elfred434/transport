@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { money } from '../lib/format'
+import { CountrySelect, CitySelect } from '../components/LocationSelect'
 import '../styles/home-originale.css'
 
 interface CreateResponse {
@@ -159,8 +160,25 @@ export default function PosterColis() {
                       <h5 style={{color: 'var(--dark-color)'}}>Destination</h5>
                       <p className="text-muted small">Où va votre colis ?</p>
                     </div>
-                    <div className="mb-3"><label className="form-label fw-bold">Pays destination *</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Bénin" value={formData.pays} onChange={update('pays')} required /></div>
-                    <div className="mb-3"><label className="form-label fw-bold">Ville destination *</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Cotonou" value={formData.ville} onChange={update('ville')} required /></div>
+                    <div className="mb-3">
+                      <CountrySelect
+                        label="Pays destination *"
+                        value={formData.pays}
+                        onChange={(v) => setFormData({ ...formData, pays: v, ville: formData.pays === v ? formData.ville : '' })}
+                        required
+                        placeholder="Rechercher un pays…"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <CitySelect
+                        label="Ville destination *"
+                        pays={formData.pays}
+                        value={formData.ville}
+                        onChange={(v) => setFormData({ ...formData, ville: v })}
+                        required
+                        placeholder="Choisir ou taper une ville…"
+                      />
+                    </div>
                     <div className="mb-3"><label className="form-label fw-bold">Adresse départ *</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Porto-Novo, Hinkoudé" value={formData.adresse_depart} onChange={update('adresse_depart')} required /></div>
                   </div>
                 )}

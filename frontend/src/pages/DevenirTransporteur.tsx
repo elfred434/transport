@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { CountrySelect, CitySelect } from '../components/LocationSelect'
 import '../styles/home-originale.css'
 
 export default function DevenirTransporteur() {
@@ -95,8 +96,23 @@ export default function DevenirTransporteur() {
                     <h5>Adresse</h5><p className="text-muted small">Où êtes-vous basé ?</p>
                   </div>
                   <div className="mb-3"><label className="form-label fw-bold">Adresse</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Quartier Hinkoudé" value={form.adresse} onChange={set('adresse')} /></div>
-                  <div className="mb-3"><label className="form-label fw-bold">Ville</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Porto-Novo" value={form.ville} onChange={set('ville')} /></div>
-                  <div className="mb-3"><label className="form-label fw-bold">Pays</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Bénin" value={form.pays} onChange={set('pays')} /></div>
+                  <div className="mb-3">
+                    <CountrySelect
+                      label="Pays"
+                      value={form.pays}
+                      onChange={(v) => setForm((f) => ({ ...f, pays: v, ville: f.pays === v ? f.ville : '' }))}
+                      placeholder="Rechercher un pays…"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <CitySelect
+                      label="Ville"
+                      pays={form.pays}
+                      value={form.ville}
+                      onChange={(v) => setForm((f) => ({ ...f, ville: v }))}
+                      placeholder="Choisir ou taper une ville…"
+                    />
+                  </div>
                 </div>
               )}
               {step === 3 && (
@@ -105,8 +121,24 @@ export default function DevenirTransporteur() {
                     <div style={{margin: '0 auto 1rem', background: 'rgba(245,158,11,0.1)', width: 60, height: 60, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><i className="fas fa-route" style={{color: 'var(--accent-color)', fontSize: '1.5rem'}}></i></div>
                     <h5>Trajet proposé</h5><p className="text-muted small">Votre prochain voyage</p>
                   </div>
-                  <div className="mb-3"><label className="form-label fw-bold">Pays départ *</label><input type="text" className="form-control form-control-lg" required value={form.pays_depart} onChange={set('pays_depart')} /></div>
-                  <div className="mb-3"><label className="form-label fw-bold">Pays destination *</label><input type="text" className="form-control form-control-lg" required value={form.pays_destination} onChange={set('pays_destination')} /></div>
+                  <div className="mb-3">
+                    <CountrySelect
+                      label="Pays départ *"
+                      value={form.pays_depart}
+                      onChange={(v) => setForm((f) => ({ ...f, pays_depart: v }))}
+                      required
+                      placeholder="Rechercher un pays…"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <CountrySelect
+                      label="Pays destination *"
+                      value={form.pays_destination}
+                      onChange={(v) => setForm((f) => ({ ...f, pays_destination: v }))}
+                      required
+                      placeholder="Rechercher un pays…"
+                    />
+                  </div>
                   <div className="mb-3"><label className="form-label fw-bold">Date départ *</label><input type="date" className="form-control form-control-lg" required min={today} value={form.date_depart} onChange={set('date_depart')} /></div>
                 </div>
               )}
