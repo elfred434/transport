@@ -7,6 +7,7 @@
  *  - 401 avec jeton présent → effacement du jeton + redirection /login ;
  *  - requêtes en URLs relatives : '/api/...' passe par le proxy Vite (dev)
  *    ou par le domaine unique (prod).
+ *  - Support ngrok free : header ngrok-skip-browser-warning pour éviter la page d'avertissement.
  */
 
 export const TOKEN_KEY = 'transport_token'
@@ -40,6 +41,8 @@ async function request<T>(method: string, path: string, body: Body | FormData = 
   const headers: Record<string, string> = {}
   const token = Auth.token()
   if (token) headers['Authorization'] = 'Bearer ' + token
+  // Support ngrok free tier : évite la page "You are about to visit..."
+  headers['ngrok-skip-browser-warning'] = 'true'
 
   let payload: BodyInit | null = null
   if (body instanceof FormData) {
