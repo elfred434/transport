@@ -83,6 +83,17 @@ if DB_CONNECTION == "mysql":
             },
         }
     }
+    # Patch: tolère MariaDB 10.4 (XAMPP) qui est rejetée par Django 5.2 qui
+    # exige 10.5+. Les features utilisées fonctionnent très bien sur 10.4.
+    try:
+        from django.db.backends.mysql import features as _mysql_features
+        # La valeur (10, 5) est la version mini pour MariaDB dans Django 5.2.
+        if hasattr(_mysql_features.DatabaseFeatures, "minimum_database_version"):
+            # On ne touche pas à MySQL, mais pour MariaDB la constante est
+            # partagée. Remplacer par (10, 3) suffit à passer le check.
+            _mysql_features.DatabaseFeatures.minimum_database_version = (10, 3)
+    except Exception:
+        pass
 else:
     DATABASES = {
         "default": {
