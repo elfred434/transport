@@ -70,9 +70,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 # mettre DB_CONNECTION=mysql et les variables correspondantes dans .env.
 DB_CONNECTION = os.environ.get("DB_CONNECTION", "sqlite")
 if DB_CONNECTION == "mysql":
+    # Backend custom "config.db_backends.mysql" : hérite de django.db.backends.mysql
+    # mais force can_return_columns_from_insert=False et version minimum abaissée
+    # afin de fonctionner sur MariaDB 10.4 (XAMPP), qui ne supporte pas la clause
+    # RETURNING … exigée par Django 5.2 sur MariaDB ≥ 10.5.
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.mysql",
+            "ENGINE": "config.db_backends.mysql",
             "NAME": os.environ.get("DB_DATABASE", "transport"),
             "USER": os.environ.get("DB_USERNAME", "root"),
             "PASSWORD": os.environ.get("DB_PASSWORD", ""),
@@ -80,20 +84,13 @@ if DB_CONNECTION == "mysql":
             "PORT": os.environ.get("DB_PORT", "3306"),
             "OPTIONS": {
                 "charset": "utf8mb4",
+                "init_command": (
+                    "SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,"
+                    "NO_ENGINE_SUBSTITUTION';"
+                ),
             },
         }
     }
-    # Patch: tolère MariaDB 10.4 (XAMPP) qui est rejetée par Django 5.2 qui
-    # exige 10.5+. Les features utilisées fonctionnent très bien sur 10.4.
-    try:
-        from django.db.backends.mysql import features as _mysql_features
-        # La valeur (10, 5) est la version mini pour MariaDB dans Django 5.2.
-        if hasattr(_mysql_features.DatabaseFeatures, "minimum_database_version"):
-            # On ne touche pas à MySQL, mais pour MariaDB la constante est
-            # partagée. Remplacer par (10, 3) suffit à passer le check.
-            _mysql_features.DatabaseFeatures.minimum_database_version = (10, 3)
-    except Exception:
-        pass
 else:
     DATABASES = {
         "default": {
