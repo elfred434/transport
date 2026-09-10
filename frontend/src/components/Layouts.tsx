@@ -2,11 +2,6 @@ import { type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-/**
- * Layouts — design d'origine (menu.php / vertical-menu #3498db + OIG1.jpeg)
- * + badges rôles Super Admin / Admin / Transporteur
- */
-
 interface SidebarLink {
   to: string
   icon: string
@@ -61,28 +56,27 @@ export function AppLayout() {
     <>
       <div id="sidebar">
         <div className="vertical-menu">
-          <div className="logo-container">
-            <Link to="/">
-              <img src="/assets/img/OIG1.jpeg" alt="Logo SPIISTMOVE" className="logo" />
+          <div className="logo-container" style={{padding: '12px 16px'}}>
+            <Link to="/" className="d-flex align-items-center justify-content-center gap-2 text-decoration-none">
+              <img src="/assets/img/OIG1.jpeg" alt="Logo" style={{height: 42, width: 42, borderRadius: '50%', objectFit: 'cover'}} />
+              <span className="fw-bold" style={{color: 'white', fontSize: '1rem'}}>SPIISTMOVE</span>
             </Link>
           </div>
-          <div className="user-box">
-            {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" /> : null}
-            <div className="user-name">
-              {me.prenom} {me.nom}
-            </div>
-            <div className="d-flex gap-1 justify-content-center flex-wrap">
-              <span className="badge bg-light text-dark">{me.role === 'utilisateur' ? 'client' : me.role}</span>
-              {isSuperAdmin && <span className="badge bg-warning text-dark"><i className="fa-solid fa-crown"></i> Super Admin</span>}
-              {me.role === 'admin' && <span className="badge bg-info text-dark">Admin</span>}
-              {me.is_transporteur && <span className="badge bg-success">Transporteur</span>}
+          <div className="user-box" style={{padding: '10px 16px'}}>
+            {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" style={{width: 40, height: 40}} /> : <div className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-1" style={{width: 40, height: 40}}><i className="fas fa-user text-primary"></i></div>}
+            <div className="user-name" style={{fontSize: '0.85rem'}}>{me.prenom} {me.nom}</div>
+            <div className="d-flex gap-1 justify-content-center flex-wrap" style={{fontSize: '0.7rem'}}>
+              <span className="badge bg-light text-dark" style={{fontSize: '0.65rem'}}>{me.role === 'utilisateur' ? 'client' : me.role}</span>
+              {isSuperAdmin && <span className="badge bg-warning text-dark" style={{fontSize: '0.6rem'}}><i className="fa-solid fa-crown"></i> Super</span>}
+              {me.role === 'admin' && <span className="badge bg-info text-dark" style={{fontSize: '0.6rem'}}>Admin</span>}
+              {me.is_transporteur && <span className="badge bg-success" style={{fontSize: '0.6rem'}}>Transp.</span>}
             </div>
           </div>
           <ul className="menu-items">
             {links.filter(l=>l.show!==false).map(l=>(
               <li key={l.to}>
                 <NavLink to={l.to} className={({ isActive }) => (isActive ? 'active' : '')} end={l.to==='/dashboard'}>
-                  <i className={`fas ${l.icon}`}></i> {l.label} {l.badge && <span className="badge bg-light text-dark ms-2" style={{fontSize:'0.6em'}}>{l.badge}</span>}
+                  <i className={`fas ${l.icon}`}></i> {l.label} {l.badge && <span className="badge bg-light text-dark ms-2" style={{fontSize:'0.55em'}}>{l.badge}</span>}
                 </NavLink>
               </li>
             ))}
