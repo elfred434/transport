@@ -12,6 +12,7 @@ use App\Support\In;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Suivi : consultation par numéro de suivi, ajout d'étapes.
@@ -106,11 +107,36 @@ class SuiviController extends Controller
         }
 
         if ($statut === 'Livré' && ! $isAdmin) {
-            SuiviColis::create([
+            $etape = SuiviColis::create([
                 'colis_id' => $colisId,
                 'statut' => $statut,
                 'demande_livraison' => true,
             ]);
+
+            // Signal admin : log + insertion dans notifications_admin si table existe
+            $colisInfo = DB::table('colis')->where('id',$colisId)->select('nom_colis','numero_suivi')->first();
+            $nomColis = $colisInfo ? $colisInfo->nom_colis : ('colis #'.$colisId);
+            $msg = "📦 Livraison signalée : {$nomColis} par transporteur #{$user->id} — à confirmer";
+            Log::info('📦 LIVRAISON SIGNAL', [
+                'colis_id' => $colisId,
+                'suivi_id' => $etape->id,
+                'transporteur_id' => $user->id,
+                'nom_colis' => $nomColis,
+            ]);
+            try {
+                DB::table('notifications_admin')->insert([
+                    'type' => 'livraison',
+                    'colis_id' => $colisId,
+                    'suivi_id' => $etape->id,
+                    'transporteur_id' => $user->id,
+                    'message' => $msg,
+                    'lu' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Impossible insérer notif admin (table absente?): '.$e->getMessage());
+            }
 
             return ApiResponse::success(
                 ['message' => 'Demande de confirmation de livraison envoyée à l\'administrateur'],

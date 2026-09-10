@@ -74,7 +74,103 @@ class AdminController extends Controller
             // fallback
         }
 
+        // Détail des livraisons en attente (20 derniers)
+        $pendingLivraisons = [];
+        try {
+            $pendingLivraisons = DB::table('suivi_colis as s')
+                ->join('colis as c','c.id','=','s.colis_id')
+                ->leftJoin('users as uc','uc.id','=','c.user_id')
+                ->leftJoin('reservations as r', function($j){
+                    $j->on('r.colis_id','=','c.id')->whereIn('r.statut',['accepte','termine']);
+                })
+                ->leftJoin('voyages as v','v.id','=','r.voyage_id')
+                ->leftJoin('users as ut','ut.id','=','v.user_id')
+                ->where('s.demande_livraison',1)
+                ->where('s.confirme_par_admin',0)
+                ->where('s.statut','Livré')
+                ->whereRaw('s.date_etape = (SELECT MAX(s2.date_etape) FROM suivi_colis s2 WHERE s2.colis_id = s.colis_id)')
+                ->select(
+                    's.id as suivi_id','s.date_etape',
+                    'c.id as colis_id','c.nom_colis','c.numero_suivi','c.prix_estime','c.ville','c.pays',
+                    'uc.nom as client_nom','uc.prenom as client_prenom','uc.telephone as client_tel',
+                    'ut.id as transporteur_id','ut.nom as transporteur_nom','ut.prenom as transporteur_prenom','ut.telephone as transporteur_tel'
+                )
+                ->orderByDesc('s.date_etape')
+                ->limit(20)
+                ->get()
+                ->map(fn($row) => (array)$row)
+                ->all();
+        } catch (\Throwable $e) {
+            // table peut-être absente, on ignore
+        }
+        $stats['pending_livraisons'] = $pendingLivraisons;
+
+        // Compter notifs non lues si table existe
+        try {
+            $stats['notifications_non_lues'] = (int) DB::table('notifications_admin')->where('lu',0)->count();
+        } catch (\Throwable $e) {
+            $stats['notifications_non_lues'] = 0;
+        }
+
         return ApiResponse::success($stats);
+    }
+
+    /** GET /api/admin/notifications */
+    public function notifications(Request $request): JsonResponse
+    {
+        try {
+            $nonLues = DB::table('notifications_admin')->where('lu',0)->count();
+            $liste = DB::table('notifications_admin')
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get()
+                ->map(fn($n) => (array)$n)
+                ->all();
+            return ApiResponse::success([
+                'non_lues' => (int)$nonLues,
+                'notifications' => $liste,
+            ]);
+        } catch (\Throwable $e) {
+            // Fallback si table absente : liste basée sur pending_livraisons
+            $pending = DB::table('suivi_colis as s')
+                ->join('colis as c','c.id','=','s.colis_id')
+                ->leftJoin('users as uc','uc.id','=','c.user_id')
+                ->where('s.demande_livraison',1)
+                ->where('s.confirme_par_admin',0)
+                ->where('s.statut','Livré')
+                ->whereRaw('s.date_etape = (SELECT MAX(s2.date_etape) FROM suivi_colis s2 WHERE s2.colis_id = s.colis_id)')
+                ->select('s.id as suivi_id','s.date_etape as created_at','c.id as colis_id','c.nom_colis',
+                    DB::raw("CONCAT('Nouvelle livraison à confirmer : ', c.nom_colis) as message"))
+                ->orderByDesc('s.date_etape')->limit(50)->get()
+                ->map(fn($n) => (array)$n)->all();
+            return ApiResponse::success([
+                'non_lues' => count($pending),
+                'notifications' => $pending,
+                'fallback' => true,
+            ]);
+        }
+    }
+
+    /** POST /api/admin/notifications/{id}/read */
+    public function notificationRead(int $id): JsonResponse
+    {
+        try {
+            DB::table('notifications_admin')->where('id',$id)->update(['lu'=>1,'updated_at'=>now()]);
+        } catch (\Throwable $e) {
+            // table absente : silencieux
+        }
+        return ApiResponse::success(['message'=>'Notification marquée comme lue']);
+    }
+
+    /** POST /api/admin/notifications/read-all */
+    public function notificationsReadAll(): JsonResponse
+    {
+        try {
+            DB::table('notifications_admin')->where('lu',0)->update(['lu'=>1,'updated_at'=>now()]);
+        } catch (\Throwable $e) {
+            // silencieux
+        }
+        return ApiResponse::success(['message'=>'Toutes les notifications marquées comme lues']);
     }
 
     /** GET /api/admin/users */
@@ -260,6 +356,10 @@ class AdminController extends Controller
         $decision = In::str($request, 'decision');
         $etape = DB::table('suivi_colis')->where('id',$id)->where('demande_livraison',1)->first();
         if (!$etape) throw ApiException::notFound('Demande de livraison introuvable');
+        // Marquer toutes les notifs liées comme lues
+        try {
+            DB::table('notifications_admin')->where('colis_id',$etape->colis_id)->where('type','livraison')->update(['lu'=>1,'updated_at'=>now()]);
+        } catch (\Throwable $e) { /* silencieux */ }
         if ($decision==='confirmer') {
             try {
                 $result = DB::transaction(function () use ($etape,$id){

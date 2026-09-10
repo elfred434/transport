@@ -7,6 +7,23 @@ import { useAuth } from '../../context/AuthContext'
 
 type Section = 'stats' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits'
 
+interface PendingLivraison {
+  suivi_id: number
+  date_etape: string
+  colis_id: number
+  nom_colis: string
+  numero_suivi: string
+  prix_estime: string | number
+  ville: string
+  pays: string
+  client_nom: string | null
+  client_prenom: string | null
+  client_tel: string | null
+  transporteur_id: number | null
+  transporteur_nom: string | null
+  transporteur_prenom: string | null
+  transporteur_tel: string | null
+}
 interface AdminStats {
   nb_users: number
   nb_clients: number
@@ -30,6 +47,8 @@ interface AdminStats {
   retraits_payes?: number
   total_paye_transporteurs?: number
   total_frais_admin?: number
+  pending_livraisons?: PendingLivraison[]
+  notifications_non_lues?: number
 }
 interface AdminUser {
   id: number
@@ -201,11 +220,49 @@ export default function AdminIndex() {
   const [userModalError, setUserModalError] = useState<string | null>(null)
   const [replyModal, setReplyModal] = useState<{ id: number; nom: string; message: string } | null>(null)
   const [replyText, setReplyText] = useState('')
+  const [prevDemandesLivraison, setPrevDemandesLivraison] = useState<number>(-1)
+  const [soundEnabled, setSoundEnabled] = useState(true)
 
-  const loadStats = useCallback(async () => {
-    setSectionError(null)
-    try { setStats(await api.get<AdminStats>('/api/admin/stats')) } catch (e) { setSectionError(errMsg(e)) }
+  // Générateur de beep via Web Audio API (pas de fichier mp3 nécessaire)
+  const playBeep = useCallback(() => {
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (!AC) return
+      const ctx = new AC()
+      const beep = (freq: number, start: number, dur: number, vol = 0.25) => {
+        const o = ctx.createOscillator()
+        const g = ctx.createGain()
+        o.type = 'sine'
+        o.frequency.value = freq
+        o.connect(g); g.connect(ctx.destination)
+        g.gain.setValueAtTime(vol, ctx.currentTime + start)
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur)
+        o.start(ctx.currentTime + start)
+        o.stop(ctx.currentTime + start + dur)
+      }
+      beep(880, 0, 0.15)
+      beep(1100, 0.2, 0.15)
+      beep(1320, 0.4, 0.25)
+      setTimeout(() => ctx.close().catch(()=>{}), 800)
+    } catch { /* ignore */ }
   }, [])
+
+  const loadStats = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setSectionError(null)
+    try {
+      const data = await api.get<AdminStats>('/api/admin/stats')
+      setStats(prev => {
+        // Détecter nouvelles livraisons pour alerte sonore + toast
+        if (prev && data.demandes_livraison > prevDemandesLivraison && prevDemandesLivraison >= 0) {
+          const nouveaux = data.demandes_livraison - prevDemandesLivraison
+          toast(`🔔 ${nouveaux} nouvelle${nouveaux>1?'s':''} livraison${nouveaux>1?'s':''} à confirmer !`, 'error')
+          if (soundEnabled) playBeep()
+        }
+        return data
+      })
+      setPrevDemandesLivraison(data.demandes_livraison)
+    } catch (e) { if (!opts?.silent) setSectionError(errMsg(e)) }
+  }, [toast, soundEnabled, playBeep, prevDemandesLivraison])
 
   const loadUsers = useCallback(async () => {
     setSectionError(null)
@@ -296,6 +353,13 @@ export default function AdminIndex() {
     }
     loaders[section]()
   }, [section, loadStats, loadUsers, loadColis, loadVoyages, loadTransporteurs, loadPaiements, loadAvis, loadContact, loadAdmins, loadWallet, loadRetraits])
+
+  // Polling stats toutes les 30s pour détecter les nouvelles livraisons
+  useEffect(() => {
+    loadStats({ silent: true }) // chargement initial silencieux
+    const id = setInterval(() => loadStats({ silent: true }), 30000)
+    return () => clearInterval(id)
+  }, [loadStats])
 
   const onCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -422,16 +486,77 @@ export default function AdminIndex() {
       <h2 className="mb-4"><i className="fa-solid fa-shield-halved text-primary"></i> Administration {isSuperAdmin && <span className="badge bg-warning text-dark ms-2"><i className="fa-solid fa-crown"></i> Super Admin</span>}</h2>
 
       <div className="mb-4">
-        <div className="d-flex flex-wrap gap-2">
-          {(['stats','users','colis','voyages','transporteurs','paiements','avis','contact','wallet','retraits'] as Section[]).map(s=>(
-            <button key={s} className={`btn btn-sm ${section===s?'btn-primary':'btn-outline-primary'}`} onClick={()=>setSection(s)}>{s==='wallet' ? '💰 Wallet' : s==='retraits' ? '💸 Retraits' : s}</button>
-          ))}
+        <div className="d-flex flex-wrap gap-2 align-items-center">
+          {(['stats','users','colis','voyages','transporteurs','paiements','avis','contact','wallet','retraits'] as Section[]).map(s=>{
+            const label = s==='wallet' ? '💰 Wallet' : s==='retraits' ? '💸 Retraits' : s
+            const badge = s==='colis' && stats && stats.demandes_livraison>0
+              ? <span className="badge bg-danger ms-1 animate-pulse" style={{animation:'pulse 1s infinite'}}><i className="fa-solid fa-bell"></i> {stats.demandes_livraison}</span>
+              : null
+            return (
+              <button key={s} className={`btn btn-sm ${section===s?'btn-primary':'btn-outline-primary'}`} onClick={()=>setSection(s)}>
+                {label}{badge}
+              </button>
+            )
+          })}
           {isSuperAdmin && <button className={`btn btn-sm ${section==='admins'?'btn-warning':'btn-outline-warning'}`} onClick={()=>setSection('admins')}><i className="fa-solid fa-crown"></i> Admins</button>}
+          <button
+            className={`btn btn-sm ${soundEnabled?'btn-outline-secondary':'btn-secondary'}`}
+            title={soundEnabled?'Son activé (clic pour couper)':'Son coupé'}
+            onClick={()=>setSoundEnabled(v=>!v)}
+          >
+            <i className={`fa-solid ${soundEnabled?'fa-volume-high':'fa-volume-xmark'}`}></i>
+          </button>
         </div>
         {isSuperAdmin ? <div className="alert alert-warning mt-3 small"><i className="fa-solid fa-crown"></i> Super Admin : vous gérez tous les rôles + wallet 5% + retraits transporteurs (payout auto Kkiapay Mobile Money sur numéro transporteur après vérification client).</div> : <div className="alert alert-info mt-3 small"><i className="fa-solid fa-shield-halved"></i> Admin : gérez clients, transporteurs, colis, voyages, paiements, avis, contacts, wallet (5% plateforme) et retraits auto 95% transporteur.</div>}
       </div>
 
       {sectionError && <div className="alert alert-danger">{sectionError}</div>}
+
+      {/* BANNER ALERTE LIVRAISON — visible sur TOUTES les sections si livraisons en attente */}
+      {stats && stats.demandes_livraison>0 && (
+        <div
+          className="alert alert-danger alert-dismissible d-flex align-items-start justify-content-between"
+          role="alert"
+          style={{
+            animation: 'adminBlink 1.2s ease-in-out infinite',
+            border: '2px solid #dc3545',
+            boxShadow: '0 0 12px rgba(220,53,69,.35)',
+          }}
+        >
+          <div>
+            <h5 className="alert-heading mb-1"><i className="fa-solid fa-triangle-exclamation"></i> 🔴 {stats.demandes_livraison} LIVRAISON{stats.demandes_livraison>1?'S':''} À CONFIRMER</h5>
+            <p className="mb-2 small">Un transporteur a signalé une livraison. Cliquez sur un colis pour confirmer (95% transporteur + payout auto Kkiapay, 5% admin).</p>
+            {(stats.pending_livraisons||[]).length>0 && (
+              <div className="list-group list-group-flush small">
+                {stats.pending_livraisons!.slice(0,5).map(p=>(
+                  <div key={p.suivi_id} className="list-group-item bg-transparent border-light px-0 py-1 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i className="fa-solid fa-box"></i> <strong>{p.nom_colis}</strong> <code className="small">{p.numero_suivi}</code> — {p.ville}, {p.pays}</span>
+                    <span className="small text-light">Client: {p.client_prenom} {p.client_nom} | Transporteur: {p.transporteur_prenom} {p.transporteur_nom}</span>
+                    <div className="d-flex gap-1">
+                      <button className="btn btn-sm btn-success" onClick={()=>{ onLivraisonDecision(p.suivi_id,'confirmer'); }}>
+                        <i className="fa-solid fa-check"></i> Confirmer
+                      </button>
+                      <button className="btn btn-sm btn-outline-light" onClick={()=>{ onLivraisonDecision(p.suivi_id,'refuser'); }}>
+                        <i className="fa-solid fa-xmark"></i> Refuser
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {stats.pending_livraisons!.length>5 && (
+                  <button className="btn btn-sm btn-light mt-1" onClick={()=>setSection('colis')}>Voir {stats.pending_livraisons!.length-5} de plus →</button>
+                )}
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn-close btn-close-white" onClick={()=>setSection('colis')} aria-label="Voir colis"></button>
+          <style>{`
+            @keyframes adminBlink {
+              0%, 100% { background-color: #dc3545; color: #fff; }
+              50% { background-color: #b02a37; color: #fff; }
+            }
+          `}</style>
+        </div>
+      )}
 
       {section==='stats' && stats && (
         <>
@@ -549,13 +674,13 @@ export default function AdminIndex() {
             <div className="table-responsive"><table className="table table-sm align-middle">
               <thead><tr><th>ID</th><th>Colis</th><th>Propriétaire</th><th>Poids/Prix</th><th>Statut</th><th>Livraison</th><th>Actions</th></tr></thead>
               <tbody>{colisList.map(c=>(
-                <tr key={c.id}>
-                  <td>{c.id}</td>
-                  <td><div className="d-flex gap-2 align-items-center">{c.image_url && <img src={c.image_url} alt="" className="img-colis" />}<div>{c.nom_colis}<div className="small text-muted"><code>{c.numero_suivi}</code></div></div></div></td>
+                <tr key={c.id} className={c.demande_livraison_id ? 'table-warning' : ''} style={c.demande_livraison_id ? {boxShadow:'inset 3px 0 0 #dc3545'} : undefined}>
+                  <td>{c.id}{c.demande_livraison_id && <span className="badge bg-danger ms-1" style={{animation:'pulse 1s infinite'}}>!</span>}</td>
+                  <td><div className="d-flex gap-2 align-items-center">{c.image_url && <img src={c.image_url} alt="" className="img-colis" />}<div>{c.nom_colis}<div className="small text-muted"><code>{c.numero_suivi}</code></div>{c.demande_livraison_id && <span className="badge bg-danger mt-1"><i className="fa-solid fa-bell"></i> Livraison à confirmer</span>}</div></div></td>
                   <td className="small">{c.prenom} {c.nom}<br/>{c.email}</td>
                   <td className="small">{c.poids} kg<br/>{money(c.prix_estime)}</td>
                   <td><span className="badge bg-light text-dark">{c.statut}</span></td>
-                  <td>{c.statut_livraison && <span className="badge bg-info text-dark">{c.statut_livraison}</span>}{c.demande_livraison_id && <div className="mt-1 d-flex gap-1"><button className="btn btn-sm btn-success" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'confirmer')}>Confirmer</button><button className="btn btn-sm btn-danger" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'refuser')}>Refuser</button></div>}</td>
+                  <td>{c.statut_livraison && <span className="badge bg-info text-dark">{c.statut_livraison}</span>}{c.demande_livraison_id && <div className="mt-1 d-flex gap-1"><button className="btn btn-sm btn-success" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'confirmer')}><i className="fa-solid fa-check"></i> Confirmer (95/5)</button><button className="btn btn-sm btn-danger" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'refuser')}><i className="fa-solid fa-xmark"></i> Refuser</button></div>}</td>
                   <td><div className="d-flex gap-1"><select className="form-select form-select-sm" style={{width:'auto'}} defaultValue="" onChange={e=>{ if(e.target.value) onColisStatut(c.id,e.target.value)}}><option value="">Changer…</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select><button className="btn btn-sm btn-outline-danger" onClick={()=>onColisDelete(c.id)}><i className="fa-solid fa-trash"></i></button></div></td>
                 </tr>
               ))}</tbody>

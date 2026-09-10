@@ -125,6 +125,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('retraits', [RetraitController::class, 'adminDemande']);
         Route::post('retraits/{id}/decision', [RetraitController::class, 'adminDecision'])->whereNumber('id');
         Route::post('retraits/{id}/retry', [RetraitController::class, 'adminRetry'])->whereNumber('id');
+
+        // Notifications admin (signal livraisons)
+        Route::get('notifications', [AdminController::class, 'notifications']);
+        Route::post('notifications/{id}/read', [AdminController::class, 'notificationRead'])->whereNumber('id');
+        Route::post('notifications/read-all', [AdminController::class, 'notificationsReadAll']);
     });
 
     Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])->middleware('admin');
