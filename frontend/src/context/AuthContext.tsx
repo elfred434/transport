@@ -62,7 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const profile = await api.get<Me>('/api/auth/me')
-      // Normaliser ancien 'utilisateur' -> 'client'
       if ((profile.role as any) === 'utilisateur') profile.role = 'client'
       setMe(profile)
       return profile

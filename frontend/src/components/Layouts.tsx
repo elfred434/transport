@@ -2,6 +2,11 @@ import { type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+/**
+ * Layouts — design d'origine (menu.php / vertical-menu #3498db + OIG1.jpeg)
+ * + badges rôles Super Admin / Admin / Transporteur
+ */
+
 interface SidebarLink {
   to: string
   icon: string
@@ -58,7 +63,7 @@ export function AppLayout() {
         <div className="vertical-menu">
           <div className="logo-container">
             <Link to="/">
-              <img src="/assets/img/logo.jpeg" alt="Logo SPIISTMOVE" className="logo" />
+              <img src="/assets/img/OIG1.jpeg" alt="Logo SPIISTMOVE" className="logo" />
             </Link>
           </div>
           <div className="user-box">
