@@ -31,6 +31,16 @@ def paginate_queryset(qs, request: Request, per_page_default=15, serializer=None
 
     return {
         "data": items,
+        "pagination": {
+            "page": page_obj.number,
+            "per_page": per_page,
+            "total": paginator.count,
+            "last_page": max(1, paginator.num_pages),
+            "from": page_obj.start_index(),
+            "to": page_obj.end_index(),
+            "current_page": page_obj.number,
+        },
+        # Alias "meta" au cas ou d'autres consommateurs liraient meta
         "meta": {
             "current_page": page_obj.number,
             "per_page": per_page,

@@ -8,7 +8,7 @@ import requests, json, sys, time, uuid, traceback
 
 # Décommenter la ligne qui te correspond :
 # BASE = "http://localhost/transport/backend_django/public/api"   # XAMPP/Apache
-BASE = "https://66f9-137-255-174-200.ngrok-free.app/api"
+BASE = "http://localhost:8000/api"
 # BASE = "https://<ton-tunnel>.ngrok-free.app/api"              # ngrok
 HEADERS = {"ngrok-skip-browser-warning": "true", "Accept": "application/json", "Content-Type": "application/json"}
 

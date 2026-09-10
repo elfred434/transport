@@ -44,6 +44,13 @@ def ok_json(request):
     return api_success({})
 
 
+def real_call(view_fn):
+    """Permet d'appeler une @api_view fn dans un autre @api_view sans double-wrapping."""
+    def _caller(request, *args, **kwargs):
+        return view_fn(request._request, *args, **kwargs)
+    return _caller
+
+
 def m(GET=None, POST=None, DELETE=None, PUT=None, auth=True):
     perms = [IsAuthenticated] if auth else [AllowAny]
     handler_map = {"GET": GET, "POST": POST, "DELETE": DELETE, "PUT": PUT}
@@ -184,6 +191,7 @@ urlpatterns = [
     path("api/admin/paiements", adv.paiements_list),
 
     path("api/admin/livraisons", adv.livraisons_list),
+    path("api/admin/livraisons/bulk", adv.livraison_bulk),
     path("api/admin/suivi/<int:pk>/livraison", adv.livraison_decision),
     path("api/admin/suivi/<int:pk>", adv.suivi_delete),
 
@@ -193,12 +201,19 @@ urlpatterns = [
 
     path("api/admin/contact-messages", adv.contact_messages),
 
-    path("api/admin/retraits", adv.retraits_list),
+    path("api/admin/retraits", m(GET=real_call(adv.retraits_list), POST=real_call(adv.retrait_admin_create))),
     path("api/admin/retraits/<int:pk>/payer", adv.retrait_payer),
     path("api/admin/retraits/<int:pk>/decision", adv.retrait_decision),
+    path("api/admin/retraits/<int:pk>/retry", adv.retrait_retry),
     path("api/admin/wallet", adv.wallet_admin),
     path("api/admin/kkiapay/status", adv.kkiapay_status),
+    path("api/admin/kkiapay/balance", adv.kkiapay_balance),
     path("api/admin/notifications", ok_empty_list),
+
+    path("api/admin/contact-messages/<int:pk>/repondre", adv.contact_reply),
+
+    # Super-admin
+    path("api/super-admin/admins", adv.superadmin_admins_list),
 ]
 
 if settings.DEBUG:
