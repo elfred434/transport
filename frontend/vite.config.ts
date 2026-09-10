@@ -4,11 +4,11 @@ import path from 'path'
 
 // SPA React — frontend de la plateforme de transport.
 //
-// Le backend Laravel tourne sur le port 8002. En développement, `/api` et
-// `/uploads` sont proxyfiés vers lui : le navigateur n'appelle que l'origine
-// du SPA (pas de CORS, URLs d'images relatives fonctionnelles, y compris à
-// travers le proxy de prévisualisation).
+// Le backend Django tourne sur le port 8000. En développement, `/api` et
+// `/storage` sont proxyfiés vers lui : le navigateur n'appelle que l'origine
+// du SPA (pas de CORS, URLs relatives fonctionnelles, y compris à travers ngrok).
 //
+// Pour changer ponctuellement: VITE_API_TARGET=http://autre:port npm run dev
 // Support ngrok : allowedHosts + header ngrok-skip-browser-warning
 export default defineConfig({
   plugins: [react()],
@@ -24,18 +24,22 @@ export default defineConfig({
     allowedHosts: ['.e2b.app', '.ngrok-free.app', '.ngrok.io', 'localhost'],
     proxy: {
       '/api': {
-        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8002',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      },
+      '/storage': {
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
       },
       '/uploads': {
-        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8002',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-        },
       },
     },
   },
