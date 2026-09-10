@@ -39,9 +39,22 @@ export default function ReservationColis() {
   const [compatibles, setCompatibles] = useState<VoyageMine[]>([])
   const [voyageSel, setVoyageSel] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [availableColis, setAvailableColis] = useState<ColisInfo[] | null>(null)
 
   useEffect(() => {
-    if (!colisId || !me) return
+    if (!me) return
+    if (!colisId) {
+      // Mode liste : afficher colis disponibles à réserver
+      ;(async () => {
+        try {
+          const data = await api.get<ColisInfo[]>('/api/colis/available')
+          setAvailableColis(data)
+        } catch (e) {
+          setError(e instanceof ApiError ? e.message : 'Erreur chargement colis disponibles')
+        }
+      })()
+      return
+    }
     ;(async () => {
       try {
         const [c, voyages] = await Promise.all([
@@ -49,7 +62,6 @@ export default function ReservationColis() {
           api.get<VoyageMine[]>('/api/voyages/mine'),
         ])
         setColis(c)
-        // Voyages compatibles : approuvés, à venir, destination = pays du colis, poids max suffisant
         setCompatibles(
           voyages.filter(
             (v) =>
@@ -91,7 +103,26 @@ export default function ReservationColis() {
         {error && <div className="alert alert-danger">{error}</div>}
 
         {!colisId ? (
-          <div className="alert alert-danger">colis_id manquant.</div>
+          <>
+            <h5 className="mb-3"><i className="fa-solid fa-boxes-stacked"></i> Colis disponibles à réserver</h5>
+            {!availableColis && !error && <div className="text-center text-muted py-4">Chargement…</div>}
+            {availableColis && availableColis.length === 0 && <div className="text-muted">Aucun colis disponible pour le moment. <Link to="/colis">Voir mes colis</Link></div>}
+            {availableColis && availableColis.length > 0 && (
+              <div className="list-group">
+                {availableColis.map(c => (
+                  <Link key={c.id} to={`/reservation-colis?colis_id=${c.id}`} className="list-group-item list-group-item-action d-flex gap-3 align-items-center">
+                    <SmartImg url={c.image_url} alt={c.nom_colis} className="img-colis" />
+                    <div className="flex-grow-1">
+                      <div className="fw-bold">{c.nom_colis} <StatusBadge statut={c.statut} /></div>
+                      <div className="small text-muted">{c.ville}, {c.pays} · {c.poids} kg · {money(c.prix_estime)}</div>
+                    </div>
+                    <span className="btn btn-sm btn-primary"><i className="fa-solid fa-handshake"></i> Réserver</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 small text-muted">Astuce : vous devez être transporteur avec un voyage approuvé compatible (destination + poids).</div>
+          </>
         ) : me && !me.is_transporteur ? (
           <div className="alert alert-warning mb-0">
             Vous devez être transporteur pour réserver un colis.{' '}
