@@ -1,20 +1,26 @@
 @echo off
 REM ============================================================
-REM  stop.bat — Arrete backend + frontend et libere les ports 8000/5173
-REM  Usage: double-clic ou  stop.bat
+REM  stop.bat — Arrete BACKEND + FRONTEND
 REM ============================================================
-setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
+title [Transport.bj] ARRET
 
-echo.
-echo [i] Arret des serveurs...
+echo ============================================================
+echo   ARRET DES SERVEURS
+echo ============================================================
 echo.
 
+echo [i] Arret backend...
 call backend_django\stop.bat
-call frontend\stop.bat
+echo.
 
+echo [i] Arret frontend...
+call frontend\stop.bat
 echo.
-echo [OK] Tous les serveurs sont arretes.
+
+echo ============================================================
+echo   TOUS LES SERVEURS SONT ARRETES.
+echo ============================================================
 echo.
-timeout /t 2 >nul
+timeout /t 3 >nul
