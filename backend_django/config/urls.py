@@ -17,6 +17,7 @@ from core.responses import api_success, api_error
 from accounts import views as av
 from shipping import views as sv
 from shipping import admin_views as adv
+from shipping import missing_views as mv
 from shipping.paiement_views import (
     paiements_mine, contact_reponses,
     kkiapay_setup_payout, kkiapay_payout_direct,
@@ -142,7 +143,7 @@ urlpatterns = [
     path("api/colis", colis_view),
     path("api/colis/mine", sv.colis_mine),
     path("api/colis/available", sv.colis_available),
-    path("api/colis/<int:pk>", sv.colis_show),
+    path("api/colis/<int:pk>", mv.colis_detail_public),
     path("api/colis/<int:pk>/reservations", sv.colis_reservations),
     path("api/colis/<int:colis_id>/voyages-compatibles", ok_empty_list),
 
@@ -165,6 +166,7 @@ urlpatterns = [
     path("api/paiements/colis/<int:colis_id>", sv.paiement_for_colis),
     path("api/paiements/<int:pk>/simuler", sv.paiement_simuler),
     path("api/paiements/<int:pk>/payer", sv.paiement_simuler),  # alias utilisé par le front/test
+    path("api/paiements/<int:pk>/verify-kkiapay", mv.paiement_verify_kkiapay),
     path("api/paiements/<int:pk>/statut", adv.paiement_statut),
 
     # Retraits & wallet
@@ -172,7 +174,8 @@ urlpatterns = [
     path("api/me/wallet", sv.wallet_me),
     path("api/transporteur/solde", sv.wallet_me),
     path("api/retraits", sv.retrait_demander),
-    path("api/transporteur/retraits", sv.retrait_demander),
+    # GET liste des retraits du transporteur (TransporteurStats.tsx) et POST demande
+    path("api/transporteur/retraits", m(GET=drf(mv.retraits_transporteur_list_plain), POST=drf(sv.retrait_demander))),
 
     # Fiche transporteur publique
     path("api/transporteurs/<int:tid>", cv.transporteur_public),
@@ -217,6 +220,7 @@ urlpatterns = [
     path("api/admin/avis/<int:pk>", adv.avis_delete),
 
     path("api/admin/contact-messages", adv.contact_messages),
+    path("api/admin/contact-messages/<int:pk>", mv.contact_delete),
 
     path("api/admin/retraits", m(GET=real_call(adv.retraits_list), POST=real_call(adv.retrait_admin_create))),
     path("api/admin/retraits/<int:pk>/payer", adv.retrait_payer),
@@ -227,9 +231,14 @@ urlpatterns = [
     path("api/admin/kkiapay/balance", adv.kkiapay_balance),
     path("api/admin/kkiapay/setup-payout", kkiapay_setup_payout),
     path("api/admin/kkiapay/payout-direct", kkiapay_payout_direct),
-    path("api/admin/notifications", ok_empty_list),
+    path("api/admin/notifications", mv.notifications_list),
+    path("api/admin/notifications/<int:pk>/read", mv.notifications_read),
+    path("api/admin/notifications/read-all", mv.notifications_read_all),
 
     path("api/admin/contact-messages/<int:pk>/repondre", adv.contact_reply),
+
+    # Helpers publics
+    path("api/roles", mv.roles_list),
 
     # Super-admin
     path("api/super-admin/admins", adv.superadmin_admins_list),

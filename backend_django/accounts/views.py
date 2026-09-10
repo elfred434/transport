@@ -50,6 +50,10 @@ def register(request: Request):
     ser = UserRegisterSerializer(data=data)
     ser.is_valid(raise_exception=True)
     user = ser.save(role=role)
+    # Crée automatiquement le profil Transporteur si le rôle est transporteur
+    if role == User.ROLE_TRANSPORTEUR:
+        from shipping.models import Transporteur
+        Transporteur.objects.get_or_create(user=user)
     return api_success(_auth_payload(user), status_code=status.HTTP_201_CREATED)
 
 

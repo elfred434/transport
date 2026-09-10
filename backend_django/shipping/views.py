@@ -356,18 +356,22 @@ def suivi_store(request: Request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def wallet_me(request: Request):
-    if request.user.is_admin:
+    if _is_user_admin(request.user):
         w = _get_wallet()
-        return api_success({"solde": str(w.solde), "total_genere": str(w.total_genere)})
+        return api_success({"solde": float(w.solde), "total_genere": float(w.total_genere)})
     try:
         t = request.user.transporteur
         return api_success({
-            "solde": str(t.solde),
-            "total_paye": str(t.total_paye),
-            "en_attente": str(t.solde_en_attente),
+            "solde": float(t.solde),
+            "total_paye": float(t.total_paye),
+            "en_attente": float(t.solde_en_attente),
         })
     except Transporteur.DoesNotExist:
-        return api_success({"solde": "0.00", "total_paye": "0.00", "en_attente": "0.00"})
+        return api_success({"solde": 0.0, "total_paye": 0.0, "en_attente": 0.0})
+
+
+def _is_user_admin(u: User) -> bool:
+    return u.role in (User.ROLE_ADMIN, User.ROLE_SUPER_ADMIN)
 
 
 @api_view(["POST"])

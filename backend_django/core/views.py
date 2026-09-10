@@ -131,23 +131,37 @@ def transporteur_public(request: Request, tid: int):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def transporteur_stats(request: Request):
-    from shipping.models import Reservation
-    from django.db.models import Avg
+    from shipping.models import Reservation, Voyage
+    from django.db.models import Avg, Q
     t = getattr(request.user, "transporteur", None)
     if not t:
         return api_success({
-            "nb_colis_transportes": 0, "nb_colis_en_cours": 0,
-            "total_gagne": "0", "note_moyenne": 0,
+            "nb_colis_transportes": 0,
+            "nb_colis_en_cours": 0,
+            "nb_reservations_acceptees": 0,
+            "nb_voyages": 0,
+            "total_gagne": 0.0,
+            "note_moyenne": 0,
+            "nb_avis": 0,
+            "solde": 0.0,
+            "total_paye": 0.0,
         })
     nb_termines = Reservation.objects.filter(transporteur=request.user, statut="termine").count()
     nb_en_cours = Reservation.objects.filter(transporteur=request.user, statut="accepte").count()
+    nb_acceptes = nb_en_cours + nb_termines
+    nb_voyages = Voyage.objects.filter(user=request.user).count()
     note_moyenne = request.user.avis_recus.aggregate(a=Avg("note"))["a"]
+    nb_avis = request.user.avis_recus.count()
     return api_success({
         "nb_colis_transportes": nb_termines,
         "nb_colis_en_cours": nb_en_cours,
-        "solde": str(t.solde),
-        "total_paye": str(t.total_paye),
+        "nb_reservations_acceptees": nb_acceptes,
+        "nb_voyages": nb_voyages,
+        "total_gagne": float(t.total_paye or 0),
         "note_moyenne": float(note_moyenne) if note_moyenne else 0,
+        "nb_avis": nb_avis,
+        "solde": float(t.solde or 0),
+        "total_paye": float(t.total_paye or 0),
     })
 """Endpoints messagerie : conversations privées entre users + chat avec l'admin."""
 import os

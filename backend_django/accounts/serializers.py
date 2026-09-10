@@ -14,7 +14,9 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         # Par défaut, l'inscription publique crée un CLIENT.
-        validated_data["role"] = User.ROLE_CLIENT
+        # La vue peut surcharger le rôle via save(role=...) (ex: transporteur).
+        if "role" not in validated_data or not validated_data.get("role"):
+            validated_data["role"] = User.ROLE_CLIENT
         return User.objects.create_user(**validated_data)
 
 
