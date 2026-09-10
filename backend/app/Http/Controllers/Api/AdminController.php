@@ -285,7 +285,7 @@ class AdminController extends Controller
     public function transporteurs(Request $request): JsonResponse
     {
         $search=In::queryStr($request,'search');
-        $query=DB::table('transporteurs as t')->join('users as u','u.id','=','t.user_id')->select('t.*','u.nom','u.prenom','u.email','u.telephone')->selectSub(DB::table('reservations as r')->join('voyages as v','v.id','=','r.voyage_id')->selectRaw('COUNT(*)')->whereColumn('v.user_id','t.user_id')->where('r.statut','accepte'),'nb_colis_transportes');
+        $query=DB::table('transporteurs as t')->join('users as u','u.id','=','t.user_id')->select('t.*','u.nom','u.prenom','u.email','u.telephone')->selectSub(DB::table('reservations as r')->join('voyages as v','v.id','=','r.voyage_id')->selectRaw('COUNT(*)')->whereColumn('v.user_id','t.user_id')->whereIn('r.statut',['accepte','termine']),'nb_colis_transportes');
         if($search!==''){ $like="%$search%"; $query->where(function($q) use($like){ $q->where('u.nom','like',$like)->orWhere('u.prenom','like',$like)->orWhere('u.email','like',$like)->orWhere('t.compagnie','like',$like)->orWhere('t.ville','like',$like)->orWhere('t.pays','like',$like); }); }
         $transporteurs=$query->orderByDesc('t.date_creation')->limit(200)->get()->map(function($t){ $t=(array)$t; $t['photo_vehicule_url']=Files::url($t['photo_vehicule']??null); unset($t['photo_vehicule']); return $t; })->all();
         return ApiResponse::success($transporteurs);

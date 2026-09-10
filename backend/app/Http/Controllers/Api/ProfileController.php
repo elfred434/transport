@@ -101,7 +101,7 @@ class ProfileController extends Controller
             ->first();
 
         $nbColis = (int) DB::table('reservations as r')
-            ->where('r.statut', 'accepte')
+            ->whereIn('r.statut', ['accepte','termine'])
             ->whereIn('r.voyage_id', DB::table('voyages')->select('id')->where('user_id', $id))
             ->count();
 
@@ -149,7 +149,7 @@ class ProfileController extends Controller
         $nbReservations = (int) DB::table('reservations as r')
             ->join('voyages as v', 'v.id', '=', 'r.voyage_id')
             ->where('v.user_id', $uid)
-            ->where('r.statut', 'accepte')
+            ->whereIn('r.statut', ['accepte','termine'])
             ->count();
 
         $avis = DB::table('avis')
