@@ -34,6 +34,9 @@ Route::post('auth/google/one-tap', [AuthController::class, 'googleOneTap']);
 Route::post('contact', [ContactController::class, 'send']);
 Route::post('webhooks/kkiapay', [PaiementController::class, 'webhook']);
 Route::get('kkiapay/public-config', [PaiementController::class, 'kkiapayConfig']); // public config (only public_key + sandbox)
+Route::get('suivi/{numero}', [SuiviController::class, 'show']); // suivi public sans auth
+Route::get('transporteurs/{id}', [ProfileController::class, 'transporteur']); // fiche transporteur publique
+Route::get('avis/transporteur/{id}', [AvisController::class, 'index']); // avis publics d'un transporteur
 
 // Authentifié
 Route::middleware('auth:sanctum')->group(function () {
@@ -42,7 +45,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('profile', [ProfileController::class, 'show']);
     Route::post('profile', [ProfileController::class, 'update']);
-    Route::get('transporteurs/{id}', [ProfileController::class, 'transporteur']);
     Route::get('transporteur-stats', [ProfileController::class, 'stats']);
 
     Route::get('colis/mine', [ColisController::class, 'mine']);
@@ -53,7 +55,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('colis/{id}/voyages-compatibles', [ColisController::class, 'voyagesCompatibles'])->whereNumber('id');
     Route::get('colis/{id}/reservations', [ColisController::class, 'reservations'])->whereNumber('id');
 
-    Route::get('suivi/{numero}', [SuiviController::class, 'show']);
     Route::post('suivi', [SuiviController::class, 'store']);
 
     Route::get('voyages/available', [VoyageController::class, 'available']);
