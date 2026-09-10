@@ -80,6 +80,7 @@ export default function Paiement() {
   const [verifying, setVerifying] = useState(false)
   const [paidNow, setPaidNow] = useState<{ message: string; numero_transaction: string } | null>(null)
   const [scriptReady, setScriptReady] = useState(false)
+  const [lastTxId, setLastTxId] = useState<string | null>(null)
 
   // Liste mode
   const [liste, setListe] = useState<PaiementData[] | null>(null)
@@ -130,6 +131,7 @@ export default function Paiement() {
 
   const verifyWithBackend = useCallback(async (transactionId: string) => {
     if (!p) return
+    setLastTxId(transactionId)
     setVerifying(true)
     setAlert(null)
     try {
@@ -144,7 +146,8 @@ export default function Paiement() {
         setP(updated)
       } catch {}
     } catch (err) {
-      setAlert({ type: 'danger', html: err instanceof ApiError ? err.message : 'Vérification Kkiapay échouée' })
+      const msg = err instanceof ApiError ? err.message : 'Vérification Kkiapay échouée'
+      setAlert({ type: 'danger', html: `${msg}<br/><small class="mt-2 d-block">TransactionId: <code>${transactionId}</code> - Conservez ce reçu. Le backend est en SANDBOX, la vérification peut nécessiter activation des clés. Essayez de re-cliquer ou contactez admin pour validation manuelle.</small>` })
     } finally {
       setVerifying(false)
     }
@@ -255,7 +258,15 @@ export default function Paiement() {
         <i className="fa-solid fa-credit-card text-primary"></i> Paiement du colis <span className="badge bg-primary ms-2">Kkiapay</span>
       </h2>
       <div className="page-card" style={{ maxWidth: 640 }}>
-        {alert && <div className={`alert alert-${alert.type}`}>{alert.html}</div>}
+        {alert && <div className={`alert alert-${alert.type}`} dangerouslySetInnerHTML={{__html: alert.html}}></div>}
+        {lastTxId && alert && (
+          <div className="mb-3">
+            <button onClick={() => lastTxId && verifyWithBackend(lastTxId)} disabled={verifying} className="btn btn-warning btn-sm w-100">
+              <i className="fa-solid fa-rotate"></i> Re-vérifier transaction {lastTxId}
+            </button>
+            <div className="small text-muted mt-2">Reçu Kkiapay : {lastTxId} — Montant {p ? money(p.montant) : ''} XOF — Si le paiement est bien débité chez vous, l'admin peut valider manuellement dans /admin → Paiements</div>
+          </div>
+        )}
         {paidNow && (
           <div className="alert alert-success">
             <i className="fa-solid fa-circle-check"></i> {paidNow.message} — Transaction : <code>{paidNow.numero_transaction}</code>
