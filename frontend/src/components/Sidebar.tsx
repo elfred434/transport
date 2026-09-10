@@ -7,26 +7,44 @@ export interface SidebarLink {
   label: string
   show?: boolean
   badge?: string
+  section?: string
 }
 
 export function useSidebarLinks() {
   const { me, isSuperAdmin, isAdmin } = useAuth()
   if (!me) return []
   const links: SidebarLink[] = [
-    { to: '/dashboard', icon: 'fa-home', label: 'Accueil' },
-    { to: '/poster-colis', icon: 'fa-box', label: 'Postez Colis', show: me.role === 'client' || me.role === 'transporteur' || isAdmin },
-    { to: '/profil', icon: 'fa-user', label: 'Profil' },
-    { to: '/liste-messagerie', icon: 'fa-envelope', label: 'Messages' },
-    { to: '/messagerie-admin', icon: 'fa-headset', label: "Contacter l'admin" },
-    { to: '/devenir-transporteur', icon: 'fa-id-badge', label: 'Devenir Transporteur', show: !me.is_transporteur && me.role !== 'transporteur' },
-    { to: '/colis', icon: 'fa-box-open', label: 'Colis disponibles', show: me.role === 'transporteur' || isAdmin },
-    { to: '/suivi', icon: 'fa-search-location', label: 'Suivi' },
-    { to: '/recherche', icon: 'fa-magnifying-glass', label: 'Recherche' },
-    { to: '/transporteur-stats', icon: 'fa-chart-line', label: 'Mes statistiques', show: !!me.is_transporteur },
-    { to: '/reponses', icon: 'fa-reply', label: 'Mes réponses' },
-    { to: '/contact', icon: 'fa-phone-alt', label: 'Contact' },
-    { to: '/admin', icon: 'fa-shield-halved', label: 'Administration', show: isAdmin, badge: isSuperAdmin ? 'Super' : 'Admin' },
-    { to: '/super-admin', icon: 'fa-crown', label: 'Super Admin', show: isSuperAdmin, badge: 'Super' },
+    // Section principale
+    { to: '/dashboard', icon: 'fa-home', label: 'Tableau de bord', section: 'Général' },
+    
+    // Section Colis - intégration complète
+    { to: '/poster-colis', icon: 'fa-box', label: 'Poster un colis', section: 'Colis', show: me.role === 'client' || me.role === 'transporteur' || isAdmin },
+    { to: '/colis', icon: 'fa-boxes-stacked', label: 'Mes colis', section: 'Colis' },
+    { to: '/colis', icon: 'fa-box-open', label: 'Colis disponibles', section: 'Colis', show: me.role === 'transporteur' || isAdmin },
+    { to: '/recherche', icon: 'fa-magnifying-glass', label: 'Rechercher transporteur', section: 'Colis' },
+    { to: '/reservation-colis', icon: 'fa-handshake', label: 'Mes réservations', section: 'Colis' },
+    { to: '/suivi', icon: 'fa-truck-fast', label: 'Suivi colis', section: 'Colis' },
+    { to: '/paiement', icon: 'fa-credit-card', label: 'Paiements', section: 'Colis' },
+    
+    // Section Transporteur
+    { to: '/devenir-transporteur', icon: 'fa-id-badge', label: 'Devenir Transporteur', section: 'Transporteur', show: !me.is_transporteur && me.role !== 'transporteur' },
+    { to: '/transporteur-stats', icon: 'fa-chart-line', label: 'Mes statistiques', section: 'Transporteur', show: !!me.is_transporteur },
+    { to: '/profil-transporteur', icon: 'fa-user-tie', label: 'Profil Transporteur', section: 'Transporteur', show: !!me.is_transporteur },
+    
+    // Section Messagerie
+    { to: '/liste-messagerie', icon: 'fa-envelope', label: 'Messages', section: 'Messagerie' },
+    { to: '/messagerie-admin', icon: 'fa-headset', label: "Support Admin", section: 'Messagerie' },
+    { to: '/reponses', icon: 'fa-reply', label: 'Mes réponses', section: 'Messagerie' },
+    
+    // Section Compte
+    { to: '/profil', icon: 'fa-user', label: 'Mon profil', section: 'Compte' },
+    { to: '/modifier-profil', icon: 'fa-user-pen', label: 'Modifier profil', section: 'Compte' },
+    { to: '/contact', icon: 'fa-phone-alt', label: 'Contact', section: 'Compte' },
+    
+    // Section Admin
+    { to: '/admin', icon: 'fa-shield-halved', label: 'Administration', section: 'Admin', show: isAdmin, badge: isSuperAdmin ? 'Super' : 'Admin' },
+    { to: '/admin/messagerie', icon: 'fa-comments', label: 'Messagerie Admin', section: 'Admin', show: isAdmin },
+    { to: '/super-admin', icon: 'fa-crown', label: 'Super Admin', section: 'Admin', show: isSuperAdmin, badge: 'Super' },
   ]
   return links
 }
@@ -43,6 +61,14 @@ export function Sidebar() {
     await logout()
     navigate('/login')
   }
+
+  // Grouper par section
+  const grouped: Record<string, SidebarLink[]> = {}
+  links.filter(l=>l.show!==false).forEach(l => {
+    const sec = l.section || 'Autre'
+    if (!grouped[sec]) grouped[sec] = []
+    grouped[sec].push(l)
+  })
 
   return (
     <div className="vertical-menu">
@@ -63,14 +89,19 @@ export function Sidebar() {
         </div>
       </div>
       <ul className="menu-items">
-        {links.filter(l=>l.show!==false).map(l=>(
-          <li key={l.to}>
-            <NavLink to={l.to} className={({ isActive }) => (isActive ? 'active' : '')} end={l.to==='/dashboard'}>
-              <i className={`fas ${l.icon}`}></i> {l.label} {l.badge && <span className="badge bg-light text-dark ms-2" style={{fontSize:'0.55em'}}>{l.badge}</span>}
-            </NavLink>
-          </li>
+        {Object.entries(grouped).map(([section, items]) => (
+          <div key={section}>
+            <li className="px-3 pt-3 pb-1 small text-uppercase fw-bold" style={{color: 'rgba(255,255,255,0.6)', fontSize: '0.65rem', letterSpacing: '1px'}}>{section}</li>
+            {items.map(l=>(
+              <li key={l.to + l.label}>
+                <NavLink to={l.to} className={({ isActive }) => (isActive ? 'active' : '')} end={l.to==='/dashboard'}>
+                  <i className={`fas ${l.icon}`}></i> {l.label} {l.badge && <span className="badge bg-light text-dark ms-2" style={{fontSize:'0.55em'}}>{l.badge}</span>}
+                </NavLink>
+              </li>
+            ))}
+          </div>
         ))}
-        <li><a href="#" onClick={onLogout}><i className="fas fa-sign-out-alt"></i> Déconnexion</a></li>
+        <li className="mt-2"><a href="#" onClick={onLogout} style={{borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 8}}><i className="fas fa-sign-out-alt"></i> Déconnexion</a></li>
       </ul>
     </div>
   )
