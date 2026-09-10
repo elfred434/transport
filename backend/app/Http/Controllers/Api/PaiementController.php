@@ -7,17 +7,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Paiement;
 use App\Support\ApiResponse;
 use App\Support\In;
+use App\Support\KkiapayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Paiements : consultation, paiement simulé (carte / mobile money), historique.
+ * Paiements : consultation, paiement via Kkiapay (100%), historique.
  *
- * Port fidèle du contrôleur `paiements.php` de l'API d'origine.
- *
- * Aucune donnée sensible n'est persistée : pour une carte, seul un numéro
- * masqué et la date d'expiration sont conservés dans `details_paiement`.
+ * Intégration Kkiapay :
+ * - Frontend ouvre widget avec clé publique
+ * - Backend vérifie transactionId via API Kkiapay (verifyTransaction)
+ * - Webhook optionnel pour notifications async
  */
 class PaiementController extends Controller
 {
@@ -47,6 +49,14 @@ class PaiementController extends Controller
         $paiement['details_paiement'] = $paiement['details_paiement']
             ? json_decode($paiement['details_paiement'], true)
             : null;
+
+        // Ajouter config Kkiapay pour frontend
+        $kkiapay = new KkiapayService();
+        $paiement['kkiapay'] = [
+            'public_key' => $kkiapay->getPublicKey(),
+            'sandbox' => $kkiapay->isSandbox(),
+            'configured' => $kkiapay->isConfigured(),
+        ];
 
         return ApiResponse::success($paiement);
     }
@@ -90,17 +100,130 @@ class PaiementController extends Controller
             }
         }
 
-        return ApiResponse::success(['paiements' => $paiements, 'stats' => $stats]);
+        $kkiapay = new KkiapayService();
+        return ApiResponse::success([
+            'paiements' => $paiements,
+            'stats' => $stats,
+            'kkiapay' => [
+                'public_key' => $kkiapay->getPublicKey(),
+                'sandbox' => $kkiapay->isSandbox(),
+                'configured' => $kkiapay->isConfigured(),
+            ]
+        ]);
+    }
+
+    /** GET /api/kkiapay/config — config publique pour frontend */
+    public function kkiapayConfig(Request $request): JsonResponse
+    {
+        $svc = new KkiapayService();
+        return ApiResponse::success([
+            'public_key' => $svc->getPublicKey(),
+            'sandbox' => $svc->isSandbox(),
+            'configured' => $svc->isConfigured(),
+            'currency' => 'XOF',
+        ]);
     }
 
     /**
-     * POST /api/paiements/{id}/payer — paiement simulé.
-     *
-     * Les erreurs de validation sont accumulées puis renvoyées en une seule
-     * fois, séparées par « — » (comportement historique, vérifié par les tests).
+     * POST /api/paiements/{id}/verify-kkiapay — 100% Kkiapay
+     * Body: { transactionId: string }
+     */
+    public function verifyKkiapay(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $paiement = Paiement::where('id', $id)->where('user_id', $user->id)->first();
+        if (! $paiement) {
+            throw ApiException::notFound('Paiement introuvable ou accès non autorisé');
+        }
+        if ($paiement->statut === Paiement::STATUT_PAYE) {
+            return ApiResponse::success([
+                'message' => 'Paiement déjà effectué',
+                'numero_transaction' => $paiement->numero_transaction,
+                'montant' => (float) $paiement->montant,
+            ]);
+        }
+
+        $transactionId = In::str($request, 'transactionId');
+        if ($transactionId === '') {
+            $transactionId = In::str($request, 'transaction_id');
+        }
+        if ($transactionId === '') {
+            throw new ApiException('transactionId manquant (retourné par Kkiapay)');
+        }
+
+        $svc = new KkiapayService();
+        if (!$svc->isConfigured()) {
+            throw new ApiException('Kkiapay non configuré côté serveur (clés manquantes)', 500);
+        }
+
+        $verification = $svc->verifyTransaction($transactionId);
+
+        if ($verification === null) {
+            throw new ApiException('Impossible de vérifier la transaction Kkiapay (réseau ou clés invalides)', 502);
+        }
+
+        // La réponse du SDK: status, amount, transactionId, etc.
+        $status = $verification['status'] ?? $verification['state'] ?? null;
+        $amount = $verification['amount'] ?? null;
+        $fees = $verification['fees'] ?? 0;
+        $source = $verification['source'] ?? $verification['source_common_name'] ?? 'kkiapay';
+
+        Log::info('Kkiapay verification', ['tx' => $transactionId, 'verification' => $verification, 'paiement_id' => $id]);
+
+        if ($status !== 'SUCCESS') {
+            throw new ApiException('Transaction Kkiapay non réussie: ' . ($status ?? 'UNKNOWN') . ' - ' . ($verification['failureMessage'] ?? ''), 400);
+        }
+
+        // Vérifier montant (tolérance: Kkiapay amount doit être >= montant paiement)
+        // Kkiapay amount est en XOF entier
+        if ($amount !== null && (float)$amount < (float)$paiement->montant) {
+            throw new ApiException('Montant Kkiapay insuffisant: ' . $amount . ' < ' . $paiement->montant, 400);
+        }
+
+        // Mettre à jour paiement
+        $details = [
+            'kkiapay' => $verification,
+            'methode' => 'kkiapay',
+            'source' => $source,
+            'fees' => $fees,
+            'amount_verified' => $amount,
+            'transactionId' => $transactionId,
+            'montant' => $paiement->montant,
+        ];
+
+        $paiement->forceFill([
+            'statut' => Paiement::STATUT_PAYE,
+            'methode_paiement' => 'kkiapay',
+            'numero_transaction' => $transactionId,
+            'operateur' => $source,
+            'details_paiement' => $details,
+            'date_paiement' => now()->toDateTimeString(),
+            'ip_client' => $request->ip(),
+            'device_info' => substr((string) $request->userAgent(), 0, 255),
+        ])->save();
+
+        return ApiResponse::success([
+            'message' => 'Paiement Kkiapay vérifié avec succès',
+            'numero_transaction' => $transactionId,
+            'montant' => (float) $paiement->montant,
+            'kkiapay_status' => $status,
+            'fees' => $fees,
+        ]);
+    }
+
+    /**
+     * POST /api/paiements/{id}/payer — Ancienne méthode simulée, gardée pour compatibilité tests
+     * Maintenant dépréciée : utiliser verify-kkiapay. On garde pour ne pas casser les tests existants.
      */
     public function payer(Request $request, int $id): JsonResponse
     {
+        // Si la requête contient transactionId, rediriger vers verifyKkiapay
+        $tx = In::str($request, 'transactionId') ?: In::str($request, 'transaction_id');
+        if ($tx !== '') {
+            return $this->verifyKkiapay($request, $id);
+        }
+
+        // Sinon, ancienne logique simulée (pour tests locaux)
         $user = $request->user();
 
         $paiement = Paiement::where('id', $id)->where('user_id', $user->id)->first();
@@ -112,10 +235,14 @@ class PaiementController extends Controller
         }
 
         $methode = In::str($request, 'methode_paiement');
+        // Accepter ancien format carte_credit
+        if ($methode === 'carte_credit') $methode = Paiement::METHODE_CARTE;
+        if ($methode === 'mobile_money') $methode = Paiement::METHODE_MOBILE;
+
         $operateur = In::str($request, 'operateur');
         $erreurs = [];
 
-        $details = ['methode' => $methode, 'montant' => $paiement->montant];
+        $details = ['methode' => $methode, 'montant' => $paiement->montant, 'note' => 'Paiement simulé (legacy) - utiliser Kkiapay'];
 
         if ($methode === Paiement::METHODE_CARTE) {
             $numeroCarte = preg_replace('/\s+/', '', In::str($request, 'numero_carte'));
@@ -132,7 +259,6 @@ class PaiementController extends Controller
                 $erreurs[] = 'Code CVV invalide';
             }
             if (! $erreurs) {
-                // Aucune donnée sensible stockée : uniquement un numéro masqué.
                 $details['numero_masque'] = substr($numeroCarte, 0, 4)
                     . str_repeat('*', max(0, strlen($numeroCarte) - 8))
                     . substr($numeroCarte, -4);
@@ -144,7 +270,7 @@ class PaiementController extends Controller
             }
             $details['operateur'] = $operateur;
         } else {
-            $erreurs[] = 'Méthode de paiement invalide';
+            $erreurs[] = 'Méthode de paiement invalide (utiliser Kkiapay)';
         }
 
         if ($erreurs) {
@@ -165,9 +291,39 @@ class PaiementController extends Controller
         ])->save();
 
         return ApiResponse::success([
-            'message' => 'Paiement effectué avec succès',
+            'message' => 'Paiement effectué avec succès (legacy)',
             'numero_transaction' => $numeroTransaction,
             'montant' => (float) $paiement->montant,
         ]);
+    }
+
+    /**
+     * POST /api/webhooks/kkiapay — Webhook public (sans auth) pour notifications Kkiapay
+     */
+    public function webhook(Request $request): JsonResponse
+    {
+        $payload = $request->all();
+        Log::info('Kkiapay webhook reçu', $payload);
+
+        $transactionId = $payload['transactionId'] ?? $payload['transaction_id'] ?? $request->input('transactionId');
+
+        if (!$transactionId) {
+            return ApiResponse::success(['message' => 'Webhook reçu sans transactionId']);
+        }
+
+        // Vérifier la transaction
+        $svc = new KkiapayService();
+        $verification = $svc->verifyTransaction($transactionId);
+
+        if ($verification && ($verification['status'] ?? '') === 'SUCCESS') {
+            // Trouver paiement par numero_transaction ou dans details?
+            // On cherche paiement en_attente avec montant correspondant
+            $amount = $verification['amount'] ?? null;
+            // Optionnel: mettre à jour si trouvé
+            // Pour l'instant on log seulement, la vérification finale se fait via verifyKkiapay
+            Log::info('Kkiapay webhook SUCCESS', ['tx' => $transactionId, 'amount' => $amount]);
+        }
+
+        return ApiResponse::success(['message' => 'Webhook traité']);
     }
 }

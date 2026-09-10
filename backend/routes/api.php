@@ -30,6 +30,8 @@ Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/reset-request', [AuthController::class, 'resetRequest']);
 Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('contact', [ContactController::class, 'send']);
+Route::post('webhooks/kkiapay', [PaiementController::class, 'webhook']);
+Route::get('kkiapay/public-config', [PaiementController::class, 'kkiapayConfig']); // public config (only public_key + sandbox)
 
 // Authentifié
 Route::middleware('auth:sanctum')->group(function () {
@@ -70,7 +72,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('paiements/colis/{colis_id}', [PaiementController::class, 'forColis'])->whereNumber('colis_id');
     Route::post('paiements/{id}/payer', [PaiementController::class, 'payer'])->whereNumber('id');
+    Route::post('paiements/{id}/verify-kkiapay', [PaiementController::class, 'verifyKkiapay'])->whereNumber('id');
     Route::get('paiements/mine', [PaiementController::class, 'mine']);
+    Route::get('kkiapay/config', [PaiementController::class, 'kkiapayConfig']);
 
     Route::get('transporteurs/{id}/avis', [AvisController::class, 'forTransporteur'])->whereNumber('id');
     Route::post('avis', [AvisController::class, 'store']);
