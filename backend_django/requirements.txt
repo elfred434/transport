@@ -5,5 +5,11 @@ django-cors-headers>=4.4
 Pillow>=10.0
 requests>=2.31
 python-dotenv>=1.0
-# MySQL (optionnel) : décommenter seulement si tu utilises DB_CONNECTION=mysql
-# mysqlclient>=2.2
+
+# === MySQL (optionnel) ===
+# Décommenter la ligne suivante si tu utilises DB_CONNECTION=mysql (XAMPP/WAMP).
+# Si "pip install mysqlclient" échoue sous Windows (Build Tools manquant),
+# télécharger un wheel pré-compilé depuis :
+#   https://www.lfd.uci.edu/~gohlke/pythonlibs/#mysqlclient
+# puis faire : pip install mysqlclient‑1.5.x‑cp312‑cp312‑win_amd64.whl
+mysqlclient>=2.2
