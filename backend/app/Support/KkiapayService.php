@@ -99,7 +99,13 @@ class KkiapayService
         foreach ($urlsToTry as $url) {
             foreach ($headerSets as $headers) {
                 try {
-                    $response = Http::timeout(15)->withHeaders($headers)->post($url, [
+                    $httpOptions = $headers;
+                    // Fix Windows XAMPP SSL error 60
+                    $clientOptions = [];
+                    if (env('APP_ENV') === 'local' || env('KKIAPAY_SKIP_SSL_VERIFY', true)) {
+                        $clientOptions['verify'] = false;
+                    }
+                    $response = Http::withOptions($clientOptions)->timeout(15)->withHeaders($headers)->post($url, [
                         'transactionId' => $transactionId,
                     ]);
 

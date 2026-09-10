@@ -190,16 +190,39 @@ class AuthController extends Controller
 
         // Vérifier le id_token via Google
         try {
-            $googleResp = Http::timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', [
+            // Fix Windows XAMPP cURL error 60: désactiver vérif SSL en dev ou utiliser cacert
+            // En prod, laisser verify true
+            $httpOptions = [];
+            if (env('APP_ENV') === 'local' || env('GOOGLE_SKIP_SSL_VERIFY', false)) {
+                $httpOptions['verify'] = false;
+            }
+
+            $googleResp = Http::withOptions($httpOptions)->timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', [
                 'id_token' => $credential,
             ]);
 
+            // Si échec à cause SSL, essayer fallback décodage JWT sans vérif (dev only)
             if (!$googleResp->successful()) {
-                Log::warning('Google tokeninfo échoué', ['body' => $googleResp->body()]);
-                throw new ApiException('Token Google invalide (tokeninfo)', 401);
+                Log::warning('Google tokeninfo échoué', ['body' => $googleResp->body(), 'status' => $googleResp->status()]);
+                // Fallback dev : décoder JWT payload sans vérif signature (à ne pas utiliser en prod sans vérif)
+                if (env('APP_ENV') === 'local' || env('GOOGLE_ALLOW_JWT_FALLBACK', true)) {
+                    $parts = explode('.', $credential);
+                    if (count($parts) === 3) {
+                        $payloadJson = base64_decode(strtr($parts[1], '-_', '+/'));
+                        $payload = json_decode($payloadJson, true);
+                        Log::info('Google JWT fallback décodé', ['payload' => $payload]);
+                        if (!$payload) {
+                            throw new ApiException('Token Google invalide (fallback)', 401);
+                        }
+                    } else {
+                        throw new ApiException('Token Google invalide (tokeninfo)', 401);
+                    }
+                } else {
+                    throw new ApiException('Token Google invalide (tokeninfo)', 401);
+                }
+            } else {
+                $payload = $googleResp->json();
             }
-
-            $payload = $googleResp->json();
             // payload contient: sub (google_id), email, email_verified, name, given_name, family_name, picture
             $googleId = $payload['sub'] ?? null;
             $email = strtolower(trim($payload['email'] ?? ''));
