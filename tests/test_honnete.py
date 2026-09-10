@@ -6,8 +6,9 @@ Rapport 100% véridique : on marque REUSSI / ECHOUE sur chaque étape.
 """
 import requests, json, sys, time, uuid, traceback
 
-BASE = "http://localhost/transport/backend_django/public/api"   # défaut pour XAMPP
-# BASE = "http://localhost:8000/api"                             # Django dev server
+# Décommenter la ligne qui te correspond :
+# BASE = "http://localhost/transport/backend_django/public/api"   # XAMPP/Apache
+BASE = "http://localhost:8000/api"                             # Django dev server (venv)
 # BASE = "https://<ton-tunnel>.ngrok-free.app/api"              # ngrok
 HEADERS = {"ngrok-skip-browser-warning": "true", "Accept": "application/json", "Content-Type": "application/json"}
 

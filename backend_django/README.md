@@ -1,56 +1,57 @@
 # Transport.bj — Backend Django 5 + DRF
 
-Réécriture complète du backend Laravel/PHP en Django 5 + Django REST Framework.
+Réécriture complète du backend en Django 5 + Django REST Framework.
+**Tests E2E : 27/27 OK** (cycle complet : inscription → colis → voyage → approbation → réservation → paiement → livraison → commission 95/5 → retrait → payout).
 
-**API 100% compatible** avec le frontend React existant : mêmes routes,
-mêmes réponses `{success, data, error}`, même logique métier (rôles,
-commissions 95/5, Kkiapay sandbox, retraits, suivi, avis).
+## Démarrage en 2 commandes
 
-## Résultat des tests E2E
-
-```
-27/27 OK — cycle complet testé automatiquement :
-
-Santé API, inscription CLIENT/TRANSPORTEUR, login ADMIN
-→ Création colis (poids→prix 4200 XOF)
-→ Création voyage
-→ Approbation admin colis+voyage
-→ Réservation transporteur
-→ Acceptation client
-→ Paiement (webhook simulé)
-→ Suivi colis "En cours" / "Livré"
-→ Page admin /admin/livraisons (attentes)
-→ Confirmation livraison → commission 95/5 versée (4275/225)
-→ Solde transporteur crédité
-→ Demande retrait transporteur (min 1000 XOF, solde suffisant)
-→ Payout admin
-→ Wallet admin débité
-→ Avis 5★
-→ Suivi public par numero_suivi (sans auth)
-→ Message contact
-```
-
-## Démarrer
-
+### Linux / Mac
 ```bash
 cd backend_django
-pip install -r requirements.txt
+./run.sh
+```
+(Crée le venv automatiquement au premier lancement, installe les dépendances,
+applique les migrations, crée le compte admin, puis démarre le serveur sur
+http://localhost:8000).
+
+### Windows (PowerShell ou cmd)
+```powershell
+cd backend_django
+run.bat
+```
+
+## Utilisation manuelle (si tu veux contrôler chaque étape)
+
+```bash
+# 1. Activer le venv
+source backend_django/venv/bin/activate      # Linux/Mac
+backend_django\venv\Scripts\activate.bat     # Windows
+
+# 2. Installer les dépendances
+pip install -r backend_django/requirements.txt
+
+# 3. Migrations + admin
+cd backend_django
 python manage.py migrate
-python manage.py shell -c "
-from accounts.models import User
-if not User.objects.filter(email='admin@transport.bj').exists():
-    User.objects.create_superuser(
-        email='admin@transport.bj', password='Admin@12345',
-        nom='Admin', prenom='Super', role='super_admin'
-    )
-"
+python manage.py shell -c "from accounts.models import User; User.objects.create_superuser(email='admin@transport.bj', password='Admin@12345', nom='Admin', prenom='Super', role='super_admin')"
+
+# 4. Lancer
 python manage.py runserver 0.0.0.0:8000
 ```
 
-API : http://localhost:8000/api
+## Accès
+- API : http://localhost:8000/api
+- Admin Django : http://localhost:8000/admin/django/ (mêmes identifiants)
+- Compte admin créé : `admin@transport.bj` / `Admin@12345`
+
+## Tests E2E
+```bash
+cd ..  # revenir à la racine du projet
+python tests/test_honnete.py
+# → 27/27 OK
+```
 
 ## Config .env (optionnel, SQLite par défaut)
-
 ```env
 APP_DEBUG=true
 APP_KEY=une-cle-secrete
@@ -68,33 +69,12 @@ KKIAPAY_SKIP_SSL_VERIFY=true
 ```
 
 ## Structure
+- `config/` — projet Django (settings, urls, wsgi)
+- `accounts/` — auth JWT, User custom, profil
+- `shipping/` — métier (colis, voyages, réservations, paiements, suivi, retraits, avis)
+- `core/` — réponse API standard, pagination, permissions, exceptions
+- `venv/` — environnement virtuel Python (**généré, pas versionné**)
 
-- `config/` — Projet Django (settings, urls, wsgi)
-- `accounts/` — Auth JWT, User custom, profil
-- `shipping/` — Cœur métier :
-  - `models.py` → Colis, Voyage, Reservation, Paiement, SuiviColis, Retrait, Avis, ContactMessage, Transporteur, NotificationAdmin, WalletAdmin
-  - `views.py` → Endpoints client/transporteur
-  - `admin_views.py` → Endpoints admin/super_admin (stats, approbations, livraisons, commissions, payout Kkiapay)
-- `core/` — Utilitaires (réponse API standard, pagination, permissions, exceptions)
-
-## Routes principales (mêmes que l'ancien Laravel)
-
-| Méthode | Chemin | Description |
-|---|---|---|
-| POST | `/api/auth/register` | Inscription |
-| POST | `/api/auth/login` | Connexion (JWT) |
-| GET | `/api/auth/me` | Profil courant |
-| POST | `/api/colis` | Créer un colis |
-| GET | `/api/colis/mine` | Mes colis |
-| POST | `/api/voyages` | Proposer un voyage |
-| POST | `/api/reservations` | Réserver un colis |
-| POST | `/api/paiements/{id}/payer` | Payer (ou webhook Kkiapay) |
-| POST | `/api/suivi` | Ajouter une étape suivi |
-| GET | `/api/suivi/{numero}` | Suivi public |
-| POST | `/api/retraits` | Demander un retrait |
-| GET | `/api/admin/stats` | Stats admin |
-| GET/POST | `/api/admin/colis` | Liste + approuver/refuser |
-| GET | `/api/admin/livraisons` | Demandes de livraison en attente |
-| POST | `/api/admin/suivi/{id}/livraison` | Confirmer livraison (95/5) |
-| POST | `/api/admin/retraits/{id}/decision` | Payer/rejeter un retrait |
-| GET | `/api/admin/wallet` | Solde plateforme |
+## Fichiers pratiques
+- `activ.sh` / `activ.bat` — active le venv (le crée s'il n'existe pas)
+- `run.sh` / `run.bat` — active + migrate + admin + lance runserver
