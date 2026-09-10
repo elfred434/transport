@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\MessagerieController;
 use App\Http\Controllers\Api\PaiementController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\RetraitController;
 use App\Http\Controllers\Api\SuiviController;
 use App\Http\Controllers\Api\VoyageController;
 use App\Http\Controllers\AuthController;
@@ -80,6 +81,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transporteurs/{id}/avis', [AvisController::class, 'forTransporteur'])->whereNumber('id');
     Route::post('avis', [AvisController::class, 'store']);
 
+    // Retraits transporteur (solde 95% auto)
+    Route::get('transporteur/retraits', [RetraitController::class, 'transporteurList']);
+    Route::get('transporteur/solde', [RetraitController::class, 'transporteurSolde']);
+    Route::post('transporteur/retraits', [RetraitController::class, 'transporteurDemande']);
+
     // Administration : admin et super_admin
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('stats', [AdminController::class, 'stats']);
@@ -112,6 +118,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('contact-messages', [AdminController::class, 'contactMessages']);
         Route::post('contact-messages/{id}/repondre', [AdminController::class, 'contactRepondre'])->whereNumber('id');
         Route::delete('contact-messages/{id}', [AdminController::class, 'contactDelete'])->whereNumber('id');
+
+        // Wallet admin + retraits
+        Route::get('wallet', [RetraitController::class, 'adminWallet']);
+        Route::get('retraits', [RetraitController::class, 'adminList']);
+        Route::post('retraits', [RetraitController::class, 'adminDemande']);
+        Route::post('retraits/{id}/decision', [RetraitController::class, 'adminDecision'])->whereNumber('id');
+        Route::post('retraits/{id}/retry', [RetraitController::class, 'adminRetry'])->whereNumber('id');
     });
 
     Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])->middleware('admin');

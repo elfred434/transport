@@ -5,7 +5,7 @@ import { date, datetime, money } from '../../lib/format'
 import { useToast } from '../../components/Toasts'
 import { useAuth } from '../../context/AuthContext'
 
-type Section = 'stats' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins'
+type Section = 'stats' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits'
 
 interface AdminStats {
   nb_users: number
@@ -24,6 +24,12 @@ interface AdminStats {
   montant_total_paye: string | number
   messages_contact_non_lus: number
   nb_avis: number
+  admin_wallet_solde?: number
+  admin_commission_total?: number
+  retraits_en_attente?: number
+  retraits_payes?: number
+  total_paye_transporteurs?: number
+  total_frais_admin?: number
 }
 interface AdminUser {
   id: number
@@ -115,6 +121,31 @@ interface AdminContact {
   date_envoi: string
   date_reponse: string | null
 }
+interface AdminWallet {
+  solde: number
+  total_commission_generee: number
+  total_paye_transporteurs: number
+  total_retraits_admin: number
+}
+interface AdminRetrait {
+  id: number
+  user_id: number
+  type: string
+  montant: number
+  statut: string
+  methode: string
+  numero: string | null
+  reference: string
+  details: string | null
+  colis_id: number | null
+  nom: string | null
+  prenom: string | null
+  email: string | null
+  nom_colis: string | null
+  numero_suivi: string | null
+  date_demande: string
+  date_traitement: string | null
+}
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : 'Erreur inconnue')
 
@@ -145,6 +176,8 @@ export default function AdminIndex() {
   const [avis, setAvis] = useState<AdminAvis[] | null>(null)
   const [contacts, setContacts] = useState<AdminContact[] | null>(null)
   const [admins, setAdmins] = useState<AdminUser[] | null>(null)
+  const [wallet, setWallet] = useState<AdminWallet | null>(null)
+  const [retraits, setRetraits] = useState<AdminRetrait[] | null>(null)
   const [sectionError, setSectionError] = useState<string | null>(null)
 
   const [uSearch, setUSearch] = useState('')
@@ -158,6 +191,10 @@ export default function AdminIndex() {
   const [pStatut, setPStatut] = useState('')
   const [aStatut, setAStatut] = useState('')
   const [ctRepondu, setCtRepondu] = useState('')
+  const [rSearch, setRSearch] = useState('')
+  const [rStatut, setRStatut] = useState('')
+  const [rType, setRType] = useState('')
+  const [adminRetraitForm, setAdminRetraitForm] = useState({ montant: '', numero: '' })
 
   const [userModal, setUserModal] = useState(false)
   const [userForm, setUserForm] = useState({ nom: '', prenom: '', email: '', password: '', role: 'client' })
@@ -229,6 +266,20 @@ export default function AdminIndex() {
     try { setContacts(await api.get<AdminContact[]>('/api/admin/contact-messages' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [ctRepondu])
 
+  const loadWallet = useCallback(async () => {
+    setSectionError(null)
+    try { setWallet(await api.get<AdminWallet>('/api/admin/wallet')) } catch (e) { setSectionError(errMsg(e)) }
+  }, [])
+
+  const loadRetraits = useCallback(async () => {
+    setSectionError(null)
+    const p = new URLSearchParams()
+    if (rSearch.trim()) p.set('search', rSearch.trim())
+    if (rStatut) p.set('statut', rStatut)
+    if (rType) p.set('type', rType)
+    try { setRetraits(await api.get<AdminRetrait[]>('/api/admin/retraits' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
+  }, [rSearch, rStatut, rType])
+
   useEffect(() => {
     const loaders: Record<Section, () => void> = {
       stats: loadStats,
@@ -240,9 +291,11 @@ export default function AdminIndex() {
       avis: loadAvis,
       contact: loadContact,
       admins: loadAdmins,
+      wallet: loadWallet,
+      retraits: loadRetraits,
     }
     loaders[section]()
-  }, [section, loadStats, loadUsers, loadColis, loadVoyages, loadTransporteurs, loadPaiements, loadAvis, loadContact, loadAdmins])
+  }, [section, loadStats, loadUsers, loadColis, loadVoyages, loadTransporteurs, loadPaiements, loadAvis, loadContact, loadAdmins, loadWallet, loadRetraits])
 
   const onCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -321,12 +374,46 @@ export default function AdminIndex() {
     } catch (err) { toast(errMsg(err), 'error') }
   }
   const onLivraisonDecision = async (id: number, decision: 'confirmer' | 'refuser') => {
-    if (!window.confirm(decision === 'confirmer' ? 'Confirmer la livraison ? Commission 5% versée.' : 'Refuser la livraison ?')) return
+    if (!window.confirm(decision === 'confirmer' ? 'Confirmer la livraison ? Transporteur 95% + payout auto sur son numéro, admin 5%.' : 'Refuser la livraison ?')) return
     try {
-      const res = await api.post<{ commission_transporteur?: number }>(`/api/admin/suivi/${id}/livraison`, { decision })
-      toast(decision === 'confirmer' ? `Livraison confirmée, commission ${money(res.commission_transporteur || 0)}` : 'Livraison refusée')
+      const res = await api.post<{ commission_transporteur?: number; commission_admin?: number; payout?: any }>(`/api/admin/suivi/${id}/livraison`, { decision })
+      if (decision === 'confirmer') {
+        const payoutStatus = res.payout?.status === 'SUCCESS' ? ' - Payout auto SUCCESS' : res.payout ? ` - Payout ${res.payout.status}` : ''
+        toast(`Livraison confirmée, transporteur ${money(res.commission_transporteur || 0)} (95%) + admin ${money(res.commission_admin || 0)} (5%)${payoutStatus}`)
+      } else toast('Livraison refusée')
       loadColis()
       loadStats()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
+
+  const onRetraitDecision = async (id: number, decision: 'approuve' | 'refuse' | 'paye' | 'echec') => {
+    const note = window.prompt(`Note pour ${decision} ?`) || ''
+    if (decision !== 'approuve' && !window.confirm(`${decision} ce retrait ?`)) return
+    try {
+      const res = await api.post<{ message: string; payout?: any }>(`/api/admin/retraits/${id}/decision`, { decision, note })
+      toast(res.message + (res.payout ? ` - Payout ${res.payout.status}` : ''))
+      loadRetraits()
+      loadWallet()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
+
+  const onRetraitRetry = async (id: number) => {
+    if (!window.confirm('Retenter payout automatique Kkiapay ?')) return
+    try {
+      const res = await api.post<{ message: string; payout: any; statut: string }>(`/api/admin/retraits/${id}/retry`, {})
+      toast(`Retry: ${res.statut} - ${res.payout?.status || ''}`)
+      loadRetraits()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
+
+  const onAdminRetrait = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const res = await api.post<{ message: string }>(`/api/admin/retraits`, { montant: parseFloat(adminRetraitForm.montant), numero: adminRetraitForm.numero })
+      toast(res.message)
+      setAdminRetraitForm({ montant: '', numero: '' })
+      loadWallet()
+      loadRetraits()
     } catch (err) { toast(errMsg(err), 'error') }
   }
 
@@ -336,27 +423,35 @@ export default function AdminIndex() {
 
       <div className="mb-4">
         <div className="d-flex flex-wrap gap-2">
-          {(['stats','users','colis','voyages','transporteurs','paiements','avis','contact'] as Section[]).map(s=>(
-            <button key={s} className={`btn btn-sm ${section===s?'btn-primary':'btn-outline-primary'}`} onClick={()=>setSection(s)}>{s}</button>
+          {(['stats','users','colis','voyages','transporteurs','paiements','avis','contact','wallet','retraits'] as Section[]).map(s=>(
+            <button key={s} className={`btn btn-sm ${section===s?'btn-primary':'btn-outline-primary'}`} onClick={()=>setSection(s)}>{s==='wallet' ? '💰 Wallet' : s==='retraits' ? '💸 Retraits' : s}</button>
           ))}
           {isSuperAdmin && <button className={`btn btn-sm ${section==='admins'?'btn-warning':'btn-outline-warning'}`} onClick={()=>setSection('admins')}><i className="fa-solid fa-crown"></i> Admins</button>}
         </div>
-        {isSuperAdmin ? <div className="alert alert-warning mt-3 small"><i className="fa-solid fa-crown"></i> Vous êtes Super Admin : vous pouvez gérer tous les rôles, y compris créer/promouvoir des admins.</div> : <div className="alert alert-info mt-3 small"><i className="fa-solid fa-shield-halved"></i> Vous êtes Admin simple : vous gérez clients, transporteurs, colis, voyages, paiements, avis, contacts. La gestion des admins est réservée au Super Admin.</div>}
+        {isSuperAdmin ? <div className="alert alert-warning mt-3 small"><i className="fa-solid fa-crown"></i> Super Admin : vous gérez tous les rôles + wallet 5% + retraits transporteurs (payout auto Kkiapay Mobile Money sur numéro transporteur après vérification client).</div> : <div className="alert alert-info mt-3 small"><i className="fa-solid fa-shield-halved"></i> Admin : gérez clients, transporteurs, colis, voyages, paiements, avis, contacts, wallet (5% plateforme) et retraits auto 95% transporteur.</div>}
       </div>
 
       {sectionError && <div className="alert alert-danger">{sectionError}</div>}
 
       {section==='stats' && stats && (
-        <div className="row g-3">
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_users}</div><div className="text-muted small">Utilisateurs totaux</div><div className="small mt-2"><RoleBadge role="client" /> {stats.nb_clients} | <RoleBadge role="transporteur" /> {stats.nb_transporteurs_users}<br/><RoleBadge role="admin" /> {stats.nb_admins} | <RoleBadge role="super_admin" /> {stats.nb_super_admins}</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_colis}</div><div className="text-muted small">Colis</div><div className="small text-warning">{stats.colis_en_attente} en attente</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_voyages}</div><div className="text-muted small">Voyages</div><div className="small text-warning">{stats.voyages_en_attente} en attente</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_transporteurs}</div><div className="text-muted small">Fiches transporteurs</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_paiements}</div><div className="text-muted small">Paiements</div><div className="small text-success">{money(stats.montant_total_paye)} payés</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_avis}</div><div className="text-muted small">Avis</div><div className="small text-warning">{stats.avis_en_attente} en attente</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.demandes_livraison}</div><div className="text-muted small">Livraisons à confirmer</div></div></div>
-          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.messages_contact_non_lus}</div><div className="text-muted small">Messages contact non lus</div></div></div>
-        </div>
+        <>
+          <div className="row g-3">
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_users}</div><div className="text-muted small">Utilisateurs totaux</div><div className="small mt-2"><RoleBadge role="client" /> {stats.nb_clients} | <RoleBadge role="transporteur" /> {stats.nb_transporteurs_users}<br/><RoleBadge role="admin" /> {stats.nb_admins} | <RoleBadge role="super_admin" /> {stats.nb_super_admins}</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_colis}</div><div className="text-muted small">Colis</div><div className="small text-warning">{stats.colis_en_attente} en attente</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_voyages}</div><div className="text-muted small">Voyages</div><div className="small text-warning">{stats.voyages_en_attente} en attente</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_transporteurs}</div><div className="text-muted small">Fiches transporteurs</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_paiements}</div><div className="text-muted small">Paiements</div><div className="small text-success">{money(stats.montant_total_paye)} payés</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_avis}</div><div className="text-muted small">Avis</div><div className="small text-warning">{stats.avis_en_attente} en attente</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.demandes_livraison}</div><div className="text-muted small">Livraisons à confirmer</div></div></div>
+            <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.messages_contact_non_lus}</div><div className="text-muted small">Messages contact non lus</div></div></div>
+          </div>
+          <div className="row g-3 mt-2">
+            <div className="col-md-3"><div className="card bg-success text-white"><div className="card-body text-center"><h4>{money(stats.admin_wallet_solde||0)}</h4><small>Wallet Admin (5%)</small></div></div></div>
+            <div className="col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center"><h4>{money(stats.admin_commission_total||0)}</h4><small>Commission totale 5%</small></div></div></div>
+            <div className="col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center"><h4>{money(stats.total_paye_transporteurs||0)}</h4><small>Payé transporteurs 95%</small></div></div></div>
+            <div className="col-md-3"><div className="card bg-warning text-dark"><div className="card-body text-center"><h4>{stats.retraits_en_attente||0} / {stats.retraits_payes||0}</h4><small>Retraits en attente / payés</small></div></div></div>
+          </div>
+        </>
       )}
 
       {section==='users' && (
@@ -515,6 +610,73 @@ export default function AdminIndex() {
           <div className="row g-2 mb-3"><div className="col-md-3"><select className="form-select form-select-sm" value={ctRepondu} onChange={e=>setCtRepondu(e.target.value)}><option value="">Tous</option><option value="non">Non répondus</option><option value="oui">Répondus</option></select></div><div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadContact}>Filtrer</button></div></div>
           {!contacts && <div className="text-muted">Chargement…</div>}
           {contacts && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Nom</th><th>Message</th><th>Réponse</th><th>Date</th><th>Actions</th></tr></thead><tbody>{contacts.map(c=><tr key={c.id}><td>{c.id}</td><td>{c.nom}<br/><span className="small">{c.email}</span></td><td className="small">{c.message.substring(0,100)}</td><td className="small">{c.reponse?.substring(0,100)||'—'}</td><td className="small">{datetime(c.date_envoi)}</td><td><div className="d-flex gap-1"><button className="btn btn-sm btn-outline-primary" onClick={()=>{ setReplyModal({id:c.id, nom:c.nom, message:c.message}); setReplyText(c.reponse||'')}}>Répondre</button><button className="btn btn-sm btn-outline-danger" onClick={()=>onContactDelete(c.id)}><i className="fa-solid fa-trash"></i></button></div></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {section==='wallet' && (
+        <div className="page-card">
+          <h5><i className="fa-solid fa-wallet"></i> Portefeuille Admin (5% plateforme)</h5>
+          {!wallet && <div className="text-muted">Chargement…</div>}
+          {wallet && (
+            <>
+              <div className="row g-3 mb-4">
+                <div className="col-md-3"><div className="card bg-success text-white"><div className="card-body text-center"><h3>{money(wallet.solde)}</h3><p className="mb-0">Solde disponible</p></div></div></div>
+                <div className="col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center"><h3>{money(wallet.total_commission_generee)}</h3><p className="mb-0">Commission totale générée (5%)</p></div></div></div>
+                <div className="col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center"><h3>{money(wallet.total_paye_transporteurs)}</h3><p className="mb-0">Total payé transporteurs (95%)</p></div></div></div>
+                <div className="col-md-3"><div className="card bg-warning text-dark"><div className="card-body text-center"><h3>{money(wallet.total_retraits_admin)}</h3><p className="mb-0">Retraits admin déjà effectués</p></div></div></div>
+              </div>
+              <div className="alert alert-info small">
+                <i className="fa-solid fa-circle-info"></i> Répartition : Transporteur <strong>95%</strong> du prix estimé, Admin <strong>5%</strong>. Après confirmation livraison (vérification client), le système tente un payout automatique Kkiapay Mobile Money sur le numéro du transporteur (colonne téléphone). Si échec (numéro manquant ou API), le retrait reste en attente pour validation manuelle dans l'onglet Retraits.
+              </div>
+              <h6 className="mt-4"><i className="fa-solid fa-hand-holding-dollar"></i> Retirer mon solde admin</h6>
+              <form onSubmit={onAdminRetrait} className="row g-2 align-items-end">
+                <div className="col-md-3"><label className="form-label">Montant XOF</label><input type="number" className="form-control" min={1000} value={adminRetraitForm.montant} onChange={e=>setAdminRetraitForm({...adminRetraitForm, montant:e.target.value})} required /></div>
+                <div className="col-md-4"><label className="form-label">Numéro / Compte</label><input type="text" className="form-control" placeholder="Mobile Money ou IBAN" value={adminRetraitForm.numero} onChange={e=>setAdminRetraitForm({...adminRetraitForm, numero:e.target.value})} /></div>
+                <div className="col-md-2"><button className="btn btn-primary w-100" type="submit">Retirer</button></div>
+              </form>
+            </>
+          )}
+        </div>
+      )}
+
+      {section==='retraits' && (
+        <div className="page-card">
+          <h5><i className="fa-solid fa-money-bill-transfer"></i> Retraits & Paiements automatiques</h5>
+          <div className="row g-2 mb-3">
+            <div className="col-md-3"><input className="form-control form-control-sm" placeholder="Recherche ref/num/nom" value={rSearch} onChange={e=>setRSearch(e.target.value)} /></div>
+            <div className="col-md-2"><select className="form-select form-select-sm" value={rType} onChange={e=>setRType(e.target.value)}><option value="">Tous types</option><option value="transporteur">Transporteur 95%</option><option value="admin">Admin 5%</option></select></div>
+            <div className="col-md-2"><select className="form-select form-select-sm" value={rStatut} onChange={e=>setRStatut(e.target.value)}><option value="">Tous statuts</option><option value="en_attente">En attente</option><option value="paye">Payé</option><option value="echec">Échec</option><option value="refuse">Refusé</option></select></div>
+            <div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadRetraits}>Filtrer</button></div>
+            <div className="col-md-3 text-end"><span className="badge bg-warning text-dark">{retraits?.filter(r=>r.statut==='en_attente').length||0} en attente</span> <span className="badge bg-success ms-1">{retraits?.filter(r=>r.statut==='paye').length||0} payés</span></div>
+          </div>
+          {!retraits && <div className="text-muted">Chargement…</div>}
+          {retraits && (
+            <div className="table-responsive">
+              <table className="table table-sm align-middle">
+                <thead><tr><th>ID</th><th>Type</th><th>Transporteur</th><th>Montant</th><th>Statut</th><th>Numéro</th><th>Réf</th><th>Colis</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody>{retraits.map(r=>(
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td><span className={`badge ${r.type==='transporteur'?'bg-success':'bg-primary'}`}>{r.type}</span></td>
+                    <td className="small">{r.prenom} {r.nom}<br/>{r.email}</td>
+                    <td className="fw-bold">{money(r.montant)}</td>
+                    <td><span className={`badge ${r.statut==='paye'?'bg-success':r.statut==='en_attente'?'bg-warning text-dark':r.statut==='echec'?'bg-danger':'bg-secondary'}`}>{r.statut}</span></td>
+                    <td className="small">{r.numero||'—'}</td>
+                    <td className="small"><code>{r.reference}</code></td>
+                    <td className="small">{r.colis_id ? `#${r.colis_id} ${r.nom_colis||''}` : '—'}</td>
+                    <td className="small">{datetime(r.date_demande)}</td>
+                    <td>
+                      <div className="d-flex gap-1 flex-wrap">
+                        {r.statut==='en_attente' && <><button className="btn btn-sm btn-success" onClick={()=>onRetraitDecision(r.id,'paye')}>Payer</button><button className="btn btn-sm btn-outline-success" onClick={()=>onRetraitDecision(r.id,'approuve')}>Approuver</button><button className="btn btn-sm btn-outline-danger" onClick={()=>onRetraitDecision(r.id,'refuse')}>Refuser</button></>}
+                        {r.statut==='echec' && <button className="btn btn-sm btn-warning" onClick={()=>onRetraitRetry(r.id)}><i className="fa-solid fa-rotate"></i> Retry payout</button>}
+                        {r.statut==='paye' && <span className="small text-success"><i className="fa-solid fa-check"></i> OK</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

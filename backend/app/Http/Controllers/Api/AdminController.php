@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\Files;
 use App\Support\In;
+use App\Support\KkiapayService;
 use App\Support\Pricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,11 @@ class AdminController extends Controller
     /** GET /api/admin/stats */
     public function stats(Request $request): JsonResponse
     {
+        // Assurer existence admin_wallet
+        if (DB::table('admin_wallet')->count() === 0) {
+            DB::table('admin_wallet')->insert(['id'=>1,'solde'=>0]);
+        }
+
         $stats = [
             'nb_users' => (int) DB::table('users')->count(),
             'nb_clients' => (int) DB::table('users')->whereIn('role', ['client','utilisateur'])->count(),
@@ -49,7 +55,25 @@ class AdminController extends Controller
                 ->count(),
             'montant_total_paye' => (float) DB::table('paiements')->where('statut', 'paye')->sum('montant'),
             'messages_contact_non_lus' => (int) DB::table('messages_contact')->where('lu_par_admin', 0)->count(),
+            // Nouveau : wallet admin et retraits
+            'admin_wallet_solde' => (float) (DB::table('admin_wallet')->where('id',1)->value('solde') ?: 0),
+            'admin_commission_total' => (float) DB::table('retraits')->where('type','transporteur')->where('statut','paye')->sum(DB::raw('montant * 0.05 / 0.95')), // approx
+            'retraits_en_attente' => (int) DB::table('retraits')->where('statut','en_attente')->count(),
+            'retraits_payes' => (int) DB::table('retraits')->where('statut','paye')->count(),
+            'total_paye_transporteurs' => (float) DB::table('retraits')->where('type','transporteur')->where('statut','paye')->sum('montant'),
+            'total_frais_admin' => (float) DB::table('admin_wallet')->where('id',1)->value('solde'),
         ];
+
+        // Calcul plus précis admin commission : somme des 5% des livraisons confirmées
+        try {
+            $stats['admin_commission_total'] = (float) DB::table('suivi_colis as s')
+                ->join('colis as c','c.id','=','s.colis_id')
+                ->where('s.confirme_par_admin',1)
+                ->sum(DB::raw('c.prix_estime * 0.05'));
+        } catch (\Throwable $e) {
+            // fallback
+        }
+
         return ApiResponse::success($stats);
     }
 
@@ -238,16 +262,114 @@ class AdminController extends Controller
         if (!$etape) throw ApiException::notFound('Demande de livraison introuvable');
         if ($decision==='confirmer') {
             try {
-                $commission = DB::transaction(function () use ($etape,$id){
+                $result = DB::transaction(function () use ($etape,$id){
                     DB::table('suivi_colis')->where('id',$id)->update(['confirme_par_admin'=>1,'demande_livraison'=>0]);
                     DB::table('reservations')->where('colis_id',$etape->colis_id)->where('statut','accepte')->update(['statut'=>'termine']);
-                    $info = DB::table('colis as c')->join('reservations as r', function($join){ $join->on('r.colis_id','=','c.id')->where('r.statut','=','termine'); })->join('voyages as v','v.id','=','r.voyage_id')->select('c.prix_estime','v.user_id as transporteur_id')->where('c.id',$etape->colis_id)->first();
-                    $commission=0.0;
-                    if ($info){ $commission=Pricing::commission((float)$info->prix_estime); DB::table('transporteurs')->where('user_id',$info->transporteur_id)->increment('solde',$commission); }
-                    return $commission;
+
+                    // Récupérer prix et transporteur + tel
+                    $info = DB::table('colis as c')
+                        ->join('reservations as r', function($join){ $join->on('r.colis_id','=','c.id')->where('r.statut','=','termine'); })
+                        ->join('voyages as v','v.id','=','r.voyage_id')
+                        ->join('users as u','u.id','=','v.user_id')
+                        ->select('c.prix_estime','c.id as colis_id','c.nom_colis','v.user_id as transporteur_id','u.telephone','u.nom','u.prenom','u.email')
+                        ->where('c.id',$etape->colis_id)
+                        ->orderByDesc('r.date_reservation')
+                        ->first();
+
+                    $commissionTransporteur = 0.0;
+                    $commissionAdmin = 0.0;
+                    $retraitId = null;
+                    $payoutResult = null;
+
+                    if ($info){
+                        $prix = (float)$info->prix_estime;
+                        $commissionTransporteur = Pricing::commissionTransporteur($prix); // 95%
+                        $commissionAdmin = Pricing::commissionAdmin($prix); // 5%
+
+                        // Créditer transporteur solde (temporaire, sera débité après payout auto)
+                        DB::table('transporteurs')->where('user_id',$info->transporteur_id)->increment('solde',$commissionTransporteur);
+
+                        // Créditer admin wallet
+                        DB::table('admin_wallet')->where('id',1)->increment('solde',$commissionAdmin);
+                        // Si table vide (pas de ligne 1), créer
+                        if (DB::table('admin_wallet')->where('id',1)->count() === 0) {
+                            DB::table('admin_wallet')->insert(['id'=>1,'solde'=>$commissionAdmin]);
+                        }
+
+                        // Préparer retrait automatique pour transporteur
+                        $telephone = $info->telephone ?: '';
+                        $reference = 'AUTO-'.$info->colis_id.'-'.strtoupper(uniqid());
+
+                        // Créer retrait en_attente
+                        $retraitId = DB::table('retraits')->insertGetId([
+                            'user_id' => $info->transporteur_id,
+                            'type' => 'transporteur',
+                            'montant' => $commissionTransporteur,
+                            'frais' => 0,
+                            'montant_net' => $commissionTransporteur,
+                            'statut' => 'en_attente',
+                            'methode' => 'mobile_money',
+                            'numero' => $telephone,
+                            'operateur' => null,
+                            'reference' => $reference,
+                            'details' => 'Paiement automatique livraison colis '.$info->nom_colis.' (#'.$info->colis_id.') - Prix estimé '.$prix.' XOF, commission 95% = '.$commissionTransporteur.' XOF',
+                            'colis_id' => $info->colis_id,
+                            'date_demande' => now(),
+                            'traite_par' => null,
+                        ]);
+
+                        // Tenter payout automatique via Kkiapay si numéro présent
+                        if ($telephone !== '') {
+                            try {
+                                $kkiapay = new KkiapayService();
+                                $payoutResult = $kkiapay->payout($telephone, $commissionTransporteur, $reference);
+
+                                $statutPayout = ($payoutResult['status'] ?? 'FAILED') === 'SUCCESS' ? 'paye' : 'echec';
+
+                                DB::table('retraits')->where('id',$retraitId)->update([
+                                    'statut' => $statutPayout,
+                                    'date_traitement' => now(),
+                                    'kkiapay_response' => json_encode($payoutResult),
+                                ]);
+
+                                // Si payout réussi, débiter solde transporteur (argent envoyé)
+                                if ($statutPayout === 'paye') {
+                                    DB::table('transporteurs')->where('user_id',$info->transporteur_id)->decrement('solde',$commissionTransporteur);
+                                }
+
+                            } catch (\Throwable $e) {
+                                Log::error('Payout auto échoué: '.$e->getMessage());
+                                DB::table('retraits')->where('id',$retraitId)->update([
+                                    'statut' => 'echec',
+                                    'kkiapay_response' => json_encode(['error'=>$e->getMessage()]),
+                                ]);
+                            }
+                        } else {
+                            // Pas de téléphone -> laisser en_attente pour traitement manuel
+                            Log::warning('Payout auto impossible: téléphone manquant pour transporteur '.$info->transporteur_id);
+                        }
+                    }
+
+                    return [
+                        'commission_transporteur' => $commissionTransporteur,
+                        'commission_admin' => $commissionAdmin,
+                        'retrait_id' => $retraitId,
+                        'payout' => $payoutResult,
+                    ];
                 });
-            } catch (\Throwable $e){ Log::error('Erreur confirmation livraison : '.$e->getMessage()); throw new ApiException('Erreur lors de la confirmation de la livraison',500); }
-            return ApiResponse::success(['message'=>'Livraison confirmée','commission_transporteur'=>$commission]);
+            } catch (\Throwable $e){
+                Log::error('Erreur confirmation livraison : '.$e->getMessage().' '.$e->getTraceAsString());
+                throw new ApiException('Erreur lors de la confirmation de la livraison: '.$e->getMessage(),500);
+            }
+            return ApiResponse::success([
+                'message'=>'Livraison confirmée',
+                'commission_transporteur'=>$result['commission_transporteur'],
+                'commission_admin'=>$result['commission_admin'],
+                'commission_rate_transporteur'=>Pricing::COMMISSION_TRANSPORTEUR_RATE,
+                'commission_rate_admin'=>Pricing::COMMISSION_ADMIN_RATE,
+                'retrait_automatique_id'=>$result['retrait_id'],
+                'payout'=>$result['payout'],
+            ]);
         }
         if ($decision==='refuser'){ DB::table('suivi_colis')->where('id',$id)->delete(); return ApiResponse::success(['message'=>'Demande de livraison refusée']); }
         throw new ApiException('Décision invalide (confirmer|refuser)');

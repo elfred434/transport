@@ -9,8 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Fiche transporteur. Table `transporteurs` existante.
  *
- * Créée lors de la première proposition de voyage. Le `solde` est crédité de la
- * commission (5 % du prix estimé) à la confirmation de chaque livraison.
+ * Créée lors de la première proposition de voyage. Le `solde` est crédité de
+ * 95 % du prix estimé à la confirmation de chaque livraison (après vérification client),
+ * puis débité automatiquement lors du payout Kkiapay Mobile Money sur le numéro du transporteur.
+ * 5 % restant va au wallet admin.
  */
 class Transporteur extends Model
 {
