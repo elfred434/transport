@@ -5,11 +5,15 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+# Chargement automatique du fichier .env (si présent)
+from dotenv import load_dotenv
+load_dotenv()
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get(
     "APP_KEY",
-    "django-insecure-transport-bj-dev-key-change-in-production-xyz123",
+    os.environ.get("SECRET_KEY", "django-insecure-transport-bj-dev-key-change-in-production-xyz123"),
 )
 DEBUG = os.environ.get("APP_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = ["*"]

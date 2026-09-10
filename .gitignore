@@ -24,6 +24,8 @@ backend_django/db.sqlite3
 backend_django/db.sqlite3-journal
 backend_django/media/
 backend_django/staticfiles/
+backend_django/storage/*
+!backend_django/storage/.gitkeep
 
 # ===== Node / frontend =====
 frontend/node_modules/
