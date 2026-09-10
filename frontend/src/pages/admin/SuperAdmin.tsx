@@ -148,12 +148,12 @@ export default function SuperAdmin() {
         <div className="table-responsive"><table className="table table-bordered table-sm">
           <thead><tr><th>Action</th><th>Client</th><th>Transporteur</th><th>Admin simple</th><th>Super Admin</th></tr></thead>
           <tbody>
-            <tr><td>Poster colis, payer, suivi, messagerie</td><td className="text-success">✅</td><td className="text-success">✅</td><td className="text-success">✅</td><td className="text-success">✅</td></tr>
-            <tr><td>Proposer voyage, réserver colis, stats transporteur</td><td>❌</td><td className="text-success">✅</td><td className="text-success">✅</td><td className="text-success">✅</td></tr>
-            <tr><td>Modérer colis/voyages/avis/contact</td><td>❌</td><td>❌</td><td className="text-success">✅</td><td className="text-success">✅</td></tr>
-            <tr><td>Gérer clients & transporteurs</td><td>❌</td><td>❌</td><td className="text-success">✅</td><td className="text-success">✅</td></tr>
-            <tr><td>Gérer admins, changer rôles admin/super_admin</td><td>❌</td><td>❌</td><td>❌</td><td className="text-success">✅</td></tr>
-            <tr><td>Supprimer dernier Super Admin</td><td>❌</td><td>❌</td><td>❌</td><td>❌ (bloqué)</td></tr>
+            <tr><td>Poster colis, payer, suivi, messagerie</td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>
+            <tr><td>Proposer voyage, réserver colis, stats transporteur</td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>
+            <tr><td>Modérer colis/voyages/avis/contact</td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>
+            <tr><td>Gérer clients & transporteurs</td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>
+            <tr><td>Gérer admins, changer rôles admin/super_admin</td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>
+            <tr><td>Supprimer dernier Super Admin</td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i></td><td className="text-center"><i className="fa-solid fa-xmark text-danger"></i> (bloqué)</td></tr>
           </tbody>
         </table></div>
         <div className="mt-3">

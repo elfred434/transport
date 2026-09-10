@@ -116,8 +116,8 @@ class SuiviController extends Controller
             // Signal admin : log + insertion dans notifications_admin si table existe
             $colisInfo = DB::table('colis')->where('id',$colisId)->select('nom_colis','numero_suivi')->first();
             $nomColis = $colisInfo ? $colisInfo->nom_colis : ('colis #'.$colisId);
-            $msg = "📦 Livraison signalée : {$nomColis} par transporteur #{$user->id} — à confirmer";
-            Log::info('📦 LIVRAISON SIGNAL', [
+            $msg = "[COLIS] Livraison signalée : {$nomColis} par transporteur #{$user->id} — à confirmer";
+            Log::info('[COLIS] LIVRAISON SIGNALEE', [
                 'colis_id' => $colisId,
                 'suivi_id' => $etape->id,
                 'transporteur_id' => $user->id,

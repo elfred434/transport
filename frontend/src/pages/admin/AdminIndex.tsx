@@ -246,7 +246,7 @@ export default function AdminIndex() {
       setStats(prev => {
         if (prev && data.demandes_livraison > prevDemandesLivraison && prevDemandesLivraison >= 0) {
           const n = data.demandes_livraison - prevDemandesLivraison
-          toast(`🔔 ${n} nouvelle${n>1?'s':''} livraison${n>1?'s':''} à confirmer !`, 'error')
+          toast(<><i className="fa-solid fa-bell text-danger me-2"></i>{`${n} nouvelle${n>1?'s':''} livraison${n>1?'s':''} à confirmer !`}</>, 'error')
           if (soundEnabled) playBeep()
         }
         return data
@@ -959,7 +959,11 @@ export default function AdminIndex() {
                         <td><strong>{a.id}</strong></td>
                         <td>{a.user_prenom} {a.user_nom}</td>
                         <td>{a.transporteur_prenom} {a.transporteur_nom} (#{a.transporteur_id})</td>
-                        <td><span className="text-warning">{'★'.repeat(a.note)}{'☆'.repeat(5-a.note)}</span></td>
+                        <td>
+                          {Array.from({length:5}).map((_,i) => (
+                            <i key={i} className={`fa-${i<a.note?'solid':'regular'} fa-star ${i<a.note?'text-warning':'text-muted'}`}></i>
+                          ))}
+                        </td>
                         <td className="small" style={{maxWidth:280}}>{(a.commentaire||'').substring(0,100)}</td>
                         <td><span className={`badge ${a.statut==='approuve'?'bg-success':a.statut==='refuse'?'bg-danger':'bg-warning text-dark'}`}>{a.statut}</span></td>
                         <td className="text-end"><div className="d-flex gap-1 justify-content-end">
@@ -1207,7 +1211,8 @@ export default function AdminIndex() {
                   </span>
                   {kkStatus.configured && <span className="badge bg-dark">Clé : {kkStatus.public_key_masked}</span>}
                   <span className={`badge ${kkStatus.sandbox?'bg-warning text-dark':'bg-success'}`}>
-                    {kkStatus.sandbox ? '🧪 SANDBOX (test)' : '🚀 PRODUCTION'}
+                    <i className={`fa-solid ${kkStatus.sandbox?'fa-flask':'fa-rocket'} me-1`}></i>
+                    {kkStatus.sandbox ? 'SANDBOX (test)' : 'PRODUCTION'}
                   </span>
                   {kkStatus.simulate_fallback && <span className="badge bg-danger">Simulation activée</span>}
                   <span className="badge bg-info text-dark ms-auto">{kkStatus.base_url}</span>
@@ -1220,7 +1225,7 @@ KKIAPAY_PRIVATE_KEY=...
 KKIAPAY_SECRET=...
 KKIAPAY_SANDBOX=true
 KKIAPAY_FALLBACK_SIMULATE=false`}</pre>
-                    <p className="mt-2 mb-0">👉 Les clés sont sur <a href="https://kkiapay.me/merchant/settings" target="_blank" rel="noreferrer">dashboard.kkiapay.me → Paramètres → API</a></p>
+                    <p className="mt-2 mb-0"><i className="fa-solid fa-hand-point-right me-1"></i>Les clés sont sur <a href="https://kkiapay.me/merchant/settings" target="_blank" rel="noreferrer">dashboard.kkiapay.me → Paramètres → API</a></p>
                   </div>
                 )}
               </div>

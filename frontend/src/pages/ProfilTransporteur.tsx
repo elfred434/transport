@@ -240,11 +240,11 @@ export default function ProfilTransporteur() {
                   onChange={(e) => setNote(e.target.value)}
                 >
                   <option value="">—</option>
-                  <option value="5">★★★★★</option>
-                  <option value="4">★★★★</option>
-                  <option value="3">★★★</option>
-                  <option value="2">★★</option>
-                  <option value="1">★</option>
+                  <option value="5">5 - Excellent</option>
+                  <option value="4">4 - Très bien</option>
+                  <option value="3">3 - Bien</option>
+                  <option value="2">2 - Moyen</option>
+                  <option value="1">1 - Mauvais</option>
                 </select>
               </div>
               <div className="mb-2">
