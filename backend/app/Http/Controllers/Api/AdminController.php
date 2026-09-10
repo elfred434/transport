@@ -444,11 +444,11 @@ class AdminController extends Controller
                 if ($decision === 'confirmer') {
                     $r = DB::transaction(function() use ($etape) {
                         DB::table('suivi_colis')->where('id',$etape->id)->update(['confirme_par_admin'=>1,'demande_livraison'=>0]);
-                        DB::table('reservations')->where('colis_id',$etape->colis_id)->where('statut','accepte')->update(['statut'=>'termine']);
+                        DB::table('reservations')->where('colis_id',$etape->colis_id)->whereIn('statut',['accepte'])->update(['statut'=>'termine']);
                         try { DB::table('notifications_admin')->where('colis_id',$etape->colis_id)->where('type','livraison')->update(['lu'=>1,'updated_at'=>now()]); } catch(\Throwable $e){}
 
                         $info = DB::table('colis as c')
-                            ->join('reservations as r', function($j){$j->on('r.colis_id','=','c.id')->where('r.statut','=','termine');})
+                            ->join('reservations as r', function($j){$j->on('r.colis_id','=','c.id')->whereIn('r.statut',['accepte','termine']);})
                             ->join('voyages as v','v.id','=','r.voyage_id')
                             ->join('users as u','u.id','=','v.user_id')
                             ->select('c.prix_estime','v.user_id as tid')
@@ -459,16 +459,12 @@ class AdminController extends Controller
                             $ct=Pricing::commissionTransporteur((float)$info->prix_estime);
                             $ca=Pricing::commissionAdmin((float)$info->prix_estime);
                             DB::table('transporteurs')->where('user_id',$info->tid)->increment('solde',$ct);
-                            DB::table('admin_wallet')->where('id',1)->increment('solde',$ca);
-                            $ref='BULK-'.$etape->colis_id.'-'.strtoupper(uniqid());
-                            $tel = DB::table('users')->where('id',$info->tid)->value('telephone') ?: '';
-                            DB::table('retraits')->insert([
-                                'user_id'=>$info->tid,'type'=>'transporteur','montant'=>$ct,'frais'=>0,
-                                'montant_net'=>$ct,'statut'=>$tel!==''?'en_attente':'en_attente',
-                                'methode'=>'mobile_money','numero'=>$tel,'reference'=>$ref,
-                                'details'=>'Confirmation groupée colis #'.$etape->colis_id,
-                                'colis_id'=>$etape->colis_id,'date_demande'=>now(),
-                            ]);
+                            if (DB::table('admin_wallet')->where('id',1)->count() === 0) {
+                                DB::table('admin_wallet')->insert(['id'=>1,'solde'=>$ca]);
+                            } else {
+                                DB::table('admin_wallet')->where('id',1)->increment('solde',$ca);
+                            }
+                            // PAS de retrait automatique, PAS de payout instantané
                         }
                         return ['ct'=>$ct,'ca'=>$ca];
                     });
@@ -518,12 +514,18 @@ class AdminController extends Controller
         if ($decision==='confirmer') {
             try {
                 $result = DB::transaction(function () use ($etape,$id){
+                    // 1. Marquer la livraison comme confirmée
                     DB::table('suivi_colis')->where('id',$id)->update(['confirme_par_admin'=>1,'demande_livraison'=>0]);
                     DB::table('reservations')->where('colis_id',$etape->colis_id)->where('statut','accepte')->update(['statut'=>'termine']);
 
-                    // Récupérer prix et transporteur + tel
+                    // Marquer toutes les notifs liées comme lues
+                    try {
+                        DB::table('notifications_admin')->where('colis_id',$etape->colis_id)->where('type','livraison')->update(['lu'=>1,'updated_at'=>now()]);
+                    } catch (\Throwable $e) { /* silencieux */ }
+
+                    // 2. Récupérer prix et infos transporteur
                     $info = DB::table('colis as c')
-                        ->join('reservations as r', function($join){ $join->on('r.colis_id','=','c.id')->where('r.statut','=','termine'); })
+                        ->join('reservations as r', function($join){ $join->on('r.colis_id','=','c.id')->whereIn('r.statut',['accepte','termine']); })
                         ->join('voyages as v','v.id','=','r.voyage_id')
                         ->join('users as u','u.id','=','v.user_id')
                         ->select('c.prix_estime','c.id as colis_id','c.nom_colis','v.user_id as transporteur_id','u.telephone','u.nom','u.prenom','u.email')
@@ -533,83 +535,37 @@ class AdminController extends Controller
 
                     $commissionTransporteur = 0.0;
                     $commissionAdmin = 0.0;
-                    $retraitId = null;
-                    $payoutResult = null;
 
                     if ($info){
                         $prix = (float)$info->prix_estime;
                         $commissionTransporteur = Pricing::commissionTransporteur($prix); // 95%
                         $commissionAdmin = Pricing::commissionAdmin($prix); // 5%
 
-                        // Créditer transporteur solde (temporaire, sera débité après payout auto)
+                        // 3. CRÉDITER le solde transporteur (le solde est disponible pour retrait)
                         DB::table('transporteurs')->where('user_id',$info->transporteur_id)->increment('solde',$commissionTransporteur);
 
-                        // Créditer admin wallet
-                        DB::table('admin_wallet')->where('id',1)->increment('solde',$commissionAdmin);
-                        // Si table vide (pas de ligne 1), créer
+                        // 4. CRÉDITER le wallet admin
                         if (DB::table('admin_wallet')->where('id',1)->count() === 0) {
                             DB::table('admin_wallet')->insert(['id'=>1,'solde'=>$commissionAdmin]);
-                        }
-
-                        // Préparer retrait automatique pour transporteur
-                        $telephone = $info->telephone ?: '';
-                        $reference = 'AUTO-'.$info->colis_id.'-'.strtoupper(uniqid());
-
-                        // Créer retrait en_attente
-                        $retraitId = DB::table('retraits')->insertGetId([
-                            'user_id' => $info->transporteur_id,
-                            'type' => 'transporteur',
-                            'montant' => $commissionTransporteur,
-                            'frais' => 0,
-                            'montant_net' => $commissionTransporteur,
-                            'statut' => 'en_attente',
-                            'methode' => 'mobile_money',
-                            'numero' => $telephone,
-                            'operateur' => null,
-                            'reference' => $reference,
-                            'details' => 'Paiement automatique livraison colis '.$info->nom_colis.' (#'.$info->colis_id.') - Prix estimé '.$prix.' XOF, commission 95% = '.$commissionTransporteur.' XOF',
-                            'colis_id' => $info->colis_id,
-                            'date_demande' => now(),
-                            'traite_par' => null,
-                        ]);
-
-                        // Tenter payout automatique via Kkiapay si numéro présent
-                        if ($telephone !== '') {
-                            try {
-                                $kkiapay = new KkiapayService();
-                                $payoutResult = $kkiapay->payout($telephone, $commissionTransporteur, $reference);
-
-                                $statutPayout = ($payoutResult['status'] ?? 'FAILED') === 'SUCCESS' ? 'paye' : 'echec';
-
-                                DB::table('retraits')->where('id',$retraitId)->update([
-                                    'statut' => $statutPayout,
-                                    'date_traitement' => now(),
-                                    'kkiapay_response' => json_encode($payoutResult),
-                                ]);
-
-                                // Si payout réussi, débiter solde transporteur (argent envoyé)
-                                if ($statutPayout === 'paye') {
-                                    DB::table('transporteurs')->where('user_id',$info->transporteur_id)->decrement('solde',$commissionTransporteur);
-                                }
-
-                            } catch (\Throwable $e) {
-                                Log::error('Payout auto échoué: '.$e->getMessage());
-                                DB::table('retraits')->where('id',$retraitId)->update([
-                                    'statut' => 'echec',
-                                    'kkiapay_response' => json_encode(['error'=>$e->getMessage()]),
-                                ]);
-                            }
                         } else {
-                            // Pas de téléphone -> laisser en_attente pour traitement manuel
-                            Log::warning('Payout auto impossible: téléphone manquant pour transporteur '.$info->transporteur_id);
+                            DB::table('admin_wallet')->where('id',1)->increment('solde',$commissionAdmin);
                         }
+
+                        // NOTE: On NE crée PAS de retrait automatique et on NE déclenche PAS de payout
+                        // Kkiapay ici :
+                        //   - Le transporteur voit son solde crédité dans l'app
+                        //   - Il fait lui-même sa demande de retrait (bouton dans son dashboard)
+                        //   - L'admin valide et clique "Payer" -> à ce moment là payout Kkiapay réel
+                        //   - Pour vos propres commissions admin : vous configurez setupPayoutRoof()
+                        //     qui reverse automatiquement Kkiapay vers votre mobile money quand
+                        //     le seuil est atteint.
                     }
 
                     return [
                         'commission_transporteur' => $commissionTransporteur,
                         'commission_admin' => $commissionAdmin,
-                        'retrait_id' => $retraitId,
-                        'payout' => $payoutResult,
+                        'transporteur_id' => $info->transporteur_id ?? null,
+                        'colis_id' => $info->colis_id ?? $etape->colis_id,
                     ];
                 });
             } catch (\Throwable $e){
@@ -617,13 +573,12 @@ class AdminController extends Controller
                 throw new ApiException('Erreur lors de la confirmation de la livraison: '.$e->getMessage(),500);
             }
             return ApiResponse::success([
-                'message'=>'Livraison confirmée',
+                'message'=>'Livraison confirmée - commissions créditées (95% transporteur / 5% admin)',
                 'commission_transporteur'=>$result['commission_transporteur'],
                 'commission_admin'=>$result['commission_admin'],
                 'commission_rate_transporteur'=>Pricing::COMMISSION_TRANSPORTEUR_RATE,
                 'commission_rate_admin'=>Pricing::COMMISSION_ADMIN_RATE,
-                'retrait_automatique_id'=>$result['retrait_id'],
-                'payout'=>$result['payout'],
+                'note_transporteur'=>'Le transporteur peut maintenant faire une demande de retrait depuis son tableau de bord. Validez et payez via Kkiapay depuis la page Retraits.',
             ]);
         }
         if ($decision==='refuser'){ DB::table('suivi_colis')->where('id',$id)->delete(); return ApiResponse::success(['message'=>'Demande de livraison refusée']); }
@@ -737,5 +692,108 @@ class AdminController extends Controller
     {
         if(DB::table('messages_contact')->where('id',$id)->delete()===0) throw ApiException::notFound('Message introuvable');
         return ApiResponse::success(['message'=>'Message supprimé']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Kkiapay admin
+    // -------------------------------------------------------------------------
+
+    /** GET /api/admin/kkiapay/status — état de la config */
+    public function kkiapayStatus(Request $request): JsonResponse
+    {
+        $k = new KkiapayService();
+        return ApiResponse::success([
+            'configured' => $k->isConfigured(),
+            'sandbox' => $k->isSandbox(),
+            'public_key_masked' => $k->isConfigured() ? substr($k->getPublicKey(),0,8).'...'.substr($k->getPublicKey(),-4) : null,
+            'base_url' => $k->getBaseUrl(),
+            'simulate_fallback' => (bool) env('KKIAPAY_FALLBACK_SIMULATE', false),
+            'admin_phone' => (DB::table('users')->whereIn('role',['admin','super_admin'])->whereNotNull('telephone')->value('telephone')),
+        ]);
+    }
+
+    /** POST /api/admin/kkiapay/setup-payout — configure payout automatique Kkiapay */
+    public function kkiapaySetupPayout(Request $request): JsonResponse
+    {
+        $algorithm = In::str($request, 'algorithm') ?: 'roof';
+        $destination = In::str($request, 'destination');
+        $roofAmount = (float) In::str($request, 'roof_amount') ?: 50000;
+        $frequency = In::str($request, 'frequency') ?: '1w';
+
+        if ($destination === '') {
+            // Utiliser téléphone du super admin par défaut
+            $me = $request->user();
+            $destination = $me->telephone
+                ?: DB::table('users')->whereIn('role',['super_admin','admin'])->whereNotNull('telephone')->value('telephone')
+                : '';
+        }
+        if ($destination === '') throw new ApiException('Numéro de destination requis (ajoutez un téléphone à votre profil admin ou passez-le en paramètre)');
+
+        $k = new KkiapayService();
+        if (!$k->isConfigured()) throw new ApiException('Kkiapay non configuré : renseignez KKIAPAY_PUBLIC_KEY / PRIVATE_KEY / SECRET dans le .env', 503);
+
+        if ($algorithm === 'roof') {
+            $result = $k->setupPayoutRoof($destination, $roofAmount);
+        } elseif ($algorithm === 'rate') {
+            $result = $k->setupPayoutRate($destination, $frequency);
+        } else {
+            throw new ApiException('Algorithme invalide (roof|rate)');
+        }
+
+        // Stocker la config dans une table simple (clé-valeur) si la table existe, sinon juste dans les logs
+        try {
+            DB::table('app_settings')->updateOrInsert(
+                ['setting_key' => 'kkiapay_payout_config'],
+                ['setting_value' => json_encode(['algorithm'=>$algorithm,'destination'=>$destination,'roof_amount'=>$roofAmount,'frequency'=>$frequency,'last_result'=>$result]),'updated_at'=>now()]
+            );
+        } catch (\Throwable $e) {
+            // table app_settings peut ne pas exister, silencieux
+        }
+
+        if (($result['status'] ?? '') === 'SUCCESS') {
+            return ApiResponse::success(['message' => 'Payout automatique Kkiapay configuré', 'result' => $result]);
+        }
+        return ApiResponse::error('Échec configuration payout Kkiapay: '.($result['error'] ?? $result['body'] ?? 'erreur inconnue'), 502, $result);
+    }
+
+    /** GET /api/admin/kkiapay/balance */
+    public function kkiapayBalance(Request $request): JsonResponse
+    {
+        $k = new KkiapayService();
+        if (!$k->isConfigured()) throw new ApiException('Kkiapay non configuré', 503);
+        $result = $k->getBalance();
+        return ApiResponse::success($result);
+    }
+
+    /** GET /api/admin/kkiapay/transactions */
+    public function kkiapayTransactions(Request $request): JsonResponse
+    {
+        $k = new KkiapayService();
+        if (!$k->isConfigured()) throw new ApiException('Kkiapay non configuré', 503);
+        $from = In::queryStr($request, 'from');
+        $to = In::queryStr($request, 'to');
+        $page = max(1, In::int($request, 'page') ?: 1);
+        $result = $k->listTransactions($from ?: null, $to ?: null, $page);
+        return ApiResponse::success($result);
+    }
+
+    /** POST /api/admin/kkiapay/payout-direct — payout manuel direct vers un numéro (Merchant Pro) */
+    public function kkiapayPayoutDirect(Request $request): JsonResponse
+    {
+        $phone = In::str($request, 'phone');
+        $amount = (float) In::str($request, 'amount');
+        $reference = In::str($request, 'reference') ?: 'MANUAL-'.strtoupper(uniqid());
+        $name = In::str($request, 'beneficiary_name');
+
+        if ($phone === '' || $amount <= 0) throw new ApiException('Numéro et montant requis');
+
+        $k = new KkiapayService();
+        if (!$k->isConfigured()) throw new ApiException('Kkiapay non configuré', 503);
+        $result = $k->payout($phone, $amount, $reference, $name ?: null);
+        $status = $result['status'] ?? 'FAILED';
+        return ApiResponse::success([
+            'status' => $status,
+            'result' => $result,
+        ]);
     }
 }

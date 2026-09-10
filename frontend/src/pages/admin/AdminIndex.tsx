@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
    Types
    ============================================================ */
 
-type Section = 'stats' | 'livraisons' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits'
+type Section = 'stats' | 'livraisons' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits' | 'kkiapay'
 
 interface PaginationInfo {
   page: number
@@ -88,7 +88,10 @@ interface AdminPaiement { id:number; reference:string; numero_transaction:string
 interface AdminAvis { id:number; user_prenom:string; user_nom:string; transporteur_id:number; transporteur_prenom:string; transporteur_nom:string; note:number; commentaire:string; date_avis:string; statut:string }
 interface AdminContact { id:number; nom:string; email:string; message:string; reponse:string|null; date_envoi:string; date_reponse:string|null }
 interface AdminWallet { solde:number; total_commission_generee:number; total_paye_transporteurs:number; total_retraits_admin:number }
-interface AdminRetrait { id:number; user_id:number; type:string; montant:number; statut:string; methode:string; numero:string|null; reference:string; details:string|null; colis_id:number|null; nom:string|null; prenom:string|null; email:string|null; nom_colis:string|null; numero_suivi:string|null; date_demande:string; date_traitement:string|null }
+interface AdminRetrait { id:number; user_id:number; type:string; montant:number; statut:string; methode:string; numero:string|null; reference:string; details:string|null; colis_id:number|null; nom:string|null; prenom:string|null; email:string|null; nom_colis:string|null; numero_suivi:string|null; date_demande:string; date_traitement:string|null; kkiapay_response?:string|null }
+interface KkiapayStatus { configured:boolean; sandbox:boolean; public_key_masked:string|null; base_url:string; simulate_fallback:boolean; admin_phone:string|null }
+interface KkiapayBalance { status:string; [k:string]:any }
+
 
 /* ============================================================
    Utilitaires
@@ -187,6 +190,12 @@ export default function AdminIndex() {
   const [livraisons, setLivraisons] = useState<Paginated<PendingLivraison> | null>(null)
   const [selectedLivs, setSelectedLivs] = useState<Set<number>>(new Set())
   const [sectionError, setSectionError] = useState<string | null>(null)
+  const [kkStatus, setKkStatus] = useState<KkiapayStatus | null>(null)
+  const [kkBalance, setKkBalance] = useState<KkiapayBalance | null>(null)
+  const [kkSetupLoading, setKkSetupLoading] = useState(false)
+  const [kkPayoutLoading, setKkPayoutLoading] = useState(false)
+  const [kkPayoutForm, setKkPayoutForm] = useState({ phone:'', amount:'', name:'' })
+  const [kkSetupForm, setKkSetupForm] = useState({ destination:'', roof_amount:'50000' })
 
   // Filtres
   const [uSearch, setUSearch] = useState(''); const [uRole, setURole] = useState(''); const [uPage, setUPage] = useState(1)
@@ -338,6 +347,19 @@ export default function AdminIndex() {
     try { setWallet(await api.get<AdminWallet>('/api/admin/wallet')) } catch (e) { setSectionError(errMsg(e)) }
   }, [])
 
+  const loadKkiapayStatus = useCallback(async () => {
+    setSectionError(null)
+    try {
+      const s = await api.get<KkiapayStatus>('/api/admin/kkiapay/status')
+      setKkStatus(s)
+      if (s.admin_phone) setKkSetupForm(f => ({ ...f, destination: f.destination || s.admin_phone || '' }))
+    } catch (e) { setSectionError(errMsg(e)) }
+  }, [])
+
+  const loadKkiapayBalance = useCallback(async () => {
+    try { setKkBalance(await api.get<KkiapayBalance>('/api/admin/kkiapay/balance')) } catch (e) { toast(errMsg(e),'error') }
+  }, [toast])
+
   // Chargement selon section
   useEffect(() => {
     const loaders: Record<Section, () => void> = {
@@ -353,6 +375,7 @@ export default function AdminIndex() {
       admins: loadAdmins,
       wallet: loadWallet,
       retraits: loadRetraits,
+      kkiapay: () => { loadKkiapayStatus(); loadKkiapayBalance() },
     }
     setSelectedLivs(new Set())
     loaders[section]()
@@ -430,13 +453,12 @@ export default function AdminIndex() {
 
   const onLivraisonDecision = async (id:number, decision:'confirmer'|'refuser', silent=false) => {
     if (!silent && !window.confirm(decision==='confirmer'
-      ? 'Confirmer la livraison ? Transporteur 95% + payout auto sur son numéro, admin 5%.'
+      ? 'Confirmer la livraison ? 95% seront crédités au solde transporteur (il pourra demander un retrait), 5% à ton wallet admin.'
       : 'Refuser la livraison ?')) return
     try {
-      const res = await api.post<{commission_transporteur?:number;commission_admin?:number;payout?:any;message?:string}>(`/api/admin/suivi/${id}/livraison`,{decision})
+      const res = await api.post<{commission_transporteur?:number;commission_admin?:number;payout?:any;message?:string;note_transporteur?:string}>(`/api/admin/suivi/${id}/livraison`,{decision})
       if (decision==='confirmer') {
-        const ps = res.payout?.status==='SUCCESS'?' - Payout auto SUCCESS':res.payout?` - Payout ${res.payout.status}`:''
-        toast(`Livraison confirmée, transporteur ${money(res.commission_transporteur||0)} (95%) + admin ${money(res.commission_admin||0)} (5%)${ps}`)
+        toast(`Livraison confirmée — transporteur ${money(res.commission_transporteur||0)} (95%) + admin ${money(res.commission_admin||0)} (5%)`)
       } else toast('Livraison refusée')
       loadLivraisons(); loadColis(); loadStats(); loadRetraits(); loadWallet()
       setSelectedLivs(prev => { const n = new Set(prev); n.delete(id); return n })
@@ -462,14 +484,55 @@ export default function AdminIndex() {
     setSelectedLivs(all ? new Set() : new Set(livraisons.data.map(l=>l.suivi_id)))
   }
 
-  const onRetraitDecision = async (id:number, decision:'approuve'|'refuse'|'paye'|'echec') => {
+  const onRetraitDecision = async (id:number, decision:'approuve'|'refuse'|'paye'|'echec', forceManuel = false) => {
     const note = window.prompt(`Note pour ${decision} ?`) || ''
-    if (decision !== 'approuve' && !window.confirm(`${decision} ce retrait ?`)) return
+    if (decision !== 'approuve' && !window.confirm(forceManuel
+      ? 'Marquer ce retrait comme PAYÉ MANUELLEMENT (espèces/virement) ? Le payout Kkiapay ne sera PAS tenté.'
+      : `${decision} ce retrait ?${decision==='paye'?' Un payout Kkiapay sera tenté vers le numéro du transporteur.':''}`
+    )) return
     try {
-      const res = await api.post<{message:string;payout?:any}>(`/api/admin/retraits/${id}/decision`,{decision,note})
-      toast(res.message + (res.payout?` - Payout ${res.payout.status}`:''))
+      const res = await api.post<{message:string;payout?:any;manuel?:boolean}>(`/api/admin/retraits/${id}/decision`,{decision,note,force_manuel:forceManuel})
+      toast(res.message + (res.payout && !res.manuel ? ` - Payout ${res.payout.status||''}` : ''))
       loadRetraits(); loadWallet()
+    } catch (err) {
+      // Payout échoué : on affiche l'erreur avec option "forcer manuel"
+      if (decision === 'paye' && !forceManuel && window.confirm(`${errMsg(err)}\n\nVoulez-vous marquer comme PAYÉ MANUELLEMENT ?`)) {
+        return onRetraitDecision(id,'paye',true)
+      }
+      toast(errMsg(err),'error')
+    }
+  }
+
+  const onKkiapaySetupRoof = async (e:React.FormEvent) => {
+    e.preventDefault()
+    setKkSetupLoading(true)
+    try {
+      const res = await api.post<{message:string;result:any}>('/api/admin/kkiapay/setup-payout',{
+        algorithm:'roof',
+        destination:kkSetupForm.destination,
+        roof_amount:parseFloat(kkSetupForm.roof_amount)||50000,
+      })
+      toast(res.message); loadKkiapayStatus()
     } catch (err) { toast(errMsg(err),'error') }
+    finally { setKkSetupLoading(false) }
+  }
+
+  const onKkiapayDirectPayout = async (e:React.FormEvent) => {
+    e.preventDefault()
+    if (!kkPayoutForm.phone || !kkPayoutForm.amount) { toast('Numéro et montant requis','error'); return }
+    if (!window.confirm(`Envoyer ${money(parseFloat(kkPayoutForm.amount))} à ${kkPayoutForm.phone} ?`)) return
+    setKkPayoutLoading(true)
+    try {
+      const res = await api.post<{status:string;result:any}>('/api/admin/kkiapay/payout-direct',{
+        phone:kkPayoutForm.phone,
+        amount:parseFloat(kkPayoutForm.amount),
+        beneficiary_name:kkPayoutForm.name,
+      })
+      toast(`Payout ${res.status}`)
+      setKkPayoutForm({phone:'',amount:'',name:''})
+      loadKkiapayBalance()
+    } catch (err) { toast(errMsg(err),'error') }
+    finally { setKkPayoutLoading(false) }
   }
   const onRetraitRetry = async (id:number) => {
     if (!window.confirm('Retenter payout automatique Kkiapay ?')) return
@@ -536,6 +599,7 @@ export default function AdminIndex() {
           <NavBtn icon="fa-envelope" label="Contact" active={section==='contact'} onClick={()=>setSection('contact')} badge={stats?.messages_contact_non_lus || 0} />
           <NavBtn icon="fa-wallet" label="Wallet" active={section==='wallet'} onClick={()=>setSection('wallet')} />
           <NavBtn icon="fa-money-bill-transfer" label="Retraits" active={section==='retraits'} onClick={()=>setSection('retraits')} badge={stats?.retraits_en_attente || 0} />
+          <NavBtn icon="fa-credit-card" label="Kkiapay" active={section==='kkiapay'} onClick={()=>setSection('kkiapay')} variant="primary" />
           <NavBtn icon="fa-users" label="Utilisateurs" active={section==='users'} onClick={()=>setSection('users')} />
           {isSuperAdmin && <NavBtn icon="fa-crown" label="Admins" active={section==='admins'} onClick={()=>setSection('admins')} variant="warning" />}
         </div>
@@ -1103,7 +1167,8 @@ export default function AdminIndex() {
                         <td className="small text-nowrap">{datetime(r.date_demande)}</td>
                         <td className="text-end"><div className="d-flex gap-1 justify-content-end flex-wrap">
                           {r.statut==='en_attente' && <>
-                            <button className="btn btn-sm btn-success" onClick={()=>onRetraitDecision(r.id,'paye')}><i className="fa-solid fa-money-bill-wave"></i> Payer</button>
+                            <button className="btn btn-sm btn-success" title="Tente un payout Kkiapay direct vers ce numéro (compte Pro requis)" onClick={()=>onRetraitDecision(r.id,'paye')}><i className="fa-solid fa-money-bill-wave"></i> Payer</button>
+                            <button className="btn btn-sm btn-outline-secondary" title="Marquer payé manuellement (espèces/virement/transfert depuis ton téléphone). NE tente PAS de payout Kkiapay." onClick={()=>onRetraitDecision(r.id,'paye',true)}><i className="fa-solid fa-hand-holding-dollar"></i> Manuel</button>
                             <button className="btn btn-sm btn-outline-success" onClick={()=>onRetraitDecision(r.id,'approuve')}>Approuver</button>
                             <button className="btn btn-sm btn-outline-danger" onClick={()=>onRetraitDecision(r.id,'refuse')}>Refuser</button>
                           </>}
@@ -1116,6 +1181,196 @@ export default function AdminIndex() {
                 </table>
               </div>
               <Pagination info={retraits.pagination} onChange={setRPage}/>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ==================== KKIAPAY ==================== */}
+      {section==='kkiapay' && (
+        <div className="page-card">
+          <h5 className="mb-3">
+            <i className="fa-solid fa-credit-card text-primary"></i> Kkiapay — Paiements & Retraits Mobile Money
+          </h5>
+
+          {!kkStatus && <div className="text-muted py-4">Chargement…</div>}
+
+          {kkStatus && (
+            <>
+              {/* État config */}
+              <div className={`alert ${kkStatus.configured?'alert-success':'alert-warning'}`}>
+                <div className="d-flex flex-wrap gap-3 align-items-center">
+                  <span>
+                    <i className={`fa-solid ${kkStatus.configured?'fa-circle-check':'fa-triangle-exclamation'} me-2`}></i>
+                    <strong>Statut :</strong>{' '}
+                    {kkStatus.configured ? 'Clés API configurées' : 'Clés API MANQUANTES (.env)'}
+                  </span>
+                  {kkStatus.configured && <span className="badge bg-dark">Clé : {kkStatus.public_key_masked}</span>}
+                  <span className={`badge ${kkStatus.sandbox?'bg-warning text-dark':'bg-success'}`}>
+                    {kkStatus.sandbox ? '🧪 SANDBOX (test)' : '🚀 PRODUCTION'}
+                  </span>
+                  {kkStatus.simulate_fallback && <span className="badge bg-danger">Simulation activée</span>}
+                  <span className="badge bg-info text-dark ms-auto">{kkStatus.base_url}</span>
+                </div>
+                {!kkStatus.configured && (
+                  <div className="mt-2 mb-0 small">
+                    Ajoutez dans votre fichier <code>.env</code> de Laravel :
+                    <pre className="mt-2 mb-0 bg-light p-2 rounded small">{`KKIAPAY_PUBLIC_KEY=...
+KKIAPAY_PRIVATE_KEY=...
+KKIAPAY_SECRET=...
+KKIAPAY_SANDBOX=true
+KKIAPAY_FALLBACK_SIMULATE=false`}</pre>
+                    <p className="mt-2 mb-0">👉 Les clés sont sur <a href="https://kkiapay.me/merchant/settings" target="_blank" rel="noreferrer">dashboard.kkiapay.me → Paramètres → API</a></p>
+                  </div>
+                )}
+              </div>
+
+              <div className="row g-3">
+                {/* Solde Kkiapay */}
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                      <strong><i className="fa-solid fa-sack-dollar"></i> Solde compte Kkiapay</strong>
+                      <button className="btn btn-sm btn-light" onClick={loadKkiapayBalance}><i className="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <div className="card-body">
+                      {!kkBalance && <div className="text-muted small">Cliquez sur l'icône ↻ pour charger…</div>}
+                      {kkBalance && kkBalance.status !== 'SUCCESS' && (
+                        <div className="alert alert-warning small mb-0">
+                          <i className="fa-solid fa-xmark"></i> Impossible de récupérer le solde :
+                          <pre className="mb-0 mt-2 small">{JSON.stringify(kkBalance, null, 2)}</pre>
+                        </div>
+                      )}
+                      {kkBalance && kkBalance.status === 'SUCCESS' && (
+                        <div className="row g-2 small">
+                          {[
+                            ['Solde disponible','available_balance','text-success'],
+                            ['Solde en opération','operation_balance','text-warning'],
+                            ['Solde total','total_balance','text-primary'],
+                          ].map(([label,key,col]) => {
+                            const val = kkBalance[key] ?? kkBalance[key.replace('_','')] ?? kkBalance.data?.[key] ?? null
+                            return val !== null ? (
+                              <div key={key} className="col-12">
+                                <div className={`d-flex justify-content-between p-2 rounded bg-light ${col} fw-bold`}>
+                                  <span>{label}</span><span>{money(Number(val) || val)}</span>
+                                </div>
+                              </div>
+                            ) : null
+                          })}
+                          <details className="col-12 mt-2">
+                            <summary className="small text-muted cursor-pointer">Réponse brute API</summary>
+                            <pre className="small mt-2 bg-light p-2" style={{maxHeight:200,overflow:'auto'}}>{JSON.stringify(kkBalance,null,2)}</pre>
+                          </details>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payout automatique (roof) */}
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-success text-white py-2">
+                      <strong><i className="fa-solid fa-rotate"></i> Payout automatique (par plafond)</strong>
+                    </div>
+                    <div className="card-body">
+                      <p className="small text-muted mb-3">
+                        Configure Kkiapay pour qu'il <strong>verse automatiquement</strong> l'argent collecté
+                        vers <strong>ton propre numéro Mobile Money</strong> dès qu'un certain montant est atteint.
+                        Minimum Kkiapay : <strong>50 000 FCFA</strong>.
+                      </p>
+                      <form onSubmit={onKkiapaySetupRoof} className="row g-2">
+                        <div className="col-12">
+                          <label className="form-label small">Numéro Mobile Money admin (Bénin)</label>
+                          <input type="tel" className="form-control form-control-sm" placeholder="22997000000"
+                            value={kkSetupForm.destination}
+                            onChange={e=>setKkSetupForm({...kkSetupForm,destination:e.target.value})} required/>
+                          <div className="form-text">Kkiapay enverra un code de vérification à ce numéro.</div>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label small">Plafond de virement (roof_amount) — FCFA</label>
+                          <input type="number" className="form-control form-control-sm" min={50000} step={5000}
+                            value={kkSetupForm.roof_amount}
+                            onChange={e=>setKkSetupForm({...kkSetupForm,roof_amount:e.target.value})} required/>
+                        </div>
+                        <div className="col-12 d-grid">
+                          <button className="btn btn-sm btn-success" disabled={kkSetupLoading || !kkStatus.configured}>
+                            {kkSetupLoading ? <><i className="fa-solid fa-spinner fa-spin"></i> Configuration…</> : <><i className="fa-solid fa-gears"></i> Activer payout automatique</>}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payout direct (Merchant Pro) */}
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-warning text-dark py-2">
+                      <strong><i className="fa-solid fa-paper-plane"></i> Payout direct (Merchant Pro)</strong>
+                    </div>
+                    <div className="card-body">
+                      <div className="alert alert-warning small py-2 mb-2">
+                        <i className="fa-solid fa-circle-info"></i> Cette fonctionnalité est réservée aux comptes
+                        <strong> Kkiapay Merchant Pro</strong>. Sans compte Pro, cette requête échouera (c'est normal).
+                      </div>
+                      <p className="small text-muted mb-2">
+                        Envoie directement de l'argent depuis ton solde Kkiapay vers un numéro Mobile Money.
+                      </p>
+                      <form onSubmit={onKkiapayDirectPayout} className="row g-2">
+                        <div className="col-12 col-sm-8">
+                          <label className="form-label small">Numéro bénéficiaire</label>
+                          <input type="tel" className="form-control form-control-sm" placeholder="22997000000"
+                            value={kkPayoutForm.phone} onChange={e=>setKkPayoutForm({...kkPayoutForm,phone:e.target.value})} required/>
+                        </div>
+                        <div className="col-12 col-sm-4">
+                          <label className="form-label small">Montant FCFA</label>
+                          <input type="number" className="form-control form-control-sm" min={100}
+                            value={kkPayoutForm.amount} onChange={e=>setKkPayoutForm({...kkPayoutForm,amount:e.target.value})} required/>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label small">Nom bénéficiaire (optionnel)</label>
+                          <input type="text" className="form-control form-control-sm"
+                            value={kkPayoutForm.name} onChange={e=>setKkPayoutForm({...kkPayoutForm,name:e.target.value})}/>
+                        </div>
+                        <div className="col-12 d-grid">
+                          <button className="btn btn-sm btn-warning" disabled={kkPayoutLoading || !kkStatus.configured}>
+                            {kkPayoutLoading ? <><i className="fa-solid fa-spinner fa-spin"></i> Envoi…</> : <><i className="fa-solid fa-paper-plane"></i> Envoyer</>}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guide */}
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-info text-dark py-2">
+                      <strong><i className="fa-solid fa-book"></i> Comment ça marche ?</strong>
+                    </div>
+                    <div className="card-body small">
+                      <ol className="mb-0 ps-3">
+                        <li>Les clients payent leurs colis via <strong>le widget Kkiapay</strong> (déjà en place) → l'argent arrive sur ton compte Kkiapay.</li>
+                        <li>Quand tu confirmes une livraison, la base calcule :
+                          <ul>
+                            <li><span className="text-success">95%</span> crédités sur le solde du transporteur (DANS L'APP)</li>
+                            <li><span className="text-primary">5%</span> crédités sur ton wallet admin (DANS L'APP)</li>
+                          </ul>
+                        </li>
+                        <li>Le transporteur voit son solde dans son dashboard et fait une <strong>demande de retrait</strong>.</li>
+                        <li>Tu vas dans l'onglet <strong>Retraits</strong>, tu cliques <strong>« Payer »</strong> :
+                          <ul>
+                            <li>Si payout direct fonctionne (compte Pro), l'argent est envoyé immédiatement.</li>
+                            <li>Sinon, tu as un bouton <strong>« Marquer payé manuellement »</strong> (espèces / virement / Orange Money depuis ton téléphone).</li>
+                          </ul>
+                        </li>
+                        <li>Pour TES commissions (5%), active <strong>Payout automatique</strong> ci-dessus : Kkiapay te reverse tout seul sur ton numéro Mobile Money dès que le seuil est atteint.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>

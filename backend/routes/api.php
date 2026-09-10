@@ -134,6 +134,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Page dédiée : livraisons à confirmer (avec pagination + détails complets + bulk)
         Route::get('livraisons', [AdminController::class, 'livraisons']);
         Route::post('livraisons/bulk', [AdminController::class, 'livraisonsBulk']);
+
+        // Kkiapay (configuration payout automatique, solde, transactions)
+        Route::get('kkiapay/status', [AdminController::class, 'kkiapayStatus']);
+        Route::post('kkiapay/setup-payout', [AdminController::class, 'kkiapaySetupPayout']);
+        Route::get('kkiapay/balance', [AdminController::class, 'kkiapayBalance']);
+        Route::get('kkiapay/transactions', [AdminController::class, 'kkiapayTransactions']);
+        Route::post('kkiapay/payout-direct', [AdminController::class, 'kkiapayPayoutDirect']);
     });
 
     Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])->middleware('admin');

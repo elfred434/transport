@@ -210,38 +210,76 @@ class RetraitController extends Controller
         }
 
         if ($decision === 'paye') {
-            // Tenter payout si transporteur et numéro présent
+            // Si c'est un retrait transporteur avec numéro, on tente payout Kkiapay DIRECT
+            // Le payout direct requiert un compte Merchant Pro Kkiapay.
+            // Si ça échoue, on MARQUE EN ÉCHEC (le solde est alors remboursé) et l'admin peut
+            // - soit réessayer (bouton Réessayer),
+            // - soit payer manuellement (virement/especes) puis forcer "Marquer payé manuellement".
             $payoutResult = null;
-            if ($retrait->type === 'transporteur' && $retrait->numero) {
+            $payoutOk = false;
+            $forceManuel = (bool) $request->input('force_manuel', false);
+
+            if ($retrait->type === 'transporteur' && $retrait->numero && !$forceManuel) {
                 try {
                     $kkiapay = new KkiapayService();
-                    $payoutResult = $kkiapay->payout($retrait->numero, (float)$retrait->montant, $retrait->reference);
+                    $nomBenef = null;
+                    $user = DB::table('users')->where('id', $retrait->user_id)->first();
+                    if ($user) $nomBenef = trim(($user->prenom ?? '').' '.($user->nom ?? ''));
+                    $payoutResult = $kkiapay->payout(
+                        $retrait->numero,
+                        (float)$retrait->montant,
+                        $retrait->reference,
+                        $nomBenef ?: null
+                    );
+                    $payoutOk = ($payoutResult['status'] ?? '') === 'SUCCESS';
                 } catch (\Throwable $e) {
-                    Log::error('Payout adminDecision échoué: '.$e->getMessage());
+                    Log::error('Payout adminDecision exception: '.$e->getMessage());
                     $payoutResult = ['status'=>'FAILED','error'=>$e->getMessage()];
+                    $payoutOk = false;
                 }
+            } else {
+                // Admin retrait OU pas de numéro OU forçage manuel : on marque payé immédiatement
+                $payoutOk = true;
+                $payoutResult = $forceManuel
+                    ? ['status'=>'SUCCESS','source'=>'manuel','note'=>'Paiement manuel forcé par admin']
+                    : null;
             }
 
-            $finalStatut = 'paye';
-            if ($payoutResult && ($payoutResult['status'] ?? '') !== 'SUCCESS') {
-                // Si payout échoué et on est pas en sandbox, marquer echec mais laisser admin forcer paye manuel
-                if (env('KKIAPAY_SANDBOX', true)) {
-                    $finalStatut = 'paye'; // en sandbox on considère payé même si simulé
-                } else {
-                    // On laisse quand même paye si admin force, mais log l'échec
-                    $finalStatut = 'paye';
-                }
+            if ($payoutOk) {
+                DB::table('retraits')->where('id',$id)->update([
+                    'statut' => 'paye',
+                    'date_traitement' => now(),
+                    'traite_par' => $me->id,
+                    'kkiapay_response' => $payoutResult ? json_encode($payoutResult) : $retrait->kkiapay_response,
+                    'details' => ($retrait->details ? $retrait->details."\n" : '').'Payé: '.$note,
+                ]);
+                return ApiResponse::success([
+                    'message' => $forceManuel ? 'Retrait marqué comme payé (manuel)' : 'Retrait payé',
+                    'payout' => $payoutResult,
+                    'manuel' => $forceManuel,
+                ]);
+            }
+
+            // Payout échoué : marquer échec et rembourser le solde (pour que le transporteur
+            // puisse refaire une demande ou que l'admin corrige le numéro)
+            if ($retrait->type === 'transporteur') {
+                DB::table('transporteurs')->where('user_id',$retrait->user_id)->increment('solde',$retrait->montant);
+            } else {
+                DB::table('admin_wallet')->where('id',1)->increment('solde',$retrait->montant);
             }
 
             DB::table('retraits')->where('id',$id)->update([
-                'statut' => $finalStatut,
+                'statut' => 'echec',
                 'date_traitement' => now(),
                 'traite_par' => $me->id,
                 'kkiapay_response' => $payoutResult ? json_encode($payoutResult) : $retrait->kkiapay_response,
-                'details' => ($retrait->details ? $retrait->details."\n" : '').'Payé: '.$note,
+                'details' => ($retrait->details ? $retrait->details."\n" : '').'Échec payout: '.$note. ' | '.($payoutResult['error'] ?? json_encode($payoutResult)),
             ]);
 
-            return ApiResponse::success(['message'=>'Retrait marqué comme payé','payout'=>$payoutResult]);
+            return ApiResponse::error(
+                'Le payout Kkiapay a échoué. Le solde a été recrédité. Détails : '.($payoutResult['error'] ?? 'voir réponse Kkiapay'),
+                ['payout' => $payoutResult, 'tip' => 'Vous pouvez payer manuellement (espèces/virement) et cliquer sur "Marquer payé manuellement", ou corriger le numéro et réessayer.']
+            );
         }
 
         // echec
@@ -299,7 +337,7 @@ class RetraitController extends Controller
         return ApiResponse::success(['message'=>'Retrait admin effectué','id'=>$id,'reference'=>$reference],201);
     }
 
-    /** POST /api/admin/retraits/{id}/retry - retenter payout auto */
+    /** POST /api/admin/retraits/{id}/retry - retenter payout Kkiapay */
     public function adminRetry(Request $request, int $id): JsonResponse
     {
         $retrait = DB::table('retraits')->where('id',$id)->first();
@@ -307,10 +345,23 @@ class RetraitController extends Controller
         if ($retrait->type !== 'transporteur') throw new ApiException('Seuls les retraits transporteur peuvent être retentés');
         if (empty($retrait->numero)) throw new ApiException('Numéro manquant');
 
-        $kkiapay = new KkiapayService();
-        $result = $kkiapay->payout($retrait->numero, (float)$retrait->montant, $retrait->reference);
+        // Si le retrait est en échec, il a été remboursé. Il faut redébiter pour retenter.
+        if ($retrait->statut === 'echec') {
+            $solde = (float)(DB::table('transporteurs')->where('user_id',$retrait->user_id)->value('solde') ?: 0);
+            if ($solde < (float)$retrait->montant) {
+                throw new ApiException('Solde transporteur insuffisant pour retenter (solde: '.$solde.' XOF)');
+            }
+            DB::table('transporteurs')->where('user_id',$retrait->user_id)->decrement('solde',(float)$retrait->montant);
+        }
 
-        $statut = ($result['status'] ?? 'FAILED') === 'SUCCESS' ? 'paye' : 'echec';
+        $kkiapay = new KkiapayService();
+        $nomBenef = null;
+        $u = DB::table('users')->where('id',$retrait->user_id)->first();
+        if ($u) $nomBenef = trim(($u->prenom ?? '').' '.($u->nom ?? ''));
+        $result = $kkiapay->payout($retrait->numero, (float)$retrait->montant, $retrait->reference, $nomBenef ?: null);
+
+        $ok = ($result['status'] ?? '') === 'SUCCESS';
+        $statut = $ok ? 'paye' : 'echec';
 
         DB::table('retraits')->where('id',$id)->update([
             'statut' => $statut,
@@ -319,11 +370,12 @@ class RetraitController extends Controller
             'kkiapay_response' => json_encode($result),
         ]);
 
-        if ($statut === 'echec') {
-            // Rembourser solde si échec et que solde avait été débité
-            // Dans notre flow auto, solde déjà débité si paye, mais si on retente un echec, solde était déjà remboursé? On ne touche pas.
+        if (!$ok) {
+            // Rembourser solde
+            DB::table('transporteurs')->where('user_id',$retrait->user_id)->increment('solde',(float)$retrait->montant);
+            return ApiResponse::error('Payout échoué, solde recrédité. Détails: '.($result['error'] ?? json_encode($result)), 502, ['payout'=>$result]);
         }
 
-        return ApiResponse::success(['message'=>'Tentative payout: '.$statut,'payout'=>$result,'statut'=>$statut]);
+        return ApiResponse::success(['message'=>'Payout réussi, retrait marqué payé','payout'=>$result,'statut'=>$statut]);
     }
 }

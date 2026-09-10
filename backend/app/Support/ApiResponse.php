@@ -24,10 +24,12 @@ final class ApiResponse
         );
     }
 
-    public static function error(string $message, int $status = 400): JsonResponse
+    public static function error(string $message, int $status = 400, mixed $details = null): JsonResponse
     {
+        $payload = ['success' => false, 'error' => $message];
+        if ($details !== null) $payload['details'] = $details;
         return response()->json(
-            ['success' => false, 'error' => $message],
+            $payload,
             $status,
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
