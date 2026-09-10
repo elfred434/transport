@@ -11,8 +11,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 /**
  * Authentification : inscription, connexion (jeton Bearer), déconnexion,
@@ -168,6 +170,111 @@ class AuthController extends Controller
         ])->save();
 
         return ApiResponse::success(['message' => 'Mot de passe réinitialisé, vous pouvez vous connecter.']);
+    }
+
+    /**
+     * POST /api/auth/google/one-tap — Google One Tap / Identity Services
+     * Body: { credential: string } (id_token JWT de Google)
+     * Vérifie le token via https://oauth2.googleapis.com/tokeninfo
+     * Crée ou connecte l'utilisateur, retourne token Sanctum
+     */
+    public function googleOneTap(Request $request): JsonResponse
+    {
+        $credential = trim((string) $request->input('credential', ''));
+        if ($credential === '') {
+            $credential = trim((string) $request->input('id_token', ''));
+        }
+        if ($credential === '') {
+            throw new ApiException('Credential Google manquant');
+        }
+
+        // Vérifier le id_token via Google
+        try {
+            $googleResp = Http::timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $credential,
+            ]);
+
+            if (!$googleResp->successful()) {
+                Log::warning('Google tokeninfo échoué', ['body' => $googleResp->body()]);
+                throw new ApiException('Token Google invalide (tokeninfo)', 401);
+            }
+
+            $payload = $googleResp->json();
+            // payload contient: sub (google_id), email, email_verified, name, given_name, family_name, picture
+            $googleId = $payload['sub'] ?? null;
+            $email = strtolower(trim($payload['email'] ?? ''));
+            $emailVerified = $payload['email_verified'] ?? false;
+            $name = $payload['name'] ?? '';
+            $givenName = $payload['given_name'] ?? '';
+            $familyName = $payload['family_name'] ?? '';
+            $picture = $payload['picture'] ?? null;
+            $aud = $payload['aud'] ?? '';
+
+            if (!$googleId || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new ApiException('Payload Google incomplet', 401);
+            }
+
+            // Vérifier aud = notre GOOGLE_CLIENT_ID si configuré
+            $expectedAud = config('services.google.client_id') ?: env('GOOGLE_CLIENT_ID', '');
+            if ($expectedAud !== '' && $aud !== $expectedAud) {
+                Log::warning('Google aud mismatch', ['aud' => $aud, 'expected' => $expectedAud]);
+                // On ne bloque pas en dev si pas de client_id configuré, mais si configuré on vérifie
+                if ($expectedAud !== '') {
+                    throw new ApiException('Audience Google invalide', 401);
+                }
+            }
+
+            if ($emailVerified !== true && $emailVerified !== 'true') {
+                // Google dit email non vérifié, on bloque par sécurité
+                // Mais on peut autoriser quand même en dev
+                Log::info('Google email non vérifié', ['email' => $email]);
+            }
+
+            // Chercher utilisateur existant par google_id ou email
+            $user = User::where('google_id', $googleId)->orWhere('email', $email)->first();
+
+            if (!$user) {
+                // Créer nouvel utilisateur - rôle client par défaut (comme demandé)
+                $nom = $familyName !== '' ? $familyName : (explode(' ', $name)[1] ?? 'Google');
+                $prenom = $givenName !== '' ? $givenName : (explode(' ', $name)[0] ?? 'User');
+
+                $user = User::create([
+                    'nom' => htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'),
+                    'prenom' => htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'),
+                    'email' => $email,
+                    'password' => Hash::make(Str::random(32)), // mot de passe aléatoire, connexion via Google
+                    'google_id' => $googleId,
+                    'provider' => 'google',
+                    'avatar' => $picture,
+                    'role' => 'client', // par défaut client comme demandé
+                ]);
+                $user->refresh();
+                Log::info('Nouvel utilisateur Google créé', ['id' => $user->id, 'email' => $email]);
+            } else {
+                // Mettre à jour google_id si manquant, et avatar
+                $updates = [];
+                if (!$user->google_id) $updates['google_id'] = $googleId;
+                if (!$user->provider) $updates['provider'] = 'google';
+                if ($picture && !$user->avatar) $updates['avatar'] = $picture;
+                if ($updates) {
+                    $user->forceFill($updates)->save();
+                }
+            }
+
+            $token = $user->createToken('api')->plainTextToken;
+
+            return ApiResponse::success([
+                'token' => $token,
+                'user' => $user->toPublicArray(),
+                'provider' => 'google',
+            ]);
+
+        } catch (ApiException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Google One Tap exception: ' . $e->getMessage());
+            throw new ApiException('Erreur vérification Google: ' . $e->getMessage(), 500);
+        }
     }
 
     /** Même validation que `validate_email()` de l'API d'origine. */

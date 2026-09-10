@@ -29,6 +29,7 @@ Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/reset-request', [AuthController::class, 'resetRequest']);
 Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('auth/google/one-tap', [AuthController::class, 'googleOneTap']);
 Route::post('contact', [ContactController::class, 'send']);
 Route::post('webhooks/kkiapay', [PaiementController::class, 'webhook']);
 Route::get('kkiapay/public-config', [PaiementController::class, 'kkiapayConfig']); // public config (only public_key + sandbox)

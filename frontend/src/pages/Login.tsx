@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, Auth } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import GoogleOneTap from '../components/GoogleOneTap'
 
 interface LoginResponse {
   token: string
@@ -99,6 +100,7 @@ export default function Login() {
               </Link>
             </div>
           </form>
+          <GoogleOneTap mode="login" />
         </div>
       </div>
     </div>

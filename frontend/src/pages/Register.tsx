@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, Auth } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import GoogleOneTap from '../components/GoogleOneTap'
 
 interface RegisterResponse {
   token: string
@@ -99,6 +100,7 @@ export default function Register() {
               </Link>
             </div>
           </form>
+          <GoogleOneTap mode="register" />
         </div>
       </div>
     </div>
