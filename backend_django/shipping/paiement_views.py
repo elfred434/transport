@@ -41,6 +41,8 @@ def paiements_mine(request: Request):
     montant_paye = sum(i["montant"] for i in items if i["statut"] == Paiement.STATUT_PAYE)
     nb_payes = sum(1 for i in items if i["statut"] == Paiement.STATUT_PAYE)
     nb_en_attente = sum(1 for i in items if i["statut"] == Paiement.STATUT_ATTENTE)
+    # On importe le helper Kkiapay depuis views
+    from .views import _kkiapay_cfg_payload
     return api_success({
         "paiements": items,
         "stats": {
@@ -50,6 +52,7 @@ def paiements_mine(request: Request):
             "nb_payes": nb_payes,
             "nb_en_attente": nb_en_attente,
         },
+        "kkiapay": _kkiapay_cfg_payload(),
     })
 
 

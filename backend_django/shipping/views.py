@@ -255,7 +255,12 @@ def paiement_for_colis(request: Request, colis_id: int):
     p = c.paiements.order_by("-date_creation").first()
     if not p:
         return api_error("Aucun paiement pour ce colis", 404)
-    return api_success(PaiementSerializer(p).data)
+    data = PaiementSerializer(p).data
+    # Complète les champs attendus par le front (nom_colis, prix_estime, kkiapay)
+    data["nom_colis"] = c.nom_colis
+    data["prix_estime"] = float(c.prix_estime) if c.prix_estime else 0
+    data["kkiapay"] = _kkiapay_cfg_payload()
+    return api_success(data)
 
 
 @api_view(["POST"])
@@ -458,11 +463,24 @@ def contact_send(request: Request):
 
 
 # ---------- KKiapay public config ----------
+def _kkiapay_is_configured():
+    return bool(
+        settings.KKIAPAY_PUBLIC_KEY
+        and settings.KKIAPAY_PRIVATE_KEY
+        and settings.KKIAPAY_SECRET_KEY
+    )
+
+
+def _kkiapay_cfg_payload():
+    return {
+        "public_key": settings.KKIAPAY_PUBLIC_KEY or "",
+        "sandbox": bool(settings.KKIAPAY_SANDBOX),
+        "enabled": bool(settings.KKIAPAY_PUBLIC_KEY),
+        "configured": _kkiapay_is_configured(),
+    }
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def kkiapay_config(request: Request):
-    return api_success({
-        "public_key": settings.KKIAPAY_PUBLIC_KEY,
-        "sandbox": settings.KKIAPAY_SANDBOX,
-        "enabled": bool(settings.KKIAPAY_PUBLIC_KEY),
-    })
+    return api_success(_kkiapay_cfg_payload())
