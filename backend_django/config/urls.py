@@ -123,6 +123,14 @@ urlpatterns = [
     path("api/profile", cv.profile_dispatch),
     path("api/transporteur-stats", cv.transporteur_stats),
 
+    # Messagerie privée (user ↔ user)
+    path("api/conversations", cv.conversations_list),
+    path("api/messages", cv.messages_thread),
+
+    # Chat avec l'admin
+    path("api/admin-chat", cv.admin_chat),
+    path("api/admin-chat/conversations", cv.admin_chat_conversations),
+
     # Colis (GET+POST)
     path("api/colis", colis_view),
     path("api/colis/mine", sv.colis_mine),

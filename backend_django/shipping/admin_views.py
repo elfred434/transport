@@ -93,15 +93,21 @@ def users_list(request: Request):
             Q(nom__icontains=search) | Q(prenom__icontains=search)
             | Q(email__icontains=search) | Q(telephone__icontains=search)
         )
+
+    def _serialize_user(u):
+        return {
+            "id": u.id, "email": u.email, "nom": u.nom, "prenom": u.prenom,
+            "telephone": u.telephone, "role": u.role,
+            "photo_url": u.photo or None,
+            "date_inscription": u.date_creation.isoformat(),
+        }
+
+    # Mode "liste plate" (utilisé par SuperAdmin.tsx: charge tous les users pour gestion rôles).
+    if request.query_params.get("all") == "1" or request.query_params.get("format") == "list":
+        return api_success([_serialize_user(u) for u in qs.order_by("-date_creation")])
+
     def serialize(objs, many):
-        return [
-            {
-                "id": u.id, "email": u.email, "nom": u.nom, "prenom": u.prenom,
-                "telephone": u.telephone, "role": u.role,
-                "photo_url": u.photo or None,
-                "date_inscription": u.date_creation.isoformat(),
-            } for u in objs
-        ]
+        return [_serialize_user(u) for u in objs]
     res = paginate_queryset(qs.order_by("-date_creation"), request, serializer=serialize)
     return api_success(res)
 
