@@ -14,3 +14,18 @@ Thumbs.db
 # Stockage runtime : uploads des utilisateurs (jamais versionnés)
 backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
+
+# ===== Python / Django =====
+__pycache__/
+*.pyc
+*.pyo
+backend_django/venv/
+backend_django/db.sqlite3
+backend_django/db.sqlite3-journal
+backend_django/media/
+backend_django/staticfiles/
+
+# ===== Node / frontend =====
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

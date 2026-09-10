@@ -1,57 +1,57 @@
 # Transport.bj — Backend Django 5 + DRF
 
 Réécriture complète du backend en Django 5 + Django REST Framework.
-**Tests E2E : 27/27 OK** (cycle complet : inscription → colis → voyage → approbation → réservation → paiement → livraison → commission 95/5 → retrait → payout).
+**Tests E2E : 27/27 OK** (cycle complet: inscription → colis → voyage → approbation → réservation → paiement → livraison → commission 95/5 → retrait → payout).
 
-## Démarrage en 2 commandes
+## Démarrage rapide (à la racine du projet)
 
-### Linux / Mac
-```bash
-cd backend_django
-./run.sh
-```
-(Crée le venv automatiquement au premier lancement, installe les dépendances,
-applique les migrations, crée le compte admin, puis démarre le serveur sur
-http://localhost:8000).
-
-### Windows (PowerShell ou cmd)
-```powershell
-cd backend_django
-run.bat
-```
-
-## Utilisation manuelle (si tu veux contrôler chaque étape)
+Voir le README racine (`../README.md`) ou, en résumé :
 
 ```bash
-# 1. Activer le venv
-source backend_django/venv/bin/activate      # Linux/Mac
-backend_django\venv\Scripts\activate.bat     # Windows
+# 1. Installation une seule fois
+bash ../setup.sh        # Linux/Mac
+#  ou double-clic sur  setup.bat  (Windows)
 
-# 2. Installer les dépendances
-pip install -r backend_django/requirements.txt
-
-# 3. Migrations + admin
-cd backend_django
-python manage.py migrate
-python manage.py shell -c "from accounts.models import User; User.objects.create_superuser(email='admin@transport.bj', password='Admin@12345', nom='Admin', prenom='Super', role='super_admin')"
-
-# 4. Lancer
-python manage.py runserver 0.0.0.0:8000
+# 2. Démarrer
+bash ../run.sh                        # backend + frontend (Linux/Mac)
+#  ou double-clic sur run.bat         # backend seul (Windows)
+#  puis double-clic sur run-frontend.bat  # frontend (Windows)
 ```
 
-## Accès
-- API : http://localhost:8000/api
-- Admin Django : http://localhost:8000/admin/django/ (mêmes identifiants)
-- Compte admin créé : `admin@transport.bj` / `Admin@12345`
+Le backend écoute sur http://localhost:8000/api
+Compte admin auto-créé : `admin@transport.bj` / `Admin@12345`
 
-## Tests E2E
-```bash
-cd ..  # revenir à la racine du projet
-python tests/test_honnete.py
-# → 27/27 OK
-```
+## Structure
+- `config/` — projet Django (settings, urls, wsgi)
+- `accounts/` — auth JWT, User custom, profil
+- `shipping/` — métier (colis, voyages, réservations, paiements, suivi, retraits, avis)
+- `core/` — réponse API standard, pagination, permissions, exceptions
+- `venv/` — environnement virtuel Python (généré par `setup.sh`, non versionné)
+- `requirements.txt` — dépendances Python
+- `manage.py` — entrée Django
 
-## Config .env (optionnel, SQLite par défaut)
+## Routes principales
+| Méthode | Chemin | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Inscription |
+| POST | `/api/auth/login` | Connexion JWT |
+| GET | `/api/auth/me` | Profil courant |
+| POST | `/api/colis` | Créer un colis |
+| GET | `/api/colis/mine` | Mes colis |
+| POST | `/api/voyages` | Proposer un voyage |
+| POST | `/api/reservations` | Réserver un colis |
+| POST | `/api/paiements/{id}/payer` | Payer un colis |
+| POST | `/api/suivi` | Ajouter une étape suivi |
+| GET | `/api/suivi/{numero}` | Suivi public |
+| POST | `/api/retraits` | Demander un retrait |
+| GET | `/api/admin/stats` | Stats admin |
+| GET/POST | `/api/admin/colis` | Liste + changement de statut |
+| GET | `/api/admin/livraisons` | Demandes de livraison en attente |
+| POST | `/api/admin/suivi/{id}/livraison` | Confirmer livraison (commission 95/5) |
+| POST | `/api/admin/retraits/{id}/decision` | Payer/rejeter un retrait |
+| GET | `/api/admin/wallet` | Solde plateforme |
+
+## Config via `.env` (optionnel, SQLite par défaut)
 ```env
 APP_DEBUG=true
 APP_KEY=une-cle-secrete
@@ -67,14 +67,3 @@ KKIAPAY_SECRET_KEY=...
 KKIAPAY_SANDBOX=true
 KKIAPAY_SKIP_SSL_VERIFY=true
 ```
-
-## Structure
-- `config/` — projet Django (settings, urls, wsgi)
-- `accounts/` — auth JWT, User custom, profil
-- `shipping/` — métier (colis, voyages, réservations, paiements, suivi, retraits, avis)
-- `core/` — réponse API standard, pagination, permissions, exceptions
-- `venv/` — environnement virtuel Python (**généré, pas versionné**)
-
-## Fichiers pratiques
-- `activ.sh` / `activ.bat` — active le venv (le crée s'il n'existe pas)
-- `run.sh` / `run.bat` — active + migrate + admin + lance runserver
