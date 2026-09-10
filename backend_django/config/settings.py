@@ -147,9 +147,22 @@ KKIAPAY_SKIP_SSL_VERIFY = (
     os.environ.get("KKIAPAY_SKIP_SSL_VERIFY", "true").lower() == "true"
 )
 
+# ---- Google OAuth / One Tap ----
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5173/auth/google/callback")
+GOOGLE_SKIP_SSL_VERIFY = os.environ.get("GOOGLE_SKIP_SSL_VERIFY", "true").lower() == "true"
+GOOGLE_ALLOW_JWT_FALLBACK = os.environ.get("GOOGLE_ALLOW_JWT_FALLBACK", "true").lower() == "true"
+
 APP_NAME = "Transport.bj"
 APP_VERSION = "3.0-django"
 
-# Commission: transporteur reçoit 95%, plateforme 5%
-COMMISSION_PLATEFORME = 0.05
-MONTANT_MIN_RETRAIT = 1000
+# Commission: transporteur reçoit (1 - X)%, plateforme X% (defaut 5%)
+def _float_env(key, default):
+    try:
+        return float(os.environ.get(key, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.05)
+MONTANT_MIN_RETRAIT = int(_float_env("MONTANT_MIN_RETRAIT", 1000))

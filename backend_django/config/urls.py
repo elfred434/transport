@@ -114,6 +114,7 @@ urlpatterns = [
     # Auth
     path("api/auth/register", av.register),
     path("api/auth/login", av.login),
+    path("api/auth/google/one-tap", av.google_one_tap),
     path("api/auth/logout", av.logout),
     path("api/auth/me", av.me),
     path("api/auth/refresh", TokenRefreshView.as_view()),
