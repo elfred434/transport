@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { Sidebar } from '../components/Sidebar'
 import '../styles/contact-originale.css'
 import '../styles/home-originale.css'
 
 export default function Contact() {
-  const { me, isSuperAdmin, isAdmin, logout } = useAuth()
-  const navigate = useNavigate()
+  const { me } = useAuth()
   const [nom, setNom] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -36,28 +36,6 @@ export default function Contact() {
       setSending(false)
     }
   }
-
-  const onLogout = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    await logout()
-    navigate('/login')
-  }
-
-  // Sidebar links (same as AppLayout but with small logo)
-  const links = [
-    { to: '/dashboard', icon: 'fa-home', label: 'Accueil', show: !!me },
-    { to: '/poster-colis', icon: 'fa-box', label: 'Postez Colis', show: !!me },
-    { to: '/profil', icon: 'fa-user', label: 'Profil', show: !!me },
-    { to: '/liste-messagerie', icon: 'fa-envelope', label: 'Messages', show: !!me },
-    { to: '/messagerie-admin', icon: 'fa-headset', label: "Contacter l'admin", show: !!me },
-    { to: '/colis', icon: 'fa-box-open', label: 'Colis disponibles', show: !!me },
-    { to: '/suivi', icon: 'fa-search-location', label: 'Suivi', show: !!me },
-    { to: '/recherche', icon: 'fa-magnifying-glass', label: 'Recherche', show: !!me },
-    { to: '/reponses', icon: 'fa-reply', label: 'Mes réponses', show: !!me },
-    { to: '/contact', icon: 'fa-phone-alt', label: 'Contact', show: true },
-    { to: '/admin', icon: 'fa-shield-halved', label: 'Administration', show: !!isAdmin },
-    { to: '/super-admin', icon: 'fa-crown', label: 'Super Admin', show: !!isSuperAdmin },
-  ]
 
   const contactContent = (
     <div className="home-originale w-100 d-flex flex-column align-items-center">
@@ -99,33 +77,12 @@ export default function Contact() {
     </div>
   )
 
-  // Si connecté → avec sidebar (comme les autres pages)
+  // Si connecté → avec sidebar COMMUN (même que toutes les autres pages)
   if (me) {
     return (
       <>
         <div id="sidebar">
-          <div className="vertical-menu">
-            <div className="logo-container" style={{padding: '12px 16px'}}>
-              <Link to="/" className="d-flex align-items-center justify-content-center gap-2 text-decoration-none">
-                <img src="/assets/img/OIG1.jpeg" alt="Logo" style={{height: 42, width: 42, borderRadius: '50%', objectFit: 'cover'}} />
-                <span className="fw-bold" style={{color: 'white', fontSize: '1rem'}}>SPIISTMOVE</span>
-              </Link>
-            </div>
-            <div className="user-box" style={{padding: '10px 16px'}}>
-              {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" style={{width: 40, height: 40}} /> : <div className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-1" style={{width: 40, height: 40}}><i className="fas fa-user text-primary"></i></div>}
-              <div className="user-name" style={{fontSize: '0.85rem'}}>{me.prenom} {me.nom}</div>
-              <div className="d-flex gap-1 justify-content-center flex-wrap" style={{fontSize: '0.7rem'}}>
-                <span className="badge bg-light text-dark" style={{fontSize: '0.65rem'}}>{me.role}</span>
-                {isSuperAdmin && <span className="badge bg-warning text-dark" style={{fontSize: '0.6rem'}}><i className="fa-solid fa-crown"></i> Super</span>}
-              </div>
-            </div>
-            <ul className="menu-items">
-              {links.filter(l=>l.show).map(l=>(
-                <li key={l.to}><NavLink to={l.to} className={({ isActive }) => (isActive ? 'active' : '')}><i className={`fas ${l.icon}`}></i> {l.label}</NavLink></li>
-              ))}
-              <li><a href="#" onClick={onLogout}><i className="fas fa-sign-out-alt"></i> Déconnexion</a></li>
-            </ul>
-          </div>
+          <Sidebar />
         </div>
         <div className="content">
           {contactContent}
@@ -134,7 +91,7 @@ export default function Contact() {
     )
   }
 
-  // Si non connecté → version publique avec topbar (comme Home)
+  // Si non connecté → version publique avec topbar
   return (
     <div className="public-body" style={{background: 'var(--light-color)'}}>
       <div className="topbar d-flex justify-content-between align-items-center" style={{background: 'white', boxShadow: '0 1px 6px #0001', padding: '12px 24px'}}>
