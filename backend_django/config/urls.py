@@ -12,10 +12,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from core import views as cv
+from core.password_reset import reset_request, reset_password
 from core.responses import api_success, api_error
 from accounts import views as av
 from shipping import views as sv
 from shipping import admin_views as adv
+from shipping.paiement_views import (
+    paiements_mine, contact_reponses,
+    kkiapay_setup_payout, kkiapay_payout_direct,
+)
 
 
 @api_view(["GET"])
@@ -118,6 +123,8 @@ urlpatterns = [
     path("api/auth/logout", av.logout),
     path("api/auth/me", av.me),
     path("api/auth/refresh", TokenRefreshView.as_view()),
+    path("api/auth/reset-request", reset_request),
+    path("api/auth/reset-password", reset_password),
 
     # Profile
     path("api/profile", cv.profile_dispatch),
@@ -154,6 +161,7 @@ urlpatterns = [
     path("api/reservations/<int:pk>/action", sv.reservation_action),
 
     # Paiements
+    path("api/paiements/mine", paiements_mine),
     path("api/paiements/colis/<int:colis_id>", sv.paiement_for_colis),
     path("api/paiements/<int:pk>/simuler", sv.paiement_simuler),
     path("api/paiements/<int:pk>/payer", sv.paiement_simuler),  # alias utilisé par le front/test
@@ -175,9 +183,9 @@ urlpatterns = [
 
     # Contact / Kkiapay
     path("api/contact", sv.contact_send),
+    path("api/contact/reponses", contact_reponses),
     path("api/kkiapay/public-config", sv.kkiapay_config),
     path("api/webhooks/kkiapay", ok_json),
-    path("api/admin-chat", ok_json),
 
     # ========== ADMIN ==========
     path("api/admin/stats", adv.stats),
@@ -217,6 +225,8 @@ urlpatterns = [
     path("api/admin/wallet", adv.wallet_admin),
     path("api/admin/kkiapay/status", adv.kkiapay_status),
     path("api/admin/kkiapay/balance", adv.kkiapay_balance),
+    path("api/admin/kkiapay/setup-payout", kkiapay_setup_payout),
+    path("api/admin/kkiapay/payout-direct", kkiapay_payout_direct),
     path("api/admin/notifications", ok_empty_list),
 
     path("api/admin/contact-messages/<int:pk>/repondre", adv.contact_reply),

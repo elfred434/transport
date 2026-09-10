@@ -244,6 +244,8 @@ class ContactMessage(TimeStampedModel):
     sujet = models.CharField(max_length=200, blank=True, default="")
     message = models.TextField()
     lu = models.BooleanField(default=False)
+    reponse = models.TextField(blank=True, default="")
+    date_reponse = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "contact_messages"

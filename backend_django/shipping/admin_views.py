@@ -591,14 +591,17 @@ def contact_messages(request: Request):
     qs = ContactMessage.objects.all()
     repondu = request.query_params.get("repondu")
     if repondu == "1":
-        qs = qs.filter(lu=True)
+        qs = qs.exclude(reponse="")
     elif repondu == "0":
-        qs = qs.filter(lu=False)
+        qs = qs.filter(reponse="")
     res = paginate_queryset(qs.order_by("-date_creation"), request, serializer=lambda objs, many: [
-        {"id": m.id, "nom": m.nom, "email": m.email, "message": (m.sujet + " - " + m.message) if m.sujet else m.message,
-         "reponse": None,
+        {"id": m.id, "nom": m.nom, "email": m.email,
+         "sujet": m.sujet or "",
+         "message": m.message,
+         "reponse": m.reponse or None,
          "date_envoi": m.date_creation.isoformat(),
-         "date_reponse": None}
+         "date_reponse": m.date_reponse.isoformat() if m.date_reponse else None,
+         "lu": m.lu}
         for m in objs
     ])
     return api_success(res)
@@ -862,6 +865,11 @@ def contact_reply(request: Request, pk: int):
         m = ContactMessage.objects.get(pk=pk)
     except ContactMessage.DoesNotExist:
         return api_error("Message introuvable", 404)
+    from django.utils import timezone as _tz
+    reponse = (request.data.get("reponse") or "").strip()
     m.lu = True
-    m.save(update_fields=["lu"])
-    return api_success({"message": "Marqué comme lu", "id": m.id})
+    if reponse:
+        m.reponse = reponse
+        m.date_reponse = _tz.now()
+    m.save(update_fields=["lu", "reponse", "date_reponse"] if reponse else ["lu"])
+    return api_success({"message": "Réponse enregistrée" if reponse else "Marqué comme lu", "id": m.id})
