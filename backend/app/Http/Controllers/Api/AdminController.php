@@ -24,6 +24,64 @@ class AdminController extends Controller
     private const ROLES_ADMIN_CAN_SEE = ['client','utilisateur','transporteur'];
     private const ROLES_ASSIGNABLE_ADMIN = ['client','transporteur'];
     private const ROLES_ASSIGNABLE_SUPER = ['client','transporteur','admin','super_admin'];
+    private const DEFAULT_PER_PAGE = 15;
+    private const MAX_PER_PAGE = 100;
+
+    /**
+     * Helper de pagination : prend un QueryBuilder et retourne un objet
+     * paginé standard pour l'API : { data, pagination: {page, per_page, total, last_page} }
+     */
+    private function paginate($query, Request $request, callable $mapFn = null, string $defaultOrder = 'id', string $defaultDir = 'desc'): array
+    {
+        $page = max(1, In::int($request, 'page') ?: 1);
+        $perPage = In::int($request, 'per_page') ?: self::DEFAULT_PER_PAGE;
+        if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
+        if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
+
+        $total = (clone $query)->count();
+        $rows = $query->orderByDesc($defaultOrder)->offset(($page-1)*$perPage)->limit($perPage)->get();
+
+        $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r) => (array)$r)->all();
+
+        return [
+            'data' => $data,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => (int) $total,
+                'last_page' => (int) ceil($total / $perPage),
+                'from' => $total === 0 ? 0 : ($page-1)*$perPage + 1,
+                'to' => min($total, $page*$perPage),
+            ],
+        ];
+    }
+
+    /** Base query pour les livraisons en attente, avec toutes les infos utiles */
+    private function pendingLivraisonsQuery()
+    {
+        return DB::table('suivi_colis as s')
+            ->join('colis as c','c.id','=','s.colis_id')
+            ->leftJoin('users as uc','uc.id','=','c.user_id')
+            ->leftJoin('reservations as r', function($j){
+                $j->on('r.colis_id','=','c.id')->whereIn('r.statut',['accepte','termine']);
+            })
+            ->leftJoin('voyages as v','v.id','=','r.voyage_id')
+            ->leftJoin('users as ut','ut.id','=','v.user_id')
+            ->leftJoin('transporteurs as t','t.user_id','=','ut.id')
+            ->where('s.demande_livraison',1)
+            ->where('s.confirme_par_admin',0)
+            ->where('s.statut','Livré')
+            ->whereRaw('s.date_etape = (SELECT MAX(s2.date_etape) FROM suivi_colis s2 WHERE s2.colis_id = s.colis_id)')
+            ->select(
+                's.id as suivi_id','s.date_etape',
+                'c.id as colis_id','c.nom_colis','c.numero_suivi','c.prix_estime','c.poids','c.ville','c.pays',
+                'c.description','c.adresse_depart','c.adresse_destination','c.image_colis','c.date_post',
+                'uc.id as client_id','uc.nom as client_nom','uc.prenom as client_prenom','uc.telephone as client_tel','uc.email as client_email',
+                'ut.id as transporteur_id','ut.nom as transporteur_nom','ut.prenom as transporteur_prenom',
+                'ut.telephone as transporteur_tel','ut.email as transporteur_email',
+                't.vehicule','t.compagnie','t.ville as transporteur_ville'
+            );
+    }
 
     /** GET /api/admin/stats */
     public function stats(Request $request): JsonResponse
@@ -204,17 +262,15 @@ class AdminController extends Controller
             $query->where('role', $role);
         }
 
-        $users = $query->orderByDesc('date_inscription')->limit(200)->get()
-            ->map(function ($u) {
-                $u = (array) $u;
-                $u['photo_url'] = Files::url($u['photo_profil']);
-                unset($u['photo_profil']);
-                // Normaliser utilisateur -> client pour frontend
-                if ($u['role'] === 'utilisateur') $u['role'] = 'client';
-                return $u;
-            })->all();
+        $result = $this->paginate($query->orderByDesc('date_inscription'), $request, function($u){
+            $u = (array)$u;
+            $u['photo_url'] = Files::url($u['photo_profil']);
+            unset($u['photo_profil']);
+            if ($u['role'] === 'utilisateur') $u['role'] = 'client';
+            return $u;
+        }, 'date_inscription');
 
-        return ApiResponse::success($users);
+        return ApiResponse::success($result);
     }
 
     /** POST /api/admin/users */
@@ -332,8 +388,90 @@ class AdminController extends Controller
             $like = "%$search%";
             $query->where(function ($q) use ($like) { $q->where('c.nom_colis','like',$like)->orWhere('c.numero_suivi','like',$like)->orWhere('c.pays','like',$like)->orWhere('c.ville','like',$like); });
         }
-        $colis = $query->orderByDesc('c.date_post')->limit(200)->get()->map(function ($c){ $c=(array)$c; $c['image_url']=Files::url($c['image_colis']??null); unset($c['image_colis']); return $c; })->all();
-        return ApiResponse::success($colis);
+        $result = $this->paginate($query, $request, function($c){
+            $c=(array)$c; $c['image_url']=Files::url($c['image_colis']??null); unset($c['image_colis']); return $c;
+        }, 'c.date_post');
+        return ApiResponse::success($result);
+    }
+
+    /** GET /api/admin/livraisons — liste paginée des livraisons à confirmer + détails complets */
+    public function livraisons(Request $request): JsonResponse
+    {
+        $query = $this->pendingLivraisonsQuery();
+        $result = $this->paginate($query, $request, function($row){
+            $r = (array)$row;
+            $r['image_url'] = Files::url($r['image_colis'] ?? null);
+            unset($r['image_colis']);
+            $r['commission_transporteur'] = Pricing::commissionTransporteur((float)$r['prix_estime']);
+            $r['commission_admin'] = Pricing::commissionAdmin((float)$r['prix_estime']);
+            return $r;
+        }, 's.date_etape');
+        return ApiResponse::success($result);
+    }
+
+    /** POST /api/admin/livraisons/bulk-action — confirmer/refuser plusieurs suivis d'un coup */
+    public function livraisonsBulk(Request $request): JsonResponse
+    {
+        $decision = In::str($request, 'decision');
+        $ids = $request->input('ids', []);
+        if (!is_array($ids) || empty($ids)) throw new ApiException('Liste d\'identifiants invalide');
+        if (!in_array($decision, ['confirmer','refuser'], true)) throw new ApiException('Décision invalide');
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        $ok = 0; $erreurs = []; $totalCommissions = ['transporteur'=>0.0,'admin'=>0.0];
+        foreach ($ids as $sid) {
+            try {
+                $etape = DB::table('suivi_colis')->where('id',$sid)->where('demande_livraison',1)->first();
+                if (!$etape) { $erreurs[] = "#$sid: introuvable"; continue; }
+
+                if ($decision === 'confirmer') {
+                    $r = DB::transaction(function() use ($etape) {
+                        DB::table('suivi_colis')->where('id',$etape->id)->update(['confirme_par_admin'=>1,'demande_livraison'=>0]);
+                        DB::table('reservations')->where('colis_id',$etape->colis_id)->where('statut','accepte')->update(['statut'=>'termine']);
+                        try { DB::table('notifications_admin')->where('colis_id',$etape->colis_id)->where('type','livraison')->update(['lu'=>1,'updated_at'=>now()]); } catch(\Throwable $e){}
+
+                        $info = DB::table('colis as c')
+                            ->join('reservations as r', function($j){$j->on('r.colis_id','=','c.id')->where('r.statut','=','termine');})
+                            ->join('voyages as v','v.id','=','r.voyage_id')
+                            ->join('users as u','u.id','=','v.user_id')
+                            ->select('c.prix_estime','v.user_id as tid')
+                            ->where('c.id',$etape->colis_id)
+                            ->orderByDesc('r.date_reservation')->first();
+                        $ct=$ca=0;
+                        if ($info){
+                            $ct=Pricing::commissionTransporteur((float)$info->prix_estime);
+                            $ca=Pricing::commissionAdmin((float)$info->prix_estime);
+                            DB::table('transporteurs')->where('user_id',$info->tid)->increment('solde',$ct);
+                            DB::table('admin_wallet')->where('id',1)->increment('solde',$ca);
+                            $ref='BULK-'.$etape->colis_id.'-'.strtoupper(uniqid());
+                            $tel = DB::table('users')->where('id',$info->tid)->value('telephone') ?: '';
+                            DB::table('retraits')->insert([
+                                'user_id'=>$info->tid,'type'=>'transporteur','montant'=>$ct,'frais'=>0,
+                                'montant_net'=>$ct,'statut'=>$tel!==''?'en_attente':'en_attente',
+                                'methode'=>'mobile_money','numero'=>$tel,'reference'=>$ref,
+                                'details'=>'Confirmation groupée colis #'.$etape->colis_id,
+                                'colis_id'=>$etape->colis_id,'date_demande'=>now(),
+                            ]);
+                        }
+                        return ['ct'=>$ct,'ca'=>$ca];
+                    });
+                    $totalCommissions['transporteur'] += $r['ct'];
+                    $totalCommissions['admin'] += $r['ca'];
+                } else {
+                    DB::table('suivi_colis')->where('id',$sid)->delete();
+                }
+                $ok++;
+            } catch (\Throwable $e) {
+                $erreurs[] = "#$sid: ".$e->getMessage();
+            }
+        }
+        return ApiResponse::success([
+            'message'=>"$ok livraison(s) $decision".($erreurs ? ', '.count($erreurs).' erreur(s)':''),
+            'traitees'=>$ok,
+            'erreurs'=>$erreurs,
+            'total_commission_transporteur'=>$totalCommissions['transporteur'],
+            'total_commission_admin'=>$totalCommissions['admin'],
+        ]);
     }
 
     public function colisStatut(Request $request, int $id): JsonResponse
@@ -487,8 +625,8 @@ class AdminController extends Controller
         $query = DB::table('voyages as v')->leftJoin('users as u','v.user_id','=','u.id')->select('v.*','u.nom','u.prenom','u.email')->selectSub(DB::table('reservations as r')->selectRaw('COUNT(*)')->whereColumn('r.voyage_id','v.id'),'nb_reservations');
         if (in_array($statut,self::STATUTS_MODERATION,true)) $query->where('v.statut',$statut);
         if ($search!==''){ $like="%$search%"; $query->where(function($q) use($like){ $q->where('v.pays_depart','like',$like)->orWhere('v.pays_destination','like',$like)->orWhere('u.nom','like',$like)->orWhere('u.prenom','like',$like); }); }
-        $voyages=$query->orderByDesc('v.date_post')->limit(200)->get()->map(fn($row)=>(array)$row)->all();
-        return ApiResponse::success($voyages);
+        $result = $this->paginate($query, $request, null, 'v.date_post');
+        return ApiResponse::success($result);
     }
 
     public function voyageStatut(Request $request,int $id): JsonResponse
@@ -509,8 +647,8 @@ class AdminController extends Controller
         $search=In::queryStr($request,'search');
         $query=DB::table('transporteurs as t')->join('users as u','u.id','=','t.user_id')->select('t.*','u.nom','u.prenom','u.email','u.telephone')->selectSub(DB::table('reservations as r')->join('voyages as v','v.id','=','r.voyage_id')->selectRaw('COUNT(*)')->whereColumn('v.user_id','t.user_id')->whereIn('r.statut',['accepte','termine']),'nb_colis_transportes');
         if($search!==''){ $like="%$search%"; $query->where(function($q) use($like){ $q->where('u.nom','like',$like)->orWhere('u.prenom','like',$like)->orWhere('u.email','like',$like)->orWhere('t.compagnie','like',$like)->orWhere('t.ville','like',$like)->orWhere('t.pays','like',$like); }); }
-        $transporteurs=$query->orderByDesc('t.date_creation')->limit(200)->get()->map(function($t){ $t=(array)$t; $t['photo_vehicule_url']=Files::url($t['photo_vehicule']??null); unset($t['photo_vehicule']); return $t; })->all();
-        return ApiResponse::success($transporteurs);
+        $result = $this->paginate($query, $request, function($t){ $t=(array)$t; $t['photo_vehicule_url']=Files::url($t['photo_vehicule']??null); unset($t['photo_vehicule']); return $t; }, 't.date_creation');
+        return ApiResponse::success($result);
     }
 
     public function transporteurDelete(int $id): JsonResponse
@@ -525,8 +663,8 @@ class AdminController extends Controller
         $query=DB::table('paiements as p')->leftJoin('colis as c','p.colis_id','=','c.id')->leftJoin('users as u','p.user_id','=','u.id')->select('p.*','c.nom_colis','c.numero_suivi','u.nom','u.prenom','u.email');
         if(in_array($statut,self::STATUTS_PAIEMENT,true)) $query->where('p.statut',$statut);
         if($search!==''){ $like="%$search%"; $query->where(function($q) use($like){ $q->where('p.reference','like',$like)->orWhere('p.numero_transaction','like',$like)->orWhere('c.nom_colis','like',$like)->orWhere('u.nom','like',$like); }); }
-        $paiements=$query->orderByDesc('p.date_creation')->limit(200)->get()->map(fn($row)=>(array)$row)->all();
-        return ApiResponse::success($paiements);
+        $result = $this->paginate($query, $request, null, 'p.date_creation');
+        return ApiResponse::success($result);
     }
 
     public function paiementStatut(Request $request,int $id): JsonResponse
@@ -542,8 +680,8 @@ class AdminController extends Controller
         $statut=In::queryStr($request,'statut');
         $query=DB::table('avis as a')->join('users as u1','u1.id','=','a.user_id')->join('users as u2','u2.id','=','a.transporteur_id')->select('a.*','u1.prenom as user_prenom','u1.nom as user_nom','u2.id as transporteur_id','u2.prenom as transporteur_prenom','u2.nom as transporteur_nom');
         if(in_array($statut,self::STATUTS_MODERATION,true)) $query->where('a.statut',$statut);
-        $avis=$query->orderByDesc('a.date_avis')->limit(200)->get()->map(fn($row)=>(array)$row)->all();
-        return ApiResponse::success($avis);
+        $result = $this->paginate($query, $request, null, 'a.date_avis');
+        return ApiResponse::success($result);
     }
 
     public function avisStatut(Request $request,int $id): JsonResponse
@@ -565,9 +703,9 @@ class AdminController extends Controller
         $query=DB::table('messages_contact');
         if($repondu==='oui') $query->whereNotNull('reponse');
         if($repondu==='non') $query->whereNull('reponse');
-        $messages=$query->orderByDesc('date_envoi')->limit(200)->get()->map(fn($row)=>(array)$row)->all();
         DB::table('messages_contact')->where('lu_par_admin',0)->update(['lu_par_admin'=>1]);
-        return ApiResponse::success($messages);
+        $result = $this->paginate($query, $request, null, 'date_envoi');
+        return ApiResponse::success($result);
     }
 
     public function contactRepondre(Request $request,int $id): JsonResponse

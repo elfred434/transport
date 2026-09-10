@@ -19,19 +19,36 @@ use Illuminate\Support\Facades\Log;
  */
 class RetraitController extends Controller
 {
+    private const DEFAULT_PER_PAGE = 15;
+    private const MAX_PER_PAGE = 100;
+
+    private function paginate($query, Request $request, ?callable $mapFn = null, string $defaultOrder = 'date_demande'): array
+    {
+        $page = max(1, In::int($request, 'page') ?: 1);
+        $perPage = In::int($request, 'per_page') ?: self::DEFAULT_PER_PAGE;
+        if ($perPage < 1) $perPage = self::DEFAULT_PER_PAGE;
+        if ($perPage > self::MAX_PER_PAGE) $perPage = self::MAX_PER_PAGE;
+        $total = (clone $query)->count();
+        $rows = $query->orderByDesc($defaultOrder)->offset(($page-1)*$perPage)->limit($perPage)->get();
+        $data = $mapFn ? $rows->map($mapFn)->all() : $rows->map(fn($r)=>(array)$r)->all();
+        return [
+            'data'=>$data,
+            'pagination'=>[
+                'page'=>$page,'per_page'=>$perPage,'total'=>(int)$total,
+                'last_page'=>(int)ceil($total/$perPage),
+                'from'=>$total===0?0:($page-1)*$perPage+1,
+                'to'=>min($total,$page*$perPage),
+            ]
+        ];
+    }
+
     /** GET /api/transporteur/retraits */
     public function transporteurList(Request $request): JsonResponse
     {
         $uid = (int) $request->user()->id;
-        $retraits = DB::table('retraits')
-            ->where('user_id', $uid)
-            ->where('type', 'transporteur')
-            ->orderByDesc('date_demande')
-            ->limit(100)
-            ->get()
-            ->map(fn($r) => (array) $r)
-            ->all();
-        return ApiResponse::success($retraits);
+        $query = DB::table('retraits')->where('user_id',$uid)->where('type','transporteur');
+        $result = $this->paginate($query, $request);
+        return ApiResponse::success($result);
     }
 
     /** POST /api/transporteur/retraits - demande manuelle si solde restant */
@@ -143,9 +160,8 @@ class RetraitController extends Controller
             });
         }
 
-        $retraits = $query->orderByDesc('r.date_demande')->limit(200)->get()->map(fn($r)=>(array)$r)->all();
-
-        return ApiResponse::success($retraits);
+        $result = $this->paginate($query, $request, null, 'r.date_demande');
+        return ApiResponse::success($result);
     }
 
     /** POST /api/admin/retraits/{id}/decision */

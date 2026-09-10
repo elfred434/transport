@@ -130,6 +130,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('notifications', [AdminController::class, 'notifications']);
         Route::post('notifications/{id}/read', [AdminController::class, 'notificationRead'])->whereNumber('id');
         Route::post('notifications/read-all', [AdminController::class, 'notificationsReadAll']);
+
+        // Page dédiée : livraisons à confirmer (avec pagination + détails complets + bulk)
+        Route::get('livraisons', [AdminController::class, 'livraisons']);
+        Route::post('livraisons/bulk', [AdminController::class, 'livraisonsBulk']);
     });
 
     Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])->middleware('admin');
