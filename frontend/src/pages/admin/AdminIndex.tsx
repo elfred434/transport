@@ -1,24 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+
 import { api, ApiError } from '../../lib/api'
-import { date, datetime, money, SmartImg, StatusBadge } from '../../lib/format'
+import { date, datetime, money } from '../../lib/format'
 import { useToast } from '../../components/Toasts'
 import { useAuth } from '../../context/AuthContext'
 
-/** Administration — port de admin/index.html (sections stats/users/colis/voyages/transporteurs/paiements/avis/contact). */
-
-type Section =
-  | 'stats'
-  | 'users'
-  | 'colis'
-  | 'voyages'
-  | 'transporteurs'
-  | 'paiements'
-  | 'avis'
-  | 'contact'
+type Section = 'stats' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins'
 
 interface AdminStats {
   nb_users: number
+  nb_clients: number
+  nb_transporteurs_users: number
+  nb_admins: number
+  nb_super_admins: number
   nb_colis: number
   nb_voyages: number
   nb_transporteurs: number
@@ -31,7 +25,6 @@ interface AdminStats {
   messages_contact_non_lus: number
   nb_avis: number
 }
-
 interface AdminUser {
   id: number
   nom: string
@@ -42,7 +35,6 @@ interface AdminUser {
   role: string
   date_inscription: string
 }
-
 interface AdminColis {
   id: number
   nom_colis: string
@@ -59,7 +51,6 @@ interface AdminColis {
   statut_livraison: string | null
   demande_livraison_id: number | null
 }
-
 interface AdminVoyage {
   id: number
   prenom: string | null
@@ -73,7 +64,6 @@ interface AdminVoyage {
   nb_reservations: number
   statut: string
 }
-
 interface AdminTransporteur {
   id: number
   user_id: number
@@ -89,7 +79,6 @@ interface AdminTransporteur {
   nb_colis_transportes: number
   solde: string | number
 }
-
 interface AdminPaiement {
   id: number
   reference: string
@@ -105,7 +94,6 @@ interface AdminPaiement {
   date_creation: string
   statut: string
 }
-
 interface AdminAvis {
   id: number
   user_prenom: string
@@ -118,7 +106,6 @@ interface AdminAvis {
   date_avis: string
   statut: string
 }
-
 interface AdminContact {
   id: number
   nom: string
@@ -131,37 +118,24 @@ interface AdminContact {
 
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : 'Erreur inconnue')
 
-function StatutSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string
-  options: string[]
-  onChange: (v: string) => void
-}) {
-  return (
-    <select
-      className="form-select form-select-sm"
-      style={{ width: 'auto', display: 'inline-block' }}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  )
+const ROLE_LABELS: Record<string, {label:string, color:string, icon:string}> = {
+  client: {label:'Client', color:'bg-primary', icon:'fa-user'},
+  utilisateur: {label:'Client', color:'bg-primary', icon:'fa-user'},
+  transporteur: {label:'Transporteur', color:'bg-success', icon:'fa-truck'},
+  admin: {label:'Admin', color:'bg-info text-dark', icon:'fa-shield-halved'},
+  super_admin: {label:'Super Admin', color:'bg-warning text-dark', icon:'fa-crown'},
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const r = ROLE_LABELS[role] || {label:role, color:'bg-light text-dark', icon:'fa-user'}
+  return <span className={`badge ${r.color}`}><i className={`fa-solid ${r.icon}`}></i> {r.label}</span>
 }
 
 export default function AdminIndex() {
   const { toast } = useToast()
-  const { me } = useAuth()
+  const { me, isSuperAdmin } = useAuth()
   const [section, setSection] = useState<Section>('stats')
 
-  // ---------- données par section ----------
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [colisList, setColisList] = useState<AdminColis[] | null>(null)
@@ -170,9 +144,9 @@ export default function AdminIndex() {
   const [paiements, setPaiements] = useState<AdminPaiement[] | null>(null)
   const [avis, setAvis] = useState<AdminAvis[] | null>(null)
   const [contacts, setContacts] = useState<AdminContact[] | null>(null)
+  const [admins, setAdmins] = useState<AdminUser[] | null>(null)
   const [sectionError, setSectionError] = useState<string | null>(null)
 
-  // ---------- filtres ----------
   const [uSearch, setUSearch] = useState('')
   const [uRole, setURole] = useState('')
   const [cSearch, setCSearch] = useState('')
@@ -185,21 +159,15 @@ export default function AdminIndex() {
   const [aStatut, setAStatut] = useState('')
   const [ctRepondu, setCtRepondu] = useState('')
 
-  // ---------- modales ----------
   const [userModal, setUserModal] = useState(false)
-  const [userForm, setUserForm] = useState({ nom: '', prenom: '', email: '', password: '', role: 'utilisateur' })
+  const [userForm, setUserForm] = useState({ nom: '', prenom: '', email: '', password: '', role: 'client' })
   const [userModalError, setUserModalError] = useState<string | null>(null)
   const [replyModal, setReplyModal] = useState<{ id: number; nom: string; message: string } | null>(null)
   const [replyText, setReplyText] = useState('')
 
-  // ---------- loaders ----------
   const loadStats = useCallback(async () => {
     setSectionError(null)
-    try {
-      setStats(await api.get<AdminStats>('/api/admin/stats'))
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setStats(await api.get<AdminStats>('/api/admin/stats')) } catch (e) { setSectionError(errMsg(e)) }
   }, [])
 
   const loadUsers = useCallback(async () => {
@@ -207,23 +175,21 @@ export default function AdminIndex() {
     const p = new URLSearchParams()
     if (uSearch.trim()) p.set('search', uSearch.trim())
     if (uRole) p.set('role', uRole)
-    try {
-      setUsers(await api.get<AdminUser[]>('/api/admin/users' + (p.toString() ? '?' + p : '')))
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setUsers(await api.get<AdminUser[]>('/api/admin/users' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [uSearch, uRole])
+
+  const loadAdmins = useCallback(async () => {
+    if (!isSuperAdmin) return
+    setSectionError(null)
+    try { setAdmins(await api.get<AdminUser[]>('/api/super-admin/admins')) } catch (e) { setSectionError(errMsg(e)) }
+  }, [isSuperAdmin])
 
   const loadColis = useCallback(async () => {
     setSectionError(null)
     const p = new URLSearchParams()
     if (cSearch.trim()) p.set('search', cSearch.trim())
     if (cStatut) p.set('statut', cStatut)
-    try {
-      setColisList(await api.get<AdminColis[]>('/api/admin/colis' + (p.toString() ? '?' + p : '')))
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setColisList(await api.get<AdminColis[]>('/api/admin/colis' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [cSearch, cStatut])
 
   const loadVoyages = useCallback(async () => {
@@ -231,24 +197,14 @@ export default function AdminIndex() {
     const p = new URLSearchParams()
     if (vSearch.trim()) p.set('search', vSearch.trim())
     if (vStatut) p.set('statut', vStatut)
-    try {
-      setVoyages(await api.get<AdminVoyage[]>('/api/admin/voyages' + (p.toString() ? '?' + p : '')))
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setVoyages(await api.get<AdminVoyage[]>('/api/admin/voyages' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [vSearch, vStatut])
 
   const loadTransporteurs = useCallback(async () => {
     setSectionError(null)
     const p = new URLSearchParams()
     if (tSearch.trim()) p.set('search', tSearch.trim())
-    try {
-      setTransporteurs(
-        await api.get<AdminTransporteur[]>('/api/admin/transporteurs' + (p.toString() ? '?' + p : '')),
-      )
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setTransporteurs(await api.get<AdminTransporteur[]>('/api/admin/transporteurs' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [tSearch])
 
   const loadPaiements = useCallback(async () => {
@@ -256,40 +212,23 @@ export default function AdminIndex() {
     const p = new URLSearchParams()
     if (pSearch.trim()) p.set('search', pSearch.trim())
     if (pStatut) p.set('statut', pStatut)
-    try {
-      setPaiements(
-        await api.get<AdminPaiement[]>('/api/admin/paiements' + (p.toString() ? '?' + p : '')),
-      )
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setPaiements(await api.get<AdminPaiement[]>('/api/admin/paiements' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [pSearch, pStatut])
 
   const loadAvis = useCallback(async () => {
     setSectionError(null)
     const p = new URLSearchParams()
     if (aStatut) p.set('statut', aStatut)
-    try {
-      setAvis(await api.get<AdminAvis[]>('/api/admin/avis' + (p.toString() ? '?' + p : '')))
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setAvis(await api.get<AdminAvis[]>('/api/admin/avis' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [aStatut])
 
   const loadContact = useCallback(async () => {
     setSectionError(null)
     const p = new URLSearchParams()
     if (ctRepondu) p.set('repondu', ctRepondu)
-    try {
-      setContacts(
-        await api.get<AdminContact[]>('/api/admin/contact-messages' + (p.toString() ? '?' + p : '')),
-      )
-    } catch (e) {
-      setSectionError(errMsg(e))
-    }
+    try { setContacts(await api.get<AdminContact[]>('/api/admin/contact-messages' + (p.toString() ? '?' + p : ''))) } catch (e) { setSectionError(errMsg(e)) }
   }, [ctRepondu])
 
-  // Chargement à chaque changement de section (comme showSection → loaders[name]()).
   useEffect(() => {
     const loaders: Record<Section, () => void> = {
       stats: loadStats,
@@ -300,1055 +239,328 @@ export default function AdminIndex() {
       paiements: loadPaiements,
       avis: loadAvis,
       contact: loadContact,
+      admins: loadAdmins,
     }
     loaders[section]()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section])
+  }, [section, loadStats, loadUsers, loadColis, loadVoyages, loadTransporteurs, loadPaiements, loadAvis, loadContact, loadAdmins])
 
-  // ---------- actions ----------
-  const changeStatut = async (url: string, statut: string, okMsg: string, reload: () => void) => {
-    try {
-      await api.post(url, { statut })
-      toast(okMsg)
-    } catch (e) {
-      toast(errMsg(e), 'error')
-      reload()
-    }
-  }
-
-  const del = async (url: string, confirmMsg: string, okMsg: string, reload: () => void) => {
-    if (!window.confirm(confirmMsg)) return
-    try {
-      await api.del(url)
-      toast(okMsg)
-      reload()
-    } catch (e) {
-      toast(errMsg(e), 'error')
-    }
-  }
-
-  const livraisonDecision = async (id: number, decision: 'confirmer' | 'refuser') => {
-    const msg =
-      decision === 'confirmer'
-        ? 'Confirmer la livraison ? Le transporteur recevra sa commission de 5 %.'
-        : 'Refuser cette demande de livraison ?'
-    if (!window.confirm(msg)) return
-    try {
-      const data = await api.post<{ message: string; commission_transporteur?: string | number | null }>(
-        `/api/admin/suivi/${id}/livraison`,
-        { decision },
-      )
-      toast(
-        data.message +
-          (data.commission_transporteur ? ' — commission : ' + money(data.commission_transporteur) : ''),
-      )
-      loadColis()
-    } catch (e) {
-      toast(errMsg(e), 'error')
-    }
-  }
-
-  const createUser = async (e: React.FormEvent) => {
+  const onCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     setUserModalError(null)
     try {
-      await api.post('/api/admin/users', { ...userForm })
+      await api.post('/api/admin/users', userForm)
+      toast('Utilisateur créé')
       setUserModal(false)
-      setUserForm({ nom: '', prenom: '', email: '', password: '', role: 'utilisateur' })
-      toast('Utilisateur créé.')
+      setUserForm({ nom: '', prenom: '', email: '', password: '', role: 'client' })
       loadUsers()
-    } catch (err) {
-      setUserModalError(errMsg(err))
-    }
+      if (isSuperAdmin) loadAdmins()
+    } catch (err) { setUserModalError(errMsg(err)) }
   }
 
-  const sendReply = async (e: React.FormEvent) => {
+  const onDeleteUser = async (id: number) => {
+    if (!window.confirm('Supprimer cet utilisateur ?')) return
+    try {
+      await api.del(`/api/admin/users/${id}`)
+      toast('Utilisateur supprimé')
+      loadUsers()
+      if (isSuperAdmin) loadAdmins()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
+
+  const onChangeRole = async (id: number, newRole: string) => {
+    if (!window.confirm(`Changer le rôle en ${newRole} ?`)) return
+    try {
+      await api.post(`/api/admin/users/${id}/role`, { role: newRole })
+      toast(`Rôle changé en ${newRole}`)
+      loadUsers()
+      if (isSuperAdmin) loadAdmins()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
+
+  const onColisStatut = async (id: number, statut: string) => {
+    try { await api.post(`/api/admin/colis/${id}/statut`, { statut }); toast(`Colis ${statut}`); loadColis() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onColisDelete = async (id: number) => {
+    if (!window.confirm('Supprimer ce colis ?')) return
+    try { await api.del(`/api/admin/colis/${id}`); toast('Colis supprimé'); loadColis() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onVoyageStatut = async (id: number, statut: string) => {
+    try { await api.post(`/api/admin/voyages/${id}/statut`, { statut }); toast(`Voyage ${statut}`); loadVoyages() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onVoyageDelete = async (id: number) => {
+    if (!window.confirm('Supprimer ce voyage ?')) return
+    try { await api.del(`/api/admin/voyages/${id}`); toast('Voyage supprimé'); loadVoyages() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onTransporteurDelete = async (id: number) => {
+    if (!window.confirm('Supprimer cette fiche transporteur ?')) return
+    try { await api.del(`/api/admin/transporteurs/${id}`); toast('Fiche supprimée'); loadTransporteurs() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onPaiementStatut = async (id: number, statut: string) => {
+    try { await api.post(`/api/admin/paiements/${id}/statut`, { statut }); toast(`Paiement ${statut}`); loadPaiements() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onAvisStatut = async (id: number, statut: string) => {
+    try { await api.post(`/api/admin/avis/${id}/statut`, { statut }); toast(`Avis ${statut}`); loadAvis() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onAvisDelete = async (id: number) => {
+    if (!window.confirm('Supprimer cet avis ?')) return
+    try { await api.del(`/api/admin/avis/${id}`); toast('Avis supprimé'); loadAvis() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onContactDelete = async (id: number) => {
+    if (!window.confirm('Supprimer ce message ?')) return
+    try { await api.del(`/api/admin/contact-messages/${id}`); toast('Message supprimé'); loadContact() } catch (err) { toast(errMsg(err), 'error') }
+  }
+  const onReplyContact = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!replyModal) return
     try {
       await api.post(`/api/admin/contact-messages/${replyModal.id}/repondre`, { reponse: replyText })
+      toast('Réponse envoyée')
       setReplyModal(null)
       setReplyText('')
-      toast('Réponse envoyée.')
       loadContact()
-    } catch (err) {
-      toast(errMsg(err), 'error')
-    }
+    } catch (err) { toast(errMsg(err), 'error') }
   }
-
-  // ---------- rendu ----------
-  const navItems: { key: Section; icon: string; label: string }[] = [
-    { key: 'stats', icon: 'fa-chart-pie', label: 'Statistiques' },
-    { key: 'users', icon: 'fa-users', label: 'Utilisateurs' },
-    { key: 'colis', icon: 'fa-box', label: 'Colis' },
-    { key: 'voyages', icon: 'fa-plane', label: 'Voyages' },
-    { key: 'transporteurs', icon: 'fa-truck', label: 'Transporteurs' },
-    { key: 'paiements', icon: 'fa-credit-card', label: 'Paiements' },
-    { key: 'avis', icon: 'fa-star', label: 'Avis' },
-    { key: 'contact', icon: 'fa-envelope-open-text', label: 'Messages contact' },
-  ]
-
-  const statCard = (icon: string, label: string, value: React.ReactNode, color: string) => (
-    <div className="col-md-3 col-6" key={label}>
-      <div className="page-card text-center h-100">
-        <i className={`fa-solid ${icon} text-${color}`} style={{ fontSize: '1.8rem' }}></i>
-        <div className="fs-4 fw-bold mt-2">{value}</div>
-        <div className="text-muted small">{label}</div>
-      </div>
-    </div>
-  )
+  const onLivraisonDecision = async (id: number, decision: 'confirmer' | 'refuser') => {
+    if (!window.confirm(decision === 'confirmer' ? 'Confirmer la livraison ? Commission 5% versée.' : 'Refuser la livraison ?')) return
+    try {
+      const res = await api.post<{ commission_transporteur?: number }>(`/api/admin/suivi/${id}/livraison`, { decision })
+      toast(decision === 'confirmer' ? `Livraison confirmée, commission ${money(res.commission_transporteur || 0)}` : 'Livraison refusée')
+      loadColis()
+      loadStats()
+    } catch (err) { toast(errMsg(err), 'error') }
+  }
 
   return (
     <>
-      {/* Navigation par sections (équivalent du menu admin vanilla) */}
-      <ul className="nav nav-pills mb-4 flex-wrap gap-1">
-        {navItems.map((n) => (
-          <li className="nav-item" key={n.key}>
-            <button
-              type="button"
-              className={`nav-link ${section === n.key ? 'active' : ''}`}
-              onClick={() => setSection(n.key)}
-            >
-              <i className={`fas ${n.icon}`}></i> {n.label}
-            </button>
-          </li>
-        ))}
-        <li className="nav-item">
-          <Link className="nav-link" to="/admin/messagerie">
-            <i className="fas fa-headset"></i> Messagerie admin
-          </Link>
-        </li>
-        <li className="nav-item">
-          <Link className="nav-link" to="/dashboard">
-            <i className="fas fa-gauge"></i> Vue utilisateur
-          </Link>
-        </li>
-      </ul>
+      <h2 className="mb-4"><i className="fa-solid fa-shield-halved text-primary"></i> Administration {isSuperAdmin && <span className="badge bg-warning text-dark ms-2"><i className="fa-solid fa-crown"></i> Super Admin</span>}</h2>
+
+      <div className="mb-4">
+        <div className="d-flex flex-wrap gap-2">
+          {(['stats','users','colis','voyages','transporteurs','paiements','avis','contact'] as Section[]).map(s=>(
+            <button key={s} className={`btn btn-sm ${section===s?'btn-primary':'btn-outline-primary'}`} onClick={()=>setSection(s)}>{s}</button>
+          ))}
+          {isSuperAdmin && <button className={`btn btn-sm ${section==='admins'?'btn-warning':'btn-outline-warning'}`} onClick={()=>setSection('admins')}><i className="fa-solid fa-crown"></i> Admins</button>}
+        </div>
+        {isSuperAdmin ? <div className="alert alert-warning mt-3 small"><i className="fa-solid fa-crown"></i> Vous êtes Super Admin : vous pouvez gérer tous les rôles, y compris créer/promouvoir des admins.</div> : <div className="alert alert-info mt-3 small"><i className="fa-solid fa-shield-halved"></i> Vous êtes Admin simple : vous gérez clients, transporteurs, colis, voyages, paiements, avis, contacts. La gestion des admins est réservée au Super Admin.</div>}
+      </div>
 
       {sectionError && <div className="alert alert-danger">{sectionError}</div>}
 
-      {/* ============================ STATS ============================ */}
-      {section === 'stats' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-chart-pie text-primary"></i> Statistiques
-          </h2>
-          {!stats ? (
-            <div className="text-muted">Chargement…</div>
-          ) : (
-            <div className="row g-3">
-              {statCard('fa-users', 'Utilisateurs', stats.nb_users, 'primary')}
-              {statCard('fa-box', 'Colis', stats.nb_colis, 'primary')}
-              {statCard('fa-plane', 'Voyages', stats.nb_voyages, 'primary')}
-              {statCard('fa-truck', 'Transporteurs', stats.nb_transporteurs, 'primary')}
-              {statCard('fa-hourglass-half', 'Colis en attente', stats.colis_en_attente, 'warning')}
-              {statCard('fa-hourglass-half', 'Voyages en attente', stats.voyages_en_attente, 'warning')}
-              {statCard('fa-star', 'Avis en attente', stats.avis_en_attente, 'warning')}
-              {statCard('fa-truck-fast', 'Demandes de livraison', stats.demandes_livraison, 'danger')}
-              {statCard('fa-credit-card', 'Paiements', stats.nb_paiements, 'info')}
-              {statCard('fa-money-bill-wave', 'Total payé', money(stats.montant_total_paye), 'success')}
-              {statCard('fa-comment-dots', 'Messages contact non lus', stats.messages_contact_non_lus, 'secondary')}
-              {statCard('fa-star', 'Avis publiés', stats.nb_avis, 'warning')}
+      {section==='stats' && stats && (
+        <div className="row g-3">
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_users}</div><div className="text-muted small">Utilisateurs totaux</div><div className="small mt-2"><RoleBadge role="client" /> {stats.nb_clients} | <RoleBadge role="transporteur" /> {stats.nb_transporteurs_users}<br/><RoleBadge role="admin" /> {stats.nb_admins} | <RoleBadge role="super_admin" /> {stats.nb_super_admins}</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_colis}</div><div className="text-muted small">Colis</div><div className="small text-warning">{stats.colis_en_attente} en attente</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_voyages}</div><div className="text-muted small">Voyages</div><div className="small text-warning">{stats.voyages_en_attente} en attente</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_transporteurs}</div><div className="text-muted small">Fiches transporteurs</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_paiements}</div><div className="text-muted small">Paiements</div><div className="small text-success">{money(stats.montant_total_paye)} payés</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.nb_avis}</div><div className="text-muted small">Avis</div><div className="small text-warning">{stats.avis_en_attente} en attente</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.demandes_livraison}</div><div className="text-muted small">Livraisons à confirmer</div></div></div>
+          <div className="col-md-3"><div className="page-card text-center"><div className="fs-4 fw-bold">{stats.messages_contact_non_lus}</div><div className="text-muted small">Messages contact non lus</div></div></div>
+        </div>
+      )}
+
+      {section==='users' && (
+        <div className="page-card">
+          <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 className="mb-0">Utilisateurs {isSuperAdmin ? '(tous rôles)' : '(clients & transporteurs)'}</h5>
+            <button className="btn btn-primary btn-sm" onClick={()=>setUserModal(true)}><i className="fa-solid fa-user-plus"></i> Créer utilisateur</button>
+          </div>
+          <div className="row g-2 mb-3">
+            <div className="col-md-4"><input className="form-control form-control-sm" placeholder="Recherche nom/email" value={uSearch} onChange={e=>setUSearch(e.target.value)} /></div>
+            <div className="col-md-3">
+              <select className="form-select form-select-sm" value={uRole} onChange={e=>setURole(e.target.value)}>
+                <option value="">Tous rôles {isSuperAdmin ? '' : '(clients/transp.)'}</option>
+                <option value="client">Client</option>
+                <option value="transporteur">Transporteur</option>
+                {isSuperAdmin && <><option value="admin">Admin</option><option value="super_admin">Super Admin</option></>}
+              </select>
             </div>
-          )}
-        </section>
-      )}
-
-      {/* ============================ USERS ============================ */}
-      {section === 'users' && (
-        <section>
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h2 className="mb-0">
-              <i className="fa-solid fa-users text-primary"></i> Utilisateurs
-            </h2>
-            <button className="btn btn-primary" onClick={() => setUserModal(true)}>
-              <i className="fa-solid fa-user-plus"></i> Créer un utilisateur
-            </button>
+            <div className="col-md-2"><button className="btn btn-outline-primary btn-sm w-100" onClick={loadUsers}>Filtrer</button></div>
           </div>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadUsers()
-              }}
-            >
-              <div className="col-md-4">
-                <label className="form-label">Recherche</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Nom, prénom, email…"
-                  value={uSearch}
-                  onChange={(e) => setUSearch(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Rôle</label>
-                <select className="form-select" value={uRole} onChange={(e) => setURole(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="utilisateur">Utilisateur</option>
-                  <option value="transporteur">Transporteur</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!users ? (
-              <div className="text-muted">Chargement…</div>
-            ) : users.length === 0 ? (
-              <p className="text-muted">Aucun utilisateur.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Nom</th>
-                      <th>Email</th>
-                      <th>Téléphone</th>
-                      <th>Rôle</th>
-                      <th>Inscription</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id}>
-                        <td>{u.id}</td>
-                        <td>
-                          {u.photo_url && (
-                            <img
-                              src={u.photo_url}
-                              className="rounded-circle me-2"
-                              style={{ width: 32, height: 32, objectFit: 'cover' }}
-                              alt=""
-                            />
-                          )}
-                          {u.prenom} {u.nom}
-                        </td>
-                        <td>{u.email}</td>
-                        <td>{u.telephone || '—'}</td>
-                        <td>
-                          <span
-                            className={`badge ${
-                              u.role === 'admin'
-                                ? 'bg-danger'
-                                : u.role === 'transporteur'
-                                  ? 'bg-info text-dark'
-                                  : 'bg-secondary'
-                            }`}
-                          >
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="small">{date(u.date_inscription)}</td>
-                        <td className="text-end">
-                          <Link
-                            className="btn btn-sm btn-outline-primary"
-                            to={'/admin/messagerie?user_id=' + u.id}
-                            title="Message"
-                          >
-                            <i className="fa-solid fa-envelope"></i>
-                          </Link>{' '}
-                          {u.id !== me?.id && (
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() =>
-                                del(
-                                  '/api/admin/users/' + u.id,
-                                  'Supprimer définitivement ' + u.prenom + ' ' + u.nom + ' ?',
-                                  'Utilisateur supprimé.',
-                                  loadUsers,
-                                )
-                              }
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ COLIS ============================ */}
-      {section === 'colis' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-box text-primary"></i> Colis
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadColis()
-              }}
-            >
-              <div className="col-md-4">
-                <label className="form-label">Recherche</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Nom, suivi, ville…"
-                  value={cSearch}
-                  onChange={(e) => setCSearch(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Statut</label>
-                <select className="form-select" value={cStatut} onChange={(e) => setCStatut(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="en_attente">En attente</option>
-                  <option value="approuve">Approuvé</option>
-                  <option value="refuse">Refusé</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!colisList ? (
-              <div className="text-muted">Chargement…</div>
-            ) : colisList.length === 0 ? (
-              <p className="text-muted">Aucun colis.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Colis</th>
-                      <th>Client</th>
-                      <th>Destination</th>
-                      <th>Prix</th>
-                      <th>Statut</th>
-                      <th>Livraison</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {colisList.map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          <SmartImg url={c.image_url} alt={c.nom_colis} className="img-colis" />
-                          <Link to={`/colis/${c.id}`} className="ms-2">
-                            {c.nom_colis}
-                          </Link>
-                          <div className="small text-muted">
-                            <code>{c.numero_suivi}</code>
-                          </div>
-                        </td>
-                        <td>
-                          {c.prenom || ''} {c.nom || ''}
-                          <div className="small text-muted">{c.email || ''}</div>
-                        </td>
-                        <td>
-                          {c.ville}, {c.pays}
-                          <div className="small text-muted">{c.poids} kg</div>
-                        </td>
-                        <td>{money(c.prix_estime)}</td>
-                        <td>
-                          <StatutSelect
-                            value={c.statut}
-                            options={['en_attente', 'approuve', 'refuse']}
-                            onChange={(v) =>
-                              changeStatut(
-                                '/api/admin/colis/' + c.id + '/statut',
-                                v,
-                                'Statut du colis mis à jour.',
-                                loadColis,
-                              )
-                            }
-                          />
-                        </td>
-                        <td>
-                          {c.statut_livraison ? <StatusBadge statut={c.statut_livraison} /> : '—'}
-                          {c.demande_livraison_id && (
-                            <div className="mt-1 d-flex gap-1">
-                              <button
-                                className="btn btn-sm btn-success"
-                                title="Confirmer la livraison (+5% transporteur)"
-                                onClick={() => livraisonDecision(c.demande_livraison_id!, 'confirmer')}
-                              >
-                                <i className="fa-solid fa-check"></i>
-                              </button>
-                              <button
-                                className="btn btn-sm btn-danger"
-                                title="Refuser"
-                                onClick={() => livraisonDecision(c.demande_livraison_id!, 'refuser')}
-                              >
-                                <i className="fa-solid fa-xmark"></i>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() =>
-                              del('/api/admin/colis/' + c.id, 'Supprimer ce colis ?', 'Colis supprimé.', loadColis)
-                            }
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ VOYAGES ============================ */}
-      {section === 'voyages' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-plane text-primary"></i> Voyages
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadVoyages()
-              }}
-            >
-              <div className="col-md-4">
-                <label className="form-label">Recherche</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Pays, transporteur…"
-                  value={vSearch}
-                  onChange={(e) => setVSearch(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Statut</label>
-                <select className="form-select" value={vStatut} onChange={(e) => setVStatut(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="en_attente">En attente</option>
-                  <option value="approuve">Approuvé</option>
-                  <option value="refuse">Refusé</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!voyages ? (
-              <div className="text-muted">Chargement…</div>
-            ) : voyages.length === 0 ? (
-              <p className="text-muted">Aucun voyage.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Transporteur</th>
-                      <th>Trajet</th>
-                      <th>Départ</th>
-                      <th>Poids max</th>
-                      <th>Réservations</th>
-                      <th>Statut</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {voyages.map((v) => (
-                      <tr key={v.id}>
-                        <td>{v.id}</td>
-                        <td>
-                          {v.prenom || ''} {v.nom || ''}
-                          <div className="small text-muted">{v.email || ''}</div>
-                        </td>
-                        <td>
-                          {v.pays_depart} → {v.pays_destination}
-                        </td>
-                        <td>
-                          {date(v.date_depart)}{' '}
-                          <span className="small text-muted">{(v.heure_depart || '').substring(0, 5)}</span>
-                        </td>
-                        <td>{v.poids_max} kg</td>
-                        <td>
-                          <span className="badge bg-secondary">{v.nb_reservations}</span>
-                        </td>
-                        <td>
-                          <StatutSelect
-                            value={v.statut}
-                            options={['en_attente', 'approuve', 'refuse']}
-                            onChange={(val) =>
-                              changeStatut(
-                                '/api/admin/voyages/' + v.id + '/statut',
-                                val,
-                                'Statut du voyage mis à jour.',
-                                loadVoyages,
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() =>
-                              del('/api/admin/voyages/' + v.id, 'Supprimer ce voyage ?', 'Voyage supprimé.', loadVoyages)
-                            }
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ TRANSPORTEURS ============================ */}
-      {section === 'transporteurs' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-truck text-primary"></i> Transporteurs
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadTransporteurs()
-              }}
-            >
-              <div className="col-md-4">
-                <label className="form-label">Recherche</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Nom, compagnie, ville…"
-                  value={tSearch}
-                  onChange={(e) => setTSearch(e.target.value)}
-                />
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!transporteurs ? (
-              <div className="text-muted">Chargement…</div>
-            ) : transporteurs.length === 0 ? (
-              <p className="text-muted">Aucun transporteur.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Transporteur</th>
-                      <th>Véhicule</th>
-                      <th>Compagnie</th>
-                      <th>Zone</th>
-                      <th>Colis transportés</th>
-                      <th>Solde</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transporteurs.map((t) => (
-                      <tr key={t.id}>
-                        <td>
-                          <Link to={'/profil-transporteur?id=' + t.user_id}>
-                            {t.prenom} {t.nom}
-                          </Link>
-                          <div className="small text-muted">
-                            {t.email} · {t.telephone || ''}
-                          </div>
-                        </td>
-                        <td>
-                          {t.vehicule || '—'}
-                          <div className="small text-muted">Permis : {t.numero_permis || '—'}</div>
-                        </td>
-                        <td>{t.compagnie || '—'}</td>
-                        <td>
-                          {t.ville || ''} {t.pays || ''}
-                        </td>
-                        <td>{t.nb_colis_transportes}</td>
-                        <td>
-                          <strong className="text-success">{money(t.solde)}</strong>
-                        </td>
-                        <td className="text-end">
-                          <Link className="btn btn-sm btn-outline-primary" to={'/admin/messagerie?user_id=' + t.user_id}>
-                            <i className="fa-solid fa-envelope"></i>
-                          </Link>{' '}
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() =>
-                              del(
-                                '/api/admin/transporteurs/' + t.id,
-                                'Supprimer cette fiche transporteur ? (le compte utilisateur est conservé)',
-                                'Fiche supprimée.',
-                                loadTransporteurs,
-                              )
-                            }
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ PAIEMENTS ============================ */}
-      {section === 'paiements' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-credit-card text-primary"></i> Paiements
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadPaiements()
-              }}
-            >
-              <div className="col-md-4">
-                <label className="form-label">Recherche</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Référence, colis, client…"
-                  value={pSearch}
-                  onChange={(e) => setPSearch(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Statut</label>
-                <select className="form-select" value={pStatut} onChange={(e) => setPStatut(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="en_attente">En attente</option>
-                  <option value="paye">Payé</option>
-                  <option value="echec">Échec</option>
-                  <option value="annule">Annulé</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!paiements ? (
-              <div className="text-muted">Chargement…</div>
-            ) : paiements.length === 0 ? (
-              <p className="text-muted">Aucun paiement.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Référence</th>
-                      <th>Client</th>
-                      <th>Colis</th>
-                      <th>Montant</th>
-                      <th>Méthode</th>
-                      <th>Date</th>
-                      <th>Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paiements.map((p) => (
-                      <tr key={p.id}>
-                        <td className="small">
-                          <code>{p.reference}</code>
-                          {p.numero_transaction && <div className="text-muted">{p.numero_transaction}</div>}
-                        </td>
-                        <td>
-                          {p.prenom || ''} {p.nom || ''}
-                          <div className="small text-muted">{p.email || ''}</div>
-                        </td>
-                        <td>
-                          {p.nom_colis || '—'}
-                          <div className="small text-muted">{p.numero_suivi || ''}</div>
-                        </td>
-                        <td>{money(p.montant)}</td>
-                        <td className="small">
-                          {p.methode_paiement || '—'}
-                          {p.operateur ? ' (' + p.operateur + ')' : ''}
-                        </td>
-                        <td className="small">{datetime(p.date_creation)}</td>
-                        <td>
-                          <StatutSelect
-                            value={p.statut}
-                            options={['en_attente', 'paye', 'echec', 'annule']}
-                            onChange={(v) =>
-                              changeStatut(
-                                '/api/admin/paiements/' + p.id + '/statut',
-                                v,
-                                'Statut du paiement mis à jour.',
-                                loadPaiements,
-                              )
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ AVIS ============================ */}
-      {section === 'avis' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-star text-primary"></i> Avis
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadAvis()
-              }}
-            >
-              <div className="col-md-3">
-                <label className="form-label">Statut</label>
-                <select className="form-select" value={aStatut} onChange={(e) => setAStatut(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="en_attente">En attente</option>
-                  <option value="approuve">Approuvé</option>
-                  <option value="refuse">Refusé</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!avis ? (
-              <div className="text-muted">Chargement…</div>
-            ) : avis.length === 0 ? (
-              <p className="text-muted">Aucun avis.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Auteur</th>
-                      <th>Transporteur</th>
-                      <th>Note</th>
-                      <th>Commentaire</th>
-                      <th>Date</th>
-                      <th>Statut</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {avis.map((a) => (
-                      <tr key={a.id}>
-                        <td>
-                          {a.user_prenom} {a.user_nom}
-                        </td>
-                        <td>
-                          <Link to={'/profil-transporteur?id=' + a.transporteur_id}>
-                            {a.transporteur_prenom} {a.transporteur_nom}
-                          </Link>
-                        </td>
-                        <td>{'★'.repeat(a.note) + '☆'.repeat(5 - a.note)}</td>
-                        <td className="small" style={{ maxWidth: 320 }}>
-                          {a.commentaire}
-                        </td>
-                        <td className="small">{date(a.date_avis)}</td>
-                        <td>
-                          <StatutSelect
-                            value={a.statut}
-                            options={['en_attente', 'approuve', 'refuse']}
-                            onChange={(v) =>
-                              changeStatut(
-                                '/api/admin/avis/' + a.id + '/statut',
-                                v,
-                                "Statut de l'avis mis à jour.",
-                                loadAvis,
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() =>
-                              del('/api/admin/avis/' + a.id, 'Supprimer cet avis ?', 'Avis supprimé.', loadAvis)
-                            }
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ============================ CONTACT ============================ */}
-      {section === 'contact' && (
-        <section>
-          <h2 className="mb-4">
-            <i className="fa-solid fa-envelope-open-text text-primary"></i> Messages de contact
-          </h2>
-          <div className="page-card">
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                loadContact()
-              }}
-            >
-              <div className="col-md-3">
-                <label className="form-label">État</label>
-                <select className="form-select" value={ctRepondu} onChange={(e) => setCtRepondu(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="non">Sans réponse</option>
-                  <option value="oui">Répondus</option>
-                </select>
-              </div>
-              <div className="col-md-2">
-                <button className="btn btn-outline-primary w-100" type="submit">
-                  Filtrer
-                </button>
-              </div>
-            </form>
-
-            {!contacts ? (
-              <div className="text-muted">Chargement…</div>
-            ) : contacts.length === 0 ? (
-              <p className="text-muted">Aucun message de contact.</p>
-            ) : (
-              contacts.map((m) => (
-                <div key={m.id} className="border rounded-3 p-3 mb-3">
-                  <div className="d-flex justify-content-between flex-wrap">
-                    <div>
-                      <strong>{m.nom}</strong>
-                      <a href={'mailto:' + m.email} className="small ms-2">
-                        {m.email}
-                      </a>
-                      {m.reponse ? (
-                        <span className="badge bg-success ms-2">Répondu</span>
+          {!users && <div className="text-muted">Chargement…</div>}
+          {users && (
+            <div className="table-responsive"><table className="table table-sm align-middle">
+              <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Inscrit</th><th>Actions</th></tr></thead>
+              <tbody>{users.map(u=>(
+                <tr key={u.id}>
+                  <td>{u.id}</td>
+                  <td>{u.prenom} {u.nom}</td>
+                  <td className="small">{u.email}</td>
+                  <td><RoleBadge role={u.role} /></td>
+                  <td className="small">{date(u.date_inscription)}</td>
+                  <td>
+                    <div className="d-flex gap-1 flex-wrap">
+                      {isSuperAdmin ? (
+                        <select className="form-select form-select-sm" style={{width:'auto'}} value={u.role} onChange={e=>onChangeRole(u.id, e.target.value)}>
+                          <option value="client">Client</option>
+                          <option value="transporteur">Transporteur</option>
+                          <option value="admin">Admin</option>
+                          <option value="super_admin">Super Admin</option>
+                        </select>
                       ) : (
-                        <span className="badge bg-warning text-dark ms-2">Sans réponse</span>
+                        <select className="form-select form-select-sm" style={{width:'auto'}} value={u.role} onChange={e=>onChangeRole(u.id, e.target.value)}>
+                          <option value="client">Client</option>
+                          <option value="transporteur">Transporteur</option>
+                        </select>
                       )}
+                      <button className="btn btn-sm btn-outline-danger" onClick={()=>onDeleteUser(u.id)} disabled={u.id===me?.id}><i className="fa-solid fa-trash"></i></button>
                     </div>
-                    <small className="text-muted">{datetime(m.date_envoi)}</small>
-                  </div>
-                  <p className="mt-2 mb-2" style={{ whiteSpace: 'pre-line' }}>
-                    {m.message}
-                  </p>
-                  {m.reponse && (
-                    <div className="alert alert-success small mb-2">
-                      <strong>Réponse ({datetime(m.date_reponse)}) :</strong>
-                      <br />
-                      <span style={{ whiteSpace: 'pre-line' }}>{m.reponse}</span>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+
+      {section==='admins' && isSuperAdmin && (
+        <div className="page-card">
+          <h5 className="mb-3"><i className="fa-solid fa-crown text-warning"></i> Gestion des Administrateurs (Super Admin uniquement)</h5>
+          {!admins && <div className="text-muted">Chargement…</div>}
+          {admins && (
+            <div className="table-responsive"><table className="table align-middle">
+              <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Inscrit</th><th>Actions</th></tr></thead>
+              <tbody>{admins.map(a=>(
+                <tr key={a.id}>
+                  <td>{a.id}</td>
+                  <td>{a.prenom} {a.nom}</td>
+                  <td>{a.email}</td>
+                  <td><RoleBadge role={a.role} /></td>
+                  <td className="small">{date(a.date_inscription)}</td>
+                  <td>
+                    <div className="d-flex gap-1">
+                      {a.role==='admin' && <button className="btn btn-sm btn-warning" onClick={()=>onChangeRole(a.id,'super_admin')}><i className="fa-solid fa-crown"></i> Promouvoir Super</button>}
+                      {a.role==='super_admin' && a.id!==me?.id && <button className="btn btn-sm btn-outline-info" onClick={()=>onChangeRole(a.id,'admin')}><i className="fa-solid fa-arrow-down"></i> Rétrograder Admin</button>}
+                      <button className="btn btn-sm btn-outline-danger" onClick={()=>onDeleteUser(a.id)} disabled={a.id===me?.id}><i className="fa-solid fa-trash"></i></button>
                     </div>
-                  )}
-                  <div className="d-flex gap-2">
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        setReplyModal({ id: m.id, nom: m.nom, message: m.message })
-                        setReplyText('')
-                      }}
-                    >
-                      <i className="fa-solid fa-reply"></i>{' '}
-                      {m.reponse ? 'Modifier la réponse' : 'Répondre'}
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() =>
-                        del(
-                          '/api/admin/contact-messages/' + m.id,
-                          'Supprimer ce message ?',
-                          'Message supprimé.',
-                          loadContact,
-                        )
-                      }
-                    >
-                      <i className="fa-solid fa-trash"></i>
-                    </button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+
+      {section==='colis' && (
+        <div className="page-card">
+          <h5>Colis</h5>
+          <div className="row g-2 mb-3">
+            <div className="col-md-4"><input className="form-control form-control-sm" placeholder="Recherche" value={cSearch} onChange={e=>setCSearch(e.target.value)} /></div>
+            <div className="col-md-3"><select className="form-select form-select-sm" value={cStatut} onChange={e=>setCStatut(e.target.value)}><option value="">Tous statuts</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select></div>
+            <div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadColis}>Filtrer</button></div>
+          </div>
+          {!colisList && <div className="text-muted">Chargement…</div>}
+          {colisList && (
+            <div className="table-responsive"><table className="table table-sm align-middle">
+              <thead><tr><th>ID</th><th>Colis</th><th>Propriétaire</th><th>Poids/Prix</th><th>Statut</th><th>Livraison</th><th>Actions</th></tr></thead>
+              <tbody>{colisList.map(c=>(
+                <tr key={c.id}>
+                  <td>{c.id}</td>
+                  <td><div className="d-flex gap-2 align-items-center">{c.image_url && <img src={c.image_url} alt="" className="img-colis" />}<div>{c.nom_colis}<div className="small text-muted"><code>{c.numero_suivi}</code></div></div></div></td>
+                  <td className="small">{c.prenom} {c.nom}<br/>{c.email}</td>
+                  <td className="small">{c.poids} kg<br/>{money(c.prix_estime)}</td>
+                  <td><span className="badge bg-light text-dark">{c.statut}</span></td>
+                  <td>{c.statut_livraison && <span className="badge bg-info text-dark">{c.statut_livraison}</span>}{c.demande_livraison_id && <div className="mt-1 d-flex gap-1"><button className="btn btn-sm btn-success" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'confirmer')}>Confirmer</button><button className="btn btn-sm btn-danger" onClick={()=>onLivraisonDecision(c.demande_livraison_id!,'refuser')}>Refuser</button></div>}</td>
+                  <td><div className="d-flex gap-1"><select className="form-select form-select-sm" style={{width:'auto'}} defaultValue="" onChange={e=>{ if(e.target.value) onColisStatut(c.id,e.target.value)}}><option value="">Changer…</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select><button className="btn btn-sm btn-outline-danger" onClick={()=>onColisDelete(c.id)}><i className="fa-solid fa-trash"></i></button></div></td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+
+      {section==='voyages' && (
+        <div className="page-card">
+          <h5>Voyages</h5>
+          <div className="row g-2 mb-3">
+            <div className="col-md-4"><input className="form-control form-control-sm" placeholder="Recherche" value={vSearch} onChange={e=>setVSearch(e.target.value)} /></div>
+            <div className="col-md-3"><select className="form-select form-select-sm" value={vStatut} onChange={e=>setVStatut(e.target.value)}><option value="">Tous</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select></div>
+            <div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadVoyages}>Filtrer</button></div>
+          </div>
+          {!voyages && <div className="text-muted">Chargement…</div>}
+          {voyages && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Transporteur</th><th>Trajet</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead><tbody>{voyages.map(v=><tr key={v.id}><td>{v.id}</td><td className="small">{v.prenom} {v.nom}<br/>{v.email}</td><td>{v.pays_depart} → {v.pays_destination}<br/><span className="small">{v.poids_max} kg, {v.nb_reservations} rés.</span></td><td className="small">{date(v.date_depart)} {(v.heure_depart||'').substring(0,5)}</td><td>{v.statut}</td><td><div className="d-flex gap-1"><select className="form-select form-select-sm" style={{width:'auto'}} defaultValue="" onChange={e=>{ if(e.target.value) onVoyageStatut(v.id,e.target.value)}}><option value="">Changer…</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select><button className="btn btn-sm btn-outline-danger" onClick={()=>onVoyageDelete(v.id)}><i className="fa-solid fa-trash"></i></button></div></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {section==='transporteurs' && (
+        <div className="page-card">
+          <h5>Transporteurs</h5>
+          <div className="row g-2 mb-3"><div className="col-md-4"><input className="form-control form-control-sm" placeholder="Recherche" value={tSearch} onChange={e=>setTSearch(e.target.value)} /></div><div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadTransporteurs}>Filtrer</button></div></div>
+          {!transporteurs && <div className="text-muted">Chargement…</div>}
+          {transporteurs && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Transporteur</th><th>Véhicule</th><th>Solde</th><th>Actions</th></tr></thead><tbody>{transporteurs.map(t=><tr key={t.id}><td>{t.id}</td><td>{t.prenom} {t.nom}<br/><span className="small">{t.email} {t.telephone||''}</span></td><td className="small">{t.vehicule||'—'}<br/>{t.compagnie||''} {t.ville||''}</td><td>{money(t.solde)}</td><td><button className="btn btn-sm btn-outline-danger" onClick={()=>onTransporteurDelete(t.id)}><i className="fa-solid fa-trash"></i></button></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {section==='paiements' && (
+        <div className="page-card">
+          <h5>Paiements</h5>
+          <div className="row g-2 mb-3"><div className="col-md-3"><input className="form-control form-control-sm" placeholder="Recherche" value={pSearch} onChange={e=>setPSearch(e.target.value)} /></div><div className="col-md-3"><select className="form-select form-select-sm" value={pStatut} onChange={e=>setPStatut(e.target.value)}><option value="">Tous</option><option value="en_attente">En attente</option><option value="paye">Payé</option><option value="echec">Échec</option></select></div><div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadPaiements}>Filtrer</button></div></div>
+          {!paiements && <div className="text-muted">Chargement…</div>}
+          {paiements && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Colis</th><th>User</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead><tbody>{paiements.map(p=><tr key={p.id}><td>{p.id}</td><td className="small">{p.nom_colis||'—'}<br/><code>{p.numero_suivi||''}</code></td><td className="small">{p.prenom} {p.nom}<br/>{p.email}</td><td>{money(p.montant)}<br/><span className="small">{p.methode_paiement||''}</span></td><td>{p.statut}</td><td><select className="form-select form-select-sm" style={{width:'auto'}} defaultValue="" onChange={e=>{ if(e.target.value) onPaiementStatut(p.id,e.target.value)}}><option value="">Changer…</option><option value="en_attente">En attente</option><option value="paye">Payé</option><option value="echec">Échec</option></select></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {section==='avis' && (
+        <div className="page-card">
+          <h5>Avis</h5>
+          <div className="row g-2 mb-3"><div className="col-md-3"><select className="form-select form-select-sm" value={aStatut} onChange={e=>setAStatut(e.target.value)}><option value="">Tous</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select></div><div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadAvis}>Filtrer</button></div></div>
+          {!avis && <div className="text-muted">Chargement…</div>}
+          {avis && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Client</th><th>Transporteur</th><th>Note</th><th>Commentaire</th><th>Statut</th><th>Actions</th></tr></thead><tbody>{avis.map(a=><tr key={a.id}><td>{a.id}</td><td>{a.user_prenom} {a.user_nom}</td><td>{a.transporteur_prenom} {a.transporteur_nom} (#{a.transporteur_id})</td><td>{a.note}★</td><td className="small">{a.commentaire?.substring(0,80)}</td><td>{a.statut}</td><td><div className="d-flex gap-1"><select className="form-select form-select-sm" style={{width:'auto'}} defaultValue="" onChange={e=>{ if(e.target.value) onAvisStatut(a.id,e.target.value)}}><option value="">Changer…</option><option value="en_attente">En attente</option><option value="approuve">Approuvé</option><option value="refuse">Refusé</option></select><button className="btn btn-sm btn-outline-danger" onClick={()=>onAvisDelete(a.id)}><i className="fa-solid fa-trash"></i></button></div></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {section==='contact' && (
+        <div className="page-card">
+          <h5>Messages Contact</h5>
+          <div className="row g-2 mb-3"><div className="col-md-3"><select className="form-select form-select-sm" value={ctRepondu} onChange={e=>setCtRepondu(e.target.value)}><option value="">Tous</option><option value="non">Non répondus</option><option value="oui">Répondus</option></select></div><div className="col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadContact}>Filtrer</button></div></div>
+          {!contacts && <div className="text-muted">Chargement…</div>}
+          {contacts && <div className="table-responsive"><table className="table table-sm"><thead><tr><th>ID</th><th>Nom</th><th>Message</th><th>Réponse</th><th>Date</th><th>Actions</th></tr></thead><tbody>{contacts.map(c=><tr key={c.id}><td>{c.id}</td><td>{c.nom}<br/><span className="small">{c.email}</span></td><td className="small">{c.message.substring(0,100)}</td><td className="small">{c.reponse?.substring(0,100)||'—'}</td><td className="small">{datetime(c.date_envoi)}</td><td><div className="d-flex gap-1"><button className="btn btn-sm btn-outline-primary" onClick={()=>{ setReplyModal({id:c.id, nom:c.nom, message:c.message}); setReplyText(c.reponse||'')}}>Répondre</button><button className="btn btn-sm btn-outline-danger" onClick={()=>onContactDelete(c.id)}><i className="fa-solid fa-trash"></i></button></div></td></tr>)}</tbody></table></div>}
+        </div>
+      )}
+
+      {userModal && (
+        <div className="modal fade show d-block" tabIndex={-1} style={{backgroundColor:'rgba(0,0,0,.5)'}}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <form onSubmit={onCreateUser}>
+                <div className="modal-header"><h5 className="modal-title">Créer utilisateur</h5><button type="button" className="btn-close" onClick={()=>setUserModal(false)}></button></div>
+                <div className="modal-body">
+                  {userModalError && <div className="alert alert-danger">{userModalError}</div>}
+                  <div className="mb-2"><label className="form-label">Nom</label><input className="form-control" value={userForm.nom} onChange={e=>setUserForm({...userForm, nom:e.target.value})} required /></div>
+                  <div className="mb-2"><label className="form-label">Prénom</label><input className="form-control" value={userForm.prenom} onChange={e=>setUserForm({...userForm, prenom:e.target.value})} required /></div>
+                  <div className="mb-2"><label className="form-label">Email</label><input type="email" className="form-control" value={userForm.email} onChange={e=>setUserForm({...userForm, email:e.target.value})} required /></div>
+                  <div className="mb-2"><label className="form-label">Mot de passe</label><input type="password" className="form-control" value={userForm.password} onChange={e=>setUserForm({...userForm, password:e.target.value})} required /></div>
+                  <div className="mb-2"><label className="form-label">Rôle</label>
+                    <select className="form-select" value={userForm.role} onChange={e=>setUserForm({...userForm, role:e.target.value})}>
+                      <option value="client">Client</option>
+                      <option value="transporteur">Transporteur</option>
+                      {isSuperAdmin && <><option value="admin">Admin simple</option><option value="super_admin">Super Admin</option></>}
+                    </select>
+                    {!isSuperAdmin && <div className="form-text">Admin simple ne peut créer que Client/Transporteur</div>}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ---------- Modale création utilisateur ---------- */}
-      {userModal && (
-        <>
-          <div className="modal fade show d-block" tabIndex={-1}>
-            <div className="modal-dialog">
-              <div className="modal-content">
-                <form onSubmit={createUser}>
-                  <div className="modal-header">
-                    <h5 className="modal-title">Créer un utilisateur</h5>
-                    <button type="button" className="btn-close" onClick={() => setUserModal(false)}></button>
-                  </div>
-                  <div className="modal-body">
-                    {userModalError && <div className="alert alert-danger">{userModalError}</div>}
-                    <div className="mb-3">
-                      <label className="form-label">Nom *</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        required
-                        value={userForm.nom}
-                        onChange={(e) => setUserForm((f) => ({ ...f, nom: e.target.value }))}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Prénom *</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        required
-                        value={userForm.prenom}
-                        onChange={(e) => setUserForm((f) => ({ ...f, prenom: e.target.value }))}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Email *</label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        required
-                        value={userForm.email}
-                        onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Mot de passe * (8 car. min.)</label>
-                      <input
-                        type="password"
-                        className="form-control"
-                        minLength={8}
-                        required
-                        value={userForm.password}
-                        onChange={(e) => setUserForm((f) => ({ ...f, password: e.target.value }))}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Rôle *</label>
-                      <select
-                        className="form-select"
-                        required
-                        value={userForm.role}
-                        onChange={(e) => setUserForm((f) => ({ ...f, role: e.target.value }))}
-                      >
-                        <option value="utilisateur">Utilisateur</option>
-                        <option value="transporteur">Transporteur</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-secondary" onClick={() => setUserModal(false)}>
-                      Annuler
-                    </button>
-                    <button type="submit" className="btn btn-primary">
-                      Créer
-                    </button>
-                  </div>
-                </form>
-              </div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={()=>setUserModal(false)}>Annuler</button><button type="submit" className="btn btn-primary">Créer</button></div>
+              </form>
             </div>
           </div>
-          <div className="modal-backdrop fade show" style={{ backgroundColor: 'rgba(0,0,0,.5)' }}></div>
-        </>
+        </div>
       )}
 
-      {/* ---------- Modale réponse contact ---------- */}
       {replyModal && (
-        <>
-          <div className="modal fade show d-block" tabIndex={-1}>
-            <div className="modal-dialog">
-              <div className="modal-content">
-                <form onSubmit={sendReply}>
-                  <div className="modal-header">
-                    <h5 className="modal-title">Répondre au message</h5>
-                    <button type="button" className="btn-close" onClick={() => setReplyModal(null)}></button>
-                  </div>
-                  <div className="modal-body">
-                    <div className="alert alert-light small">
-                      <strong>{replyModal.nom}</strong>
-                      <br />
-                      <span style={{ whiteSpace: 'pre-line' }}>{replyModal.message}</span>
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Votre réponse *</label>
-                      <textarea
-                        className="form-control"
-                        rows={4}
-                        maxLength={5000}
-                        required
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-secondary" onClick={() => setReplyModal(null)}>
-                      Annuler
-                    </button>
-                    <button type="submit" className="btn btn-primary">
-                      Envoyer
-                    </button>
-                  </div>
-                </form>
-              </div>
+        <div className="modal fade show d-block" tabIndex={-1} style={{backgroundColor:'rgba(0,0,0,.5)'}}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <form onSubmit={onReplyContact}>
+                <div className="modal-header"><h5 className="modal-title">Répondre à {replyModal.nom}</h5><button type="button" className="btn-close" onClick={()=>setReplyModal(null)}></button></div>
+                <div className="modal-body">
+                  <div className="alert alert-light small">{replyModal.message}</div>
+                  <div className="mb-2"><label className="form-label">Réponse</label><textarea className="form-control" rows={4} value={replyText} onChange={e=>setReplyText(e.target.value)} required></textarea></div>
+                </div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={()=>setReplyModal(null)}>Annuler</button><button type="submit" className="btn btn-primary">Envoyer</button></div>
+              </form>
             </div>
           </div>
-          <div className="modal-backdrop fade show" style={{ backgroundColor: 'rgba(0,0,0,.5)' }}></div>
-        </>
+        </div>
       )}
     </>
   )

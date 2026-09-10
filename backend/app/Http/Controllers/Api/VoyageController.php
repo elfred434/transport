@@ -103,7 +103,7 @@ class VoyageController extends Controller
                 // Passer transporteur sans jamais écraser le rôle admin.
                 DB::table('users')
                     ->where('id', $user->id)
-                    ->where('role', 'utilisateur')
+                    ->whereIn('role', ['client','utilisateur'])
                     ->update(['role' => 'transporteur']);
 
                 if (! Transporteur::where('user_id', $user->id)->exists()) {

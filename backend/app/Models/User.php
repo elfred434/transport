@@ -11,28 +11,45 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
- * Utilisateur de la plateforme.
- *
- * Branché sur la table `users` existante (héritée du schéma d'origine) :
- * aucune migration Laravel ne recrée cette table.
- *
- * Particularités du schéma :
- *  - pas de `created_at`/`updated_at` : la colonne d'horodatage est
- *    `date_inscription` (définie par défaut côté MySQL) ;
- *  - pas de `remember_token` : l'API est sans état (jetons Sanctum) ;
- *  - `role` est un ENUM('utilisateur','transporteur','admin').
+ * Utilisateur de la plateforme avec hiérarchie :
+ * - client (ex utilisateur)
+ * - transporteur
+ * - admin (admin simple)
+ * - super_admin (full)
  */
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
     public const CREATED_AT = 'date_inscription';
     public const UPDATED_AT = null;
 
+    // Ancien alias pour compatibilité
     public const ROLE_UTILISATEUR = 'utilisateur';
+    public const ROLE_CLIENT = 'client';
     public const ROLE_TRANSPORTEUR = 'transporteur';
     public const ROLE_ADMIN = 'admin';
+    public const ROLE_SUPER_ADMIN = 'super_admin';
+
+    public const ROLES = [
+        self::ROLE_CLIENT,
+        self::ROLE_UTILISATEUR, // alias
+        self::ROLE_TRANSPORTEUR,
+        self::ROLE_ADMIN,
+        self::ROLE_SUPER_ADMIN,
+    ];
+
+    public const ROLES_ASSIGNABLE_BY_ADMIN = [
+        self::ROLE_CLIENT,
+        self::ROLE_TRANSPORTEUR,
+    ];
+
+    public const ROLES_ASSIGNABLE_BY_SUPER_ADMIN = [
+        self::ROLE_CLIENT,
+        self::ROLE_TRANSPORTEUR,
+        self::ROLE_ADMIN,
+        self::ROLE_SUPER_ADMIN,
+    ];
 
     protected $table = 'users';
 
@@ -57,16 +74,9 @@ class User extends Authenticatable
         return [
             'date_inscription' => 'datetime',
             'reset_expires' => 'datetime',
-            // Le cast 'hashed' hache toute valeur assignée et ignore une valeur
-            // déjà hachée (idempotent) : aucun mot de passe ne peut être persisté
-            // en clair, y compris par un futur appelant qui oublierait Hash::make.
             'password' => 'hashed',
         ];
     }
-
-    // ------------------------------------------------------------------
-    // Relations
-    // ------------------------------------------------------------------
 
     public function transporteur(): HasOne
     {
@@ -88,13 +98,25 @@ class User extends Authenticatable
         return $this->hasMany(Paiement::class, 'user_id');
     }
 
-    // ------------------------------------------------------------------
-    // Helpers métier
-    // ------------------------------------------------------------------
+    // Helpers
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPER_ADMIN;
+    }
 
     public function isAdmin(): bool
     {
+        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN], true);
+    }
+
+    public function isAdminSimple(): bool
+    {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isClient(): bool
+    {
+        return in_array($this->role, [self::ROLE_CLIENT, self::ROLE_UTILISATEUR], true);
     }
 
     public function isTransporteur(): bool
@@ -102,7 +124,25 @@ class User extends Authenticatable
         return $this->transporteur()->exists();
     }
 
-    /** Représentation publique (même contrat que l'API actuelle). */
+    public function hasRole(string $role): bool
+    {
+        if ($role === self::ROLE_CLIENT) {
+            return $this->isClient();
+        }
+        return $this->role === $role;
+    }
+
+    public function canManageRole(string $targetRole): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return in_array($targetRole, self::ROLES_ASSIGNABLE_BY_SUPER_ADMIN, true);
+        }
+        if ($this->isAdminSimple()) {
+            return in_array($targetRole, self::ROLES_ASSIGNABLE_BY_ADMIN, true);
+        }
+        return false;
+    }
+
     public function toPublicArray(): array
     {
         return [
@@ -112,7 +152,7 @@ class User extends Authenticatable
             'email' => $this->email,
             'telephone' => $this->telephone,
             'photo_url' => Files::url($this->photo_profil),
-            'role' => $this->role,
+            'role' => $this->role === self::ROLE_UTILISATEUR ? self::ROLE_CLIENT : $this->role,
             'date_inscription' => $this->date_inscription?->toDateTimeString(),
         ];
     }

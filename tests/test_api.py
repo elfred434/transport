@@ -172,7 +172,7 @@ s, r = call("GET", "/api/admin-chat", token=TOK)
 check("lecture conversation côté user", s, 200)
 s, r = call("POST", "/api/admin-chat", token=TOK, data={"contenu": "x", "destinataire_id": 5})
 check("user ne choisit pas le destinataire", s, 201)
-admin_id = db("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1")
+admin_id = db("SELECT id FROM users WHERE role IN ('admin','super_admin') ORDER BY id LIMIT 1")
 check("  ...le message va bien à l'admin",
       int(db(f"SELECT COUNT(*) FROM messages_admin WHERE contenu='x' AND destinataire_id={admin_id}")) >= 1, True)
 s, r = call("GET", "/api/admin-chat/conversations", token=ATOK)

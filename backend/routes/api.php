@@ -12,68 +12,35 @@ use App\Http\Controllers\Api\VoyageController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Routes de l'API
-|--------------------------------------------------------------------------
-|
-| Le préfixe `api` est appliqué automatiquement par Laravel : les chemins
-| écrits ici sont donc servis sous /api/... , à l'identique de l'API PHP
-| d'origine. Le contrat (chemins, verbes, formes de réponse) est figé par les
-| suites tests/test_api.py et tests/test_frontend_integration.js.
-|
-| Verbes : l'API n'expose que GET, POST et DELETE — les mutations passent par
-| POST, comme dans l'implémentation d'origine.
-|
-*/
-
-/*
- * Racine de l'API : découverte.
- *
- * Le compteur exclut cette route elle-même et les routes utilitaires ajoutées
- * par le framework (Sanctum, health-check) pour rester égal au nombre
- * d'endpoints métier réellement exposés.
- */
 Route::get('/', function () {
     $metier = collect(app('router')->getRoutes())
         ->filter(fn ($route) => str_starts_with($route->uri(), 'api/'))
         ->count();
-
     return \App\Support\ApiResponse::success([
         'name' => config('app.name') . ' — API',
-        'version' => '2.0',
+        'version' => '2.1',
         'endpoints' => $metier,
+        'roles' => ['client','transporteur','admin','super_admin'],
     ]);
 });
 
-// ---------------------------------------------------------------------------
-// Authentification (public)
-// ---------------------------------------------------------------------------
+// Public
 Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/reset-request', [AuthController::class, 'resetRequest']);
 Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
-
-// ---------------------------------------------------------------------------
-// Contact (public)
-// ---------------------------------------------------------------------------
 Route::post('contact', [ContactController::class, 'send']);
 
-// ---------------------------------------------------------------------------
 // Authentifié
-// ---------------------------------------------------------------------------
 Route::middleware('auth:sanctum')->group(function () {
-
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
 
-    // Profil
     Route::get('profile', [ProfileController::class, 'show']);
     Route::post('profile', [ProfileController::class, 'update']);
     Route::get('transporteurs/{id}', [ProfileController::class, 'transporteur']);
     Route::get('transporteur-stats', [ProfileController::class, 'stats']);
 
-    // Colis
     Route::get('colis/mine', [ColisController::class, 'mine']);
     Route::get('colis/available', [ColisController::class, 'available']);
     Route::get('colis/{id}', [ColisController::class, 'show'])->whereNumber('id');
@@ -82,11 +49,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('colis/{id}/voyages-compatibles', [ColisController::class, 'voyagesCompatibles'])->whereNumber('id');
     Route::get('colis/{id}/reservations', [ColisController::class, 'reservations'])->whereNumber('id');
 
-    // Suivi
     Route::get('suivi/{numero}', [SuiviController::class, 'show']);
     Route::post('suivi', [SuiviController::class, 'store']);
 
-    // Voyages & réservations
     Route::get('voyages/available', [VoyageController::class, 'available']);
     Route::get('voyages/mine', [VoyageController::class, 'mine']);
     Route::post('voyages', [VoyageController::class, 'store']);
@@ -94,36 +59,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('reservations/recues', [VoyageController::class, 'recues']);
     Route::post('reservations/{id}/action', [VoyageController::class, 'action'])->whereNumber('id');
 
-    // Messagerie utilisateur <-> utilisateur
     Route::get('conversations', [MessagerieController::class, 'conversations']);
     Route::get('messages', [MessagerieController::class, 'messages']);
     Route::post('messages', [MessagerieController::class, 'send']);
 
-    // Messagerie utilisateur <-> admin
     Route::get('admin-chat', [MessagerieController::class, 'adminChat']);
     Route::post('admin-chat', [MessagerieController::class, 'adminChatSend']);
 
-    // Contact : réponses reçues
     Route::get('contact/reponses', [ContactController::class, 'reponses']);
 
-    // Paiements
     Route::get('paiements/colis/{colis_id}', [PaiementController::class, 'forColis'])->whereNumber('colis_id');
     Route::post('paiements/{id}/payer', [PaiementController::class, 'payer'])->whereNumber('id');
     Route::get('paiements/mine', [PaiementController::class, 'mine']);
 
-    // Avis
     Route::get('transporteurs/{id}/avis', [AvisController::class, 'forTransporteur'])->whereNumber('id');
     Route::post('avis', [AvisController::class, 'store']);
 
-    // -----------------------------------------------------------------------
-    // Administration
-    // -----------------------------------------------------------------------
+    // Administration : admin et super_admin
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('stats', [AdminController::class, 'stats']);
-
         Route::get('users', [AdminController::class, 'users']);
         Route::post('users', [AdminController::class, 'userCreate']);
         Route::delete('users/{id}', [AdminController::class, 'userDelete'])->whereNumber('id');
+        Route::post('users/{id}/role', [AdminController::class, 'userUpdateRole'])->whereNumber('id');
 
         Route::get('colis', [AdminController::class, 'colis']);
         Route::post('colis/{id}/statut', [AdminController::class, 'colisStatut'])->whereNumber('id');
@@ -151,8 +109,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('contact-messages/{id}', [AdminController::class, 'contactDelete'])->whereNumber('id');
     });
 
-    // Conversations admin (vue administration) — hors préfixe /admin,
-    // comme dans l'API d'origine.
-    Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])
-        ->middleware('admin');
+    Route::get('admin-chat/conversations', [MessagerieController::class, 'adminConversations'])->middleware('admin');
+
+    // Super Admin seulement : gestion des admins
+    Route::middleware('super_admin')->prefix('super-admin')->group(function () {
+        Route::get('admins', function (\Illuminate\Http\Request $r) {
+            $users = \Illuminate\Support\Facades\DB::table('users')->whereIn('role',['admin','super_admin'])->select('id','nom','prenom','email','role','date_inscription')->orderByDesc('date_inscription')->get();
+            return \App\Support\ApiResponse::success($users);
+        });
+        Route::get('roles', function () {
+            return \App\Support\ApiResponse::success(['roles'=>['client','transporteur','admin','super_admin']]);
+        });
+    });
 });

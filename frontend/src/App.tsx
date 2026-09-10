@@ -26,6 +26,7 @@ import Reponses from './pages/Reponses'
 import AdminIndex from './pages/admin/AdminIndex'
 import AdminMessagerie from './pages/admin/AdminMessagerie'
 import AdminLogin from './pages/admin/AdminLogin'
+import SuperAdmin from './pages/admin/SuperAdmin'
 
 function LegacyRedirect({ to }: { to: string }) {
   const { search } = useLocation()
@@ -68,7 +69,7 @@ const LEGACY_ROUTES: [string, string][] = [
 export default function App() {
   return (
     <Routes>
-      {/* Pages publiques vanilla — sans sidebar */}
+      {/* Pages publiques vanilla */}
       <Route path="/" element={<Home />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/login" element={<Login />} />
@@ -77,7 +78,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* Espace utilisateur — sidebar vanilla */}
+      {/* Espace utilisateur + admin */}
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/poster-colis" element={<PosterColis />} />
@@ -99,6 +100,7 @@ export default function App() {
 
         <Route path="/admin" element={<AdminGate><AdminIndex /></AdminGate>} />
         <Route path="/admin/messagerie" element={<AdminGate><AdminMessagerie /></AdminGate>} />
+        <Route path="/super-admin" element={<AdminGate superOnly><SuperAdmin /></AdminGate>} />
       </Route>
 
       {LEGACY_ROUTES.map(([from, to]) => (
