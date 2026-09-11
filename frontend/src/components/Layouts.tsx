@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Sidebar, SidebarProvider, TopbarMobile, SidebarBackdrop } from './Sidebar'
+import { Sidebar, SidebarProvider, TopbarMobile, SidebarBackdrop, BottomNav } from './Sidebar'
 
 export function AppLayout() {
   return (
@@ -39,6 +39,7 @@ function AppLayoutInner() {
       <div className="content">
         <Outlet />
       </div>
+      <BottomNav />
     </>
   )
 }

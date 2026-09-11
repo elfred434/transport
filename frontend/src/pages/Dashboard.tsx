@@ -605,32 +605,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Menu inférieur mobile (design d'origine) */}
-      <nav className="mobile-bottom-menu">
-        <ul>
-          <li>
-            <NavLink to="/dashboard">
-              <i className="fas fa-home"></i> Accueil
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/colis">
-              <i className="fas fa-box"></i> Colis
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/liste-messagerie">
-              <i className="fas fa-envelope"></i> Messages
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/profil">
-              <i className="fas fa-user"></i> Profil
-            </NavLink>
-          </li>
-        </ul>
-      </nav>
-
       {/* ============================= MODALES ============================== */}
       {detailsColis && (
         <ColisDetailsModal

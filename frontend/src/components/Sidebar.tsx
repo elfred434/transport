@@ -29,8 +29,17 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   // Verrouille le scroll du body quand le menu est ouvert (mobile)
   useEffect(() => {
     document.body.classList.toggle('has-sidebar', true)
-    if (open) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
+    if (open) {
+      document.body.style.overflow = 'hidden'
+      // Remet la sidebar tout en haut quand on l'ouvre (évite qu'elle reste à
+      // la position de scroll du desktop ou d'une précédente ouverture).
+      requestAnimationFrame(() => {
+        const el = document.querySelector('.vertical-menu') as HTMLElement | null
+        if (el) el.scrollTop = 0
+      })
+    } else {
+      document.body.style.overflow = ''
+    }
     return () => { document.body.style.overflow = '' }
   }, [open])
 
@@ -72,6 +81,42 @@ export function TopbarMobile() {
 export function SidebarBackdrop() {
   const { open, close } = useSidebar()
   return <div className={`sidebar-backdrop${open ? ' show' : ''}`} onClick={close} />
+}
+
+/* ------------------------------------------------------------------ */
+/*  Barre de navigation inférieure globale (mobile uniquement).        */
+/* ------------------------------------------------------------------ */
+export function BottomNav() {
+  return (
+    <nav className="bottom-nav" aria-label="Navigation principale">
+      <ul>
+        <li>
+          <NavLink to="/dashboard" end>
+            <i className="fas fa-home" />
+            <span>Accueil</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/colis">
+            <i className="fas fa-box" />
+            <span>Colis</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/liste-messagerie">
+            <i className="fas fa-envelope" />
+            <span>Messages</span>
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/profil">
+            <i className="fas fa-user" />
+            <span>Profil</span>
+          </NavLink>
+        </li>
+      </ul>
+    </nav>
+  )
 }
 
 /* ------------------------------------------------------------------ */
