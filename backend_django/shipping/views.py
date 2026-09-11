@@ -459,12 +459,18 @@ def contact_send(request: Request):
     ser = ContactCreateSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     data = ser.validated_data
-    # Si l'utilisateur est connecté ET n'a pas fourni d'email, remplir automatiquement
+    # Si l'utilisateur est connecté ET un champ est vide, remplir automatiquement
     if request.user.is_authenticated:
         if not data.get("email"):
             data["email"] = request.user.email
         if not data.get("nom"):
             data["nom"] = f"{request.user.prenom} {request.user.nom}".strip()
+    # Si vraiment toujours vide (visiteur anonyme sans saisir nom/email), on
+    # met une valeur par défaut plutôt qu'une erreur 500 en base.
+    if not data.get("email"):
+        data["email"] = "anonyme@local"
+    if not data.get("nom"):
+        data["nom"] = "Visiteur anonyme"
     m = ContactMessage.objects.create(**data)
     return api_success({"id": m.id, "message": "Message envoyé"}, status_code=201)
 

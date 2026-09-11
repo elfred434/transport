@@ -73,8 +73,9 @@ class AvisSerializer(serializers.ModelSerializer):
 
 
 class ContactCreateSerializer(serializers.Serializer):
-    nom = serializers.CharField(max_length=100)
-    # Email est optionnel : si utilisateur connecté, il sera rempli par contact_send
+    # nom et email sont optionnels : si l'utilisateur est connecté, ils sont
+    # remplis automatiquement à partir de request.user
+    nom = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     email = serializers.EmailField(required=False, allow_blank=True, default="")
     sujet = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
     message = serializers.CharField()
