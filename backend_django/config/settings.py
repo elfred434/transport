@@ -241,8 +241,8 @@ CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.kkiapay.me", "https:
 CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.kkiapay.me", "https://fonts.googleapis.com", "https://ka-f.fontawesome.com")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "https://ka-f.fontawesome.com")
 CSP_IMG_SRC = ("'self'", "data:", "blob:", "https:", "http:")  # images colis/profils + uploads locaux
-CSP_CONNECT_SRC = ("'self'", "https://api.kkiapay.me", "https://sandbox.kkiapay.me")
-CSP_FRAME_SRC = ("'self'", "https://www.google.com", "https://cdn.kkiapay.me")
+CSP_CONNECT_SRC = ("'self'", "https://api.kkiapay.me", "https://sandbox.kkiapay.me", "https://oauth2.googleapis.com", "https://accounts.google.com")
+CSP_FRAME_SRC = ("'self'", "https://www.google.com", "https://accounts.google.com", "https://cdn.kkiapay.me")
 
 # ---- Logging (console + fichier en prod) ----
 LOG_DIR = BASE_DIR / "logs"
@@ -300,11 +300,15 @@ KKIAPAY_SKIP_SSL_VERIFY = (
 )
 
 # ---- Google OAuth / One Tap ----
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", os.environ.get("VITE_GOOGLE_CLIENT_ID", ""))
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5173/auth/google/callback")
-GOOGLE_SKIP_SSL_VERIFY = os.environ.get("GOOGLE_SKIP_SSL_VERIFY", "true").lower() == "true"
-GOOGLE_ALLOW_JWT_FALLBACK = os.environ.get("GOOGLE_ALLOW_JWT_FALLBACK", "true").lower() == "true"
+# Google One Tap n'utilise pas de redirect_uri (c'est côté client), mais si on ajoute
+# le flux OAuth serveur un jour, on a besoin d'une URL de retour valide.
+_default_redirect = os.environ.get("APP_FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/auth/google/callback"
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", _default_redirect)
+GOOGLE_SKIP_SSL_VERIFY = os.environ.get("GOOGLE_SKIP_SSL_VERIFY", "false").lower() == "true"
+# En prod, on N'autorise JAMAIS le fallback JWT non vérifié (sécurité)
+GOOGLE_ALLOW_JWT_FALLBACK = os.environ.get("GOOGLE_ALLOW_JWT_FALLBACK", "false" if not DEBUG else "true").lower() == "true"
 
 APP_NAME = "Transport.bj"
 APP_VERSION = "3.0-django"
