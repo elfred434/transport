@@ -4,9 +4,8 @@ import { api, ApiError } from '../lib/api'
 import { date, datetime, money, SmartImg } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toasts'
-import ResponsiveTable from '../components/ResponsiveTable'
-import type { Column } from '../components/ResponsiveTable'
 import '../styles/dashboard-originale.css'
+import ResponsiveTable from "../components/ResponsiveTable";
 
 /**
  * Tableau de bord — port React de dashboard.php (design d'origine conservé) :

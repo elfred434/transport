@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { datetime, money, StatusBadge } from '../lib/format'
 import ResponsiveTable from "../components/ResponsiveTable";
-import type { Column } from "../components/ResponsiveTable";
 
 /** Paiement 100% Kkiapay — port de paiement.html (?colis_id=&reference=). 
  *  Si colis_id manquant, affiche la liste des paiements.

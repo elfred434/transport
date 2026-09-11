@@ -3,8 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, money, SmartImg, StatusBadge } from '../lib/format'
 import { CountrySelect, CitySelect } from '../components/LocationSelect'
-import ResponsiveTable from "../components/ResponsiveTable";
-import type { Column } from "../components/ResponsiveTable";
+import ResponsiveTable, { type Column } from "../components/ResponsiveTable";
 
 /** Recherche (colis / voyages + voyages compatibles) — port de recherche.html. */
 

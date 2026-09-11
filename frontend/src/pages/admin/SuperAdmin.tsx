@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../lib/api'
 import { date, money } from '../../lib/format'
 import { useToast } from '../../components/Toasts'
-import ResponsiveTable from "../components/ResponsiveTable";
-import type { Column } from "../components/ResponsiveTable";
+import ResponsiveTable from "../../components/ResponsiveTable";
 
 interface AdminUser {
   id: number
@@ -107,14 +106,14 @@ export default function SuperAdmin() {
                   : <span className="badge bg-info text-dark">Admin</span>,
                 primaryOnMobile: true },
               { key: 'date_inscription', label: 'Inscrit',
-                render: (a) => <span className="small">{date(a.date_inscription)}</span> },
+                render: (a: AdminUser) => <span className="small">{date(a.date_inscription)}</span> },
             ]}
             data={admins}
-            rowKey={(a) => a.id}
+            rowKey={(a: AdminUser) => a.id}
             titleKey="nom"
             subtitleKey="email"
             className="table"
-            actions={(a) => (
+            actions={(a: AdminUser) => (
               <div className="d-flex gap-1 flex-wrap">
                 {a.role==='admin' && <button className="btn btn-sm btn-warning" onClick={()=>changeRole(a.id,'super_admin')}>Promouvoir</button>}
                 {a.role==='super_admin' && <button className="btn btn-sm btn-outline-info" onClick={()=>changeRole(a.id,'admin')}>Rétrograder</button>}
@@ -140,15 +139,15 @@ export default function SuperAdmin() {
               { key: 'nom', label: 'Nom', render: (u) => `${u.prenom} ${u.nom}` },
               { key: 'email', label: 'Email', render: (u) => <span className="small">{u.email}</span> },
               { key: 'role', label: 'Rôle actuel',
-                render: (u) => <span className="badge bg-light text-dark">{u.role}</span>,
+                render: (u: AdminUser) => <span className="badge bg-light text-dark">{u.role}</span>,
                 primaryOnMobile: true },
             ]}
             data={users}
-            rowKey={(u) => u.id}
+            rowKey={(u: AdminUser) => u.id}
             titleKey="nom"
             subtitleKey="email"
             className="table table-sm"
-            actions={(u) => (
+            actions={(u: AdminUser) => (
               <div className="d-flex gap-1 flex-wrap align-items-center">
                 <select className="form-select form-select-sm" style={{width:'auto'}} value={u.role} onChange={e=>changeRole(u.id, e.target.value)}>
                   <option value="client">Client</option>

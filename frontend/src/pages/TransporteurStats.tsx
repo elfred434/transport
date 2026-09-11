@@ -4,7 +4,6 @@ import { api, ApiError } from '../lib/api'
 import { money } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import ResponsiveTable from "../components/ResponsiveTable";
-import type { Column } from "../components/ResponsiveTable";
 
 /** Statistiques transporteur — 5% transporteur / 95% plateforme + retraits auto */
 

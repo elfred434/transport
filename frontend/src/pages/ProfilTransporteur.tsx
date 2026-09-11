@@ -4,7 +4,6 @@ import { api, ApiError } from '../lib/api'
 import { date } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import ResponsiveTable from "../components/ResponsiveTable";
-import type { Column } from "../components/ResponsiveTable";
 
 /** Fiche publique d'un transporteur — port de profil-transporteur.html (?id=). */
 
