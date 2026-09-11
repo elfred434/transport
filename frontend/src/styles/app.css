@@ -628,17 +628,20 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
 }
 
 /* ========================= RESPONSIVE TABLE ========================= */
-/* Par défaut (mobile first) : on affiche les cartes ; les tableaux
-   desktop ne s'affichent qu'au breakpoint md (768px+). */
+/* Mobile first : cartes visibles, tableau desktop caché.
+   Important : .rtable-mobile porte la classe `d-none` de Bootstrap en dur
+   dans le JSX ; on la neutralise avec !important en mobile pour que les
+   cartes s'affichent. À l'inverse, en desktop on cache les cartes et on
+   affiche le tableau. */
 .rtable-desktop { display: none; }
-.rtable-mobile { display: block; }
+.rtable-mobile { display: block !important; }
 
 .rtable-card { border: 1px solid var(--gray-200); }
 .rtable-card .card-body { padding: 12px 14px; }
 .rtable-card h6 { font-size: 0.95rem; line-height: 1.3; }
 .rtable-card .rtable-more {
     min-width: 36px; height: 36px; padding: 0;
-    display: inline-flex; align-items: center; justify-content: center;
+    display: inline-flex !important; align-items: center; justify-content: center;
 }
 .rtable-tags { margin-bottom: 0; }
 .rtable-tag {
