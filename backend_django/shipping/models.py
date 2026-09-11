@@ -265,7 +265,7 @@ class NotificationAdmin(TimeStampedModel):
 
 class WalletAdmin(TimeStampedModel):
     """One-row: solde + total_genere de la plateforme."""
-    solde = models.DecimalField(max_digits=12, decimal_places=2, default=800)
+    solde = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_genere = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     class Meta:

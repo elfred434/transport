@@ -132,9 +132,17 @@ def colis_available(request: Request):
 @permission_classes([IsAuthenticated])
 def colis_show(request: Request, pk: int):
     try:
-        c = Colis.objects.get(pk=pk)
+        c = Colis.objects.select_related("user").get(pk=pk)
     except Colis.DoesNotExist:
         return api_error("Colis introuvable", 404)
+    # --- Contrôle d'accès ---
+    is_owner = c.user_id == request.user.id
+    is_admin = _is_user_admin(request.user)
+    # Un transporteur/client peut voir un colis APPROUVE (page "colis disponibles"
+    # et lien "Détails" dans la recherche) sans pour autant en être propriétaire.
+    is_public = c.statut == Colis.STATUT_APPROUVE
+    if not (is_owner or is_admin or is_public):
+        return api_error("Vous n'avez pas accès à ce colis", 403)
     return api_success(ColisSerializer(c).data)
 
 
