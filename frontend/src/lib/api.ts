@@ -75,6 +75,19 @@ export async function authResponse(res: any) {
 type Body = Record<string, unknown> | null | undefined
 type ApiResponse<T> = T
 
+// Base URL de l'API en production.
+// En dev, Vite proxy les chemins relatifs /api → http://127.0.0.1:8000.
+// En production (Vercel/Render), VITE_API_BASE_URL doit pointer vers
+// l'URL HTTPS du backend Render (ex: https://spiistmove-api.onrender.com).
+// S'il n'est pas défini, on utilise des chemins relatifs (utile si Nginx
+// sert frontend + backend sur le même domaine).
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
+function absUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path
+  return API_BASE + path
+}
+
 async function rawFetch<T>(method: string, path: string, body: Body | FormData = null, isRetry = false): Promise<T> {
   const headers: Record<string, string> = {}
   const token = Auth.token()
@@ -91,9 +104,9 @@ async function rawFetch<T>(method: string, path: string, body: Body | FormData =
 
   let res: Response
   try {
-    res = await fetch(path, { method, headers, body: payload })
+    res = await fetch(absUrl(path), { method, headers, body: payload })
   } catch {
-    throw new ApiError("Serveur injoignable. Vérifiez que l'API est démarrée.", 0)
+    throw new ApiError("Serveur injoignable. Vérifiez votre connexion ou l'adresse du serveur.", 0)
   }
 
   // 401 + token présent → tenter refresh silencieux (1 seule fois)

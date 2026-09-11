@@ -16,7 +16,20 @@ SECRET_KEY = os.environ.get(
     os.environ.get("SECRET_KEY", "django-insecure-transport-bj-dev-key-change-in-production-xyz123"),
 )
 DEBUG = os.environ.get("APP_DEBUG", "true").lower() == "true"
-ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS : depuis l'env (virgules) + Render auto + localhost.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
+_extra_hosts = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
+ALLOWED_HOSTS = list(filter(None, [
+    "localhost", "127.0.0.1", RENDER_EXTERNAL_HOSTNAME, *_extra_hosts,
+]))
+# En debug on autorise tout pour simplifier le dev local
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+
+# En production, faire confiance au proxy de Render/Cloudflare pour X-Forwarded-Proto
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -36,6 +49,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # sert les static en prod sans Nginx
     "core.middleware.SecurityHeadersMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -67,10 +81,31 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # ---- Database ----
-# Par défaut: SQLite (zéro config en local). Pour utiliser MySQL sur XAMPP/VPS,
-# mettre DB_CONNECTION=mysql et les variables correspondantes dans .env.
-DB_CONNECTION = os.environ.get("DB_CONNECTION", "sqlite")
-if DB_CONNECTION == "mysql":
+# Ordre de priorité :
+#   1. DATABASE_URL (Render, Railway, Vercel Postgres, Neon, Heroku)  — PostgreSQL
+#   2. DB_CONNECTION=mysql (XAMPP/WAMP/VPS avec MariaDB/MySQL)
+#   3. Sinon SQLite par défaut (dev local sans config)
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if DATABASE_URL:
+    # Parse postgres:// ou postgresql://
+    import urllib.parse
+    parsed = urllib.parse.urlparse(DATABASE_URL)
+    if parsed.scheme in ("postgres", "postgresql"):
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": parsed.path.lstrip("/"),
+                "USER": parsed.username or "",
+                "PASSWORD": parsed.password or "",
+                "HOST": parsed.hostname or "",
+                "PORT": str(parsed.port or 5432),
+                "CONN_MAX_AGE": 60,
+                "OPTIONS": {"sslmode": "require"} if not DEBUG else {},
+            }
+        }
+    else:
+        DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+elif os.environ.get("DB_CONNECTION") == "mysql":
     # Backend custom "config.db_backends.mysql" : hérite de django.db.backends.mysql
     # mais force can_return_columns_from_insert=False et version minimum abaissée
     # afin de fonctionner sur MariaDB 10.4 (XAMPP), qui ne supporte pas la clause
@@ -115,8 +150,9 @@ TIME_ZONE = "Africa/Porto-Novo"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/storage/"
 MEDIA_ROOT = BASE_DIR / "storage"
 
@@ -134,10 +170,18 @@ SIMPLE_JWT = {
 }
 
 # ---- CORS (ouvert en dev ; restreint par liste blanche en prod) ----
-CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173",
-).split(",") if o.strip()]
+_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+# Ajoute automatiquement les origines connues si elles sont fournies
+_auto_origins = [
+    os.environ.get("APP_FRONTEND_URL", ""),
+    os.environ.get("FRONTEND_URL", ""),
+    "https://" + RENDER_EXTERNAL_HOSTNAME if RENDER_EXTERNAL_HOSTNAME else "",
+    os.environ.get("VERCEL_URL", ""),  # fourni automatiquement par Vercel
+]
+for _o in _auto_origins:
+    if _o and _o not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_o.rstrip("/"))
 _cors_all = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "true" if DEBUG else "false").lower() == "true"
 CORS_ALLOW_ALL_ORIGINS = _cors_all
 CORS_ALLOW_CREDENTIALS = True

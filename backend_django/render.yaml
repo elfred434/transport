@@ -1,0 +1,33 @@
+# Déploiement Render — https://render.com
+# Crée un Web Service pointant sur ce dossier (backend_django/) via GitHub.
+# Render détectera automatiquement le Procfile et build.sh.
+# Si tu préfères la config Dashboard au lieu de render.yaml :
+#   Build command: ./build.sh
+#   Start command: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+#   Python version: 3.12
+#   Plan: Free
+# Tu devras ajouter un service PostgreSQL gratuit depuis le dashboard Render.
+services:
+  - type: web
+    name: spiistmove-api
+    env: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    plan: free
+    envVars:
+      - key: APP_DEBUG
+        value: "false"
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: KKIAPAY_SANDBOX
+        value: "true"
+      - key: KKIAPAY_SKIP_SSL_VERIFY
+        value: "false"
+      - key: APP_NAME
+        value: SpiistMove
+      - key: APP_FRONTEND_URL
+        sync: false   # à saisir : URL Vercel une fois le frontend déployé
+      - key: APP_KEY
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
