@@ -14,6 +14,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from core import views as cv
 from core.password_reset import reset_request, reset_password
 from core.responses import api_success, api_error
+from core.upload import upload
 from accounts import views as av
 from shipping import views as sv
 from shipping import admin_views as adv
@@ -131,6 +132,9 @@ urlpatterns = [
     path("api/auth/refresh", TokenRefreshView.as_view()),
     path("api/auth/reset-request", reset_request),
     path("api/auth/reset-password", reset_password),
+
+    # Upload sécurisé
+    path("api/upload", upload),
 
     # Profile
     path("api/profile", cv.profile_dispatch),

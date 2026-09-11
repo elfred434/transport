@@ -41,6 +41,11 @@ class VoyageCreateSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True, default="")
     telephone = serializers.CharField(max_length=30, required=False, allow_blank=True, default="")
 
+    def validate_telephone(self, value):
+        # Réutilise la validation béninoise / internationale
+        from accounts.serializers import _validate_phone
+        return _validate_phone(value)
+
 
 class VoyageSerializer(serializers.ModelSerializer):
     class Meta:

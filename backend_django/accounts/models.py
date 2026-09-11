@@ -68,3 +68,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_super(self):
         return self.role == self.ROLE_SUPER_ADMIN
+
+
+class PasswordResetToken(models.Model):
+    """Token de réinitialisation de mot de passe (valide 1h, usage unique)."""
+    token = models.CharField(max_length=100, unique=True, db_index=True)
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="reset_tokens")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "password_reset_tokens"
+        ordering = ["-created_at"]

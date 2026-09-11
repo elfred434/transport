@@ -1,16 +1,18 @@
 /**
  * Client API — port TypeScript de js/api.js (frontend vanilla).
  *
- * Contrat identique :
- *  - jeton Bearer stocké dans localStorage sous la clé 'transport_token' ;
- *  - enveloppe {success, data|error} : `data` est désenveloppé et retourné ;
- *  - 401 avec jeton présent → effacement du jeton + redirection /login ;
- *  - requêtes en URLs relatives : '/api/...' passe par le proxy Vite (dev)
- *    ou par le domaine unique (prod).
- *  - Support ngrok free : header ngrok-skip-browser-warning pour éviter la page d'avertissement.
+ * Contrat :
+ *  - access token Bearer dans localStorage ('transport_token'), refresh dans
+ *    localStorage ('transport_refresh') ; l'access dure 2h, le refresh 7j.
+ *  - Enveloppe {success, data|error} : on retourne directement `data`.
+ *  - Sur 401, on tente un /api/auth/refresh avec le refresh token ; si ça
+ *    marche on rejoue la requête initiale, sinon on déconnecte.
+ *  - FormData supporté pour les uploads.
+ *  - ngrok-skip-browser-warning pour éviter la page d'avertissement ngrok.
  */
 
 export const TOKEN_KEY = 'transport_token'
+export const REFRESH_KEY = 'transport_refresh'
 
 export class ApiError extends Error {
   status: number
@@ -21,33 +23,68 @@ export class ApiError extends Error {
 }
 
 export const Auth = {
-  token(): string | null {
-    return localStorage.getItem(TOKEN_KEY)
-  },
-  save(token: string) {
-    localStorage.setItem(TOKEN_KEY, token)
+  token(): string | null { return localStorage.getItem(TOKEN_KEY) },
+  refresh(): string | null { return localStorage.getItem(REFRESH_KEY) },
+  saveAccess(token: string) { localStorage.setItem(TOKEN_KEY, token) },
+  saveRefresh(token: string) { localStorage.setItem(REFRESH_KEY, token) },
+  saveTokens(access: string, refresh?: string) {
+    this.saveAccess(access)
+    if (refresh) this.saveRefresh(refresh)
   },
   clear() {
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
   },
-  isLoggedIn(): boolean {
-    return !!Auth.token()
-  },
+  isLoggedIn(): boolean { return !!this.token() },
 }
 
-type Body = Record<string, unknown> | null
+// Empêche deux refresh parallèles
+let _refreshPromise: Promise<string | null> | null = null
 
-async function request<T>(method: string, path: string, body: Body | FormData = null): Promise<T> {
+async function doRefresh(): Promise<string | null> {
+  const rt = Auth.refresh()
+  if (!rt) return null
+  try {
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: rt }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const newAccess = data?.data?.access || data?.access
+    const newRefresh = data?.data?.refresh || data?.refresh
+    if (newAccess) {
+      Auth.saveAccess(newAccess)
+      if (newRefresh) Auth.saveRefresh(newRefresh)
+      return newAccess
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export async function authResponse(res: any) {
+  /* Sauvegarde access+refresh depuis une réponse login/register */
+  const d = res?.data ?? res
+  if (d?.token) Auth.saveAccess(d.token)
+  if (d?.refresh) Auth.saveRefresh(d.refresh)
+}
+
+type Body = Record<string, unknown> | null | undefined
+type ApiResponse<T> = T
+
+async function rawFetch<T>(method: string, path: string, body: Body | FormData = null, isRetry = false): Promise<T> {
   const headers: Record<string, string> = {}
   const token = Auth.token()
   if (token) headers['Authorization'] = 'Bearer ' + token
-  // Support ngrok free tier : évite la page "You are about to visit..."
   headers['ngrok-skip-browser-warning'] = 'true'
 
   let payload: BodyInit | null = null
   if (body instanceof FormData) {
-    payload = body // Content-Type défini automatiquement par le navigateur
-  } else if (body !== null) {
+    payload = body
+  } else if (body != null) {
     headers['Content-Type'] = 'application/json'
     payload = JSON.stringify(body)
   }
@@ -59,20 +96,29 @@ async function request<T>(method: string, path: string, body: Body | FormData = 
     throw new ApiError("Serveur injoignable. Vérifiez que l'API est démarrée.", 0)
   }
 
-  const text = await res.text()
-  let data: { data?: T; error?: string } | null = null
-  try {
-    data = text ? JSON.parse(text) : null
-  } catch {
-    /* réponse non-JSON */
+  // 401 + token présent → tenter refresh silencieux (1 seule fois)
+  if (res.status === 401 && Auth.isLoggedIn() && !isRetry) {
+    if (!_refreshPromise) _refreshPromise = doRefresh()
+    const newAccess = await _refreshPromise
+    _refreshPromise = null
+    if (newAccess) return rawFetch<T>(method, path, body, true)
+    Auth.clear()
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login?expired=1'
+    }
+    throw new ApiError('Session expirée', 401)
   }
 
+  const text = await res.text()
+  let data: any = null
+  try { data = text ? JSON.parse(text) : null } catch { /* non-JSON */ }
+
   if (!res.ok) {
-    // Jeton présent mais rejeté (401) : session expirée/révoquée.
     if (res.status === 401 && Auth.isLoggedIn()) {
       Auth.clear()
-      window.location.href = '/login'
-      throw new ApiError('Session expirée', 401)
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login?expired=1'
+      }
     }
     throw new ApiError((data && data.error) || 'Erreur HTTP ' + res.status, res.status)
   }
@@ -80,22 +126,25 @@ async function request<T>(method: string, path: string, body: Body | FormData = 
   return (data && data.data !== undefined ? data.data : data) as T
 }
 
+async function request<T>(method: string, path: string, body: Body | FormData = null): Promise<T> {
+  return rawFetch<T>(method, path, body, false)
+}
+
 export const api = {
   get: <T = unknown>(path: string) => request<T>('GET', path),
-  post: <T = unknown>(path: string, body?: Body) => request<T>('POST', path, body ?? null),
+  post: <T = unknown>(path: string, body?: Body | FormData) => request<T>('POST', path, body ?? null),
+  put: <T = unknown>(path: string, body?: Body | FormData) => request<T>('PUT', path, body ?? null),
   del: <T = unknown>(path: string) => request<T>('DELETE', path),
   upload: <T = unknown>(
     path: string,
-    fields: Record<string, string | number | null | undefined>,
+    fields: Record<string, string | number | null | undefined | boolean>,
     files: Record<string, File | null | undefined> = {},
   ) => {
     const fd = new FormData()
     Object.entries(fields || {}).forEach(([k, v]) => {
       if (v !== undefined && v !== null) fd.append(k, String(v))
     })
-    Object.entries(files).forEach(([k, f]) => {
-      if (f) fd.append(k, f)
-    })
+    Object.entries(files).forEach(([k, f]) => { if (f) fd.append(k, f) })
     return request<T>('POST', path, fd)
   },
 }

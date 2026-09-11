@@ -1,7 +1,8 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
+from rest_framework.throttling import AnonRateThrottle
 from django.contrib.auth import authenticate
 from django.conf import settings as dj_settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -9,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import base64
 import json
 import logging
+logger = logging.getLogger(__name__)
 import os
 import secrets
 
@@ -17,6 +19,17 @@ import requests as http_requests
 from core.responses import api_success, api_error
 from .models import User
 from .serializers import UserRegisterSerializer, UserMeSerializer
+
+
+logger = logging.getLogger(__name__)
+
+
+class LoginThrottle(AnonRateThrottle):
+    scope = "login"
+
+
+class ResetThrottle(AnonRateThrottle):
+    scope = "reset"
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +72,7 @@ def register(request: Request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
 def login(request: Request):
     email = (request.data.get("email") or "").strip().lower()
     password = request.data.get("password") or ""
@@ -79,17 +93,39 @@ def login(request: Request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout(request: Request):
-    try:
-        # Blacklist le refresh si on reçoit un token refresh dans le body
-        from rest_framework_simplejwt.token_blacklist.models import (
-            BlacklistedToken, OutstandingToken,
-        )
-        refresh = request.data.get("refresh")
-        if refresh:
-            token = RefreshToken(refresh)
-            token.blacklist()
-    except Exception:
-        pass
+    """Blackliste refresh + access et supprime la session."""
+    from rest_framework_simplejwt.token_blacklist.models import (
+        BlacklistedToken, OutstandingToken,
+    )
+    from rest_framework_simplejwt.tokens import Token, AccessToken
+    from rest_framework_simplejwt.exceptions import TokenError
+    # Refresh token dans le body
+    refresh = (request.data or {}).get("refresh")
+    if refresh:
+        try:
+            RefreshToken(refresh).blacklist()
+        except Exception:
+            logger.exception("Logout: échec blacklist refresh")
+    # Access token dans l'en-tête Authorization
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        access = auth[7:].strip()
+        try:
+            tok = AccessToken(access)
+            jti = tok.get("jti")
+            if jti:
+                import datetime as _dt
+                outstanding, _ = OutstandingToken.objects.get_or_create(
+                    jti=jti,
+                    defaults={
+                        "token": access,
+                        "user_id": tok.get("user_id"),
+                        "expires_at": _dt.datetime.fromtimestamp(tok["exp"], tz=_dt.timezone.utc),
+                    },
+                )
+                BlacklistedToken.objects.get_or_create(token=outstanding)
+        except Exception:
+            logger.exception("Logout: échec blacklist access")
     return api_success({"message": "Déconnexion réussie"})
 
 
@@ -138,6 +174,7 @@ def google_one_tap(request: Request):
             padded = parts[1] + "=" * (-len(parts[1]) % 4)
             payload = json.loads(base64.urlsafe_b64decode(padded))
         except Exception:
+            logger.exception("Google JWT fallback: token invalide")
             return api_error("Token Google invalide", status.HTTP_401_UNAUTHORIZED)
 
     google_id = payload.get("sub")

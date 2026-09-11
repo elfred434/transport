@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -396,6 +398,7 @@ def retrait_demander(request: Request):
     try:
         montant = Decimal(str(request.data.get("montant", "0")))
     except Exception:
+        logger.exception("Montant invalide")
         return api_error("Montant invalide", 422)
     if montant < settings.MONTANT_MIN_RETRAIT:
         return api_error(f"Le montant minimum d'un retrait est {settings.MONTANT_MIN_RETRAIT} XOF", 400)

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """Vues admin / super_admin — réécriture propre des endpoints qui cassaient en 500."""
 from decimal import Decimal
 
@@ -715,7 +717,7 @@ def livraison_bulk(request: Request):
                     total_t += Decimal(str(d.get("commission_transporteur", 0)))
                     total_a += Decimal(str(d.get("commission_plateforme", d.get("commission_admin", 0))))
                 except Exception:
-                    pass
+                    logger.exception("Erreur sur bulk livraison")
                 traitees += 1
     return api_success({
         "traitees": traitees,
