@@ -58,4 +58,4 @@ def bootstrap_superadmin(request: Request):
     user.save()
 
     logger.warning("BOOTSTRAP: super_admin créé: %s", email)
-    return api_success({"id": user.id, "email": user.email, "role": user.role}, code="super_admin_cree")
+    return api_success({"id": user.id, "email": user.email, "role": user.role}, status_code=201)
