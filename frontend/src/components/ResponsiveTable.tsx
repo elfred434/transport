@@ -160,9 +160,9 @@ export default function ResponsiveTable<T>({
       {/* ======================== MODALE DÉTAILS (mobile) ======================== */}
       {details && (
         <div
-          className="modal fade show d-block"
+          className="modal fade show d-block rtable-modal"
           tabIndex={-1}
-          style={{ backgroundColor: 'rgba(0,0,0,.5)' }}
+          style={{ backgroundColor: 'rgba(0,0,0,.5)', zIndex: 300 }}
           onClick={() => setDetails(null)}
         >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>

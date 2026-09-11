@@ -164,7 +164,7 @@ export default function SuperAdmin() {
 
       <div className="page-card">
         <h5>Matrice des permissions</h5>
-        <div className="table-responsive"><table className="table table-bordered table-sm">
+        <div className="table-responsive"><table className="table table-bordered table-sm rtable-ignore">
           <thead><tr><th>Action</th><th>Client</th><th>Transporteur</th><th>Admin simple</th><th>Super Admin</th></tr></thead>
           <tbody>
             <tr><td>Poster colis, payer, suivi, messagerie</td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td><td className="text-center text-success"><i className="fa-solid fa-check"></i></td></tr>

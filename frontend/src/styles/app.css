@@ -95,6 +95,8 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
     .btn, .badge { white-space: normal; }
     /* Les listes de suggestions (CountrySelect/CitySelect) ne dépassent pas */
     .list-group.position-absolute { left: 0; right: 0; max-width: 100%; }
+    /* Modale ResponsiveTable : doit passer au-dessus de la sidebar/backdrop */
+    .rtable-mobile + .modal, .modal.rtable-modal { z-index: 300 !important; }
 }
 
 /* Respect du choix utilisateur de réduire les animations */
@@ -742,6 +744,49 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
         border-bottom: 2px solid var(--gray-200);
         margin-bottom: 6px;
     }
+    /* MAIS si la première cellule est précédée d'un <th> (tableau clé→valeur
+       comme sur ColisDetail / Profil / Informations), alors toutes les
+       cellules sont traitées comme label+valeur sans titre spécial. */
+    table.table:not(.rtable-ignore) tr > th:first-child ~ td,
+    table.table:not(.rtable-ignore) tbody > tr:first-child > th:first-child {
+        display: flex !important;
+    }
+    table.table:not(.rtable-ignore) tr > th {
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 6px 0;
+        font-weight: 600;
+        color: var(--gray-500);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        flex: 0 0 38%;
+        border-bottom: 1px dashed var(--gray-200);
+    }
+    /* Quand c'est un tableau clé→valeur, on met th+td côte à côte */
+    table.table:not(.rtable-ignore) tbody tr:has(th) {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 0;
+    }
+    table.table:not(.rtable-ignore) tbody tr:has(th) th,
+    table.table:not(.rtable-ignore) tbody tr:has(th) td {
+        border-bottom: 1px dashed var(--gray-200);
+        padding: 8px 0;
+    }
+    table.table:not(.rtable-ignore) tbody tr:has(th) td {
+        flex: 1 1 auto;
+        text-align: right;
+    }
+    /* Ne pas afficher le titre en gras sur une table clé→valeur */
+    table.table:not(.rtable-ignore) tbody tr:has(th) td:first-child {
+        font-weight: normal;
+        font-size: .9rem;
+        border-bottom: 1px dashed var(--gray-200);
+        padding-bottom: 8px;
+        margin-bottom: 0;
+    }
+    table.table:not(.rtable-ignore) tbody tr:has(th) td:first-child::before { display: block; }
     table.table:not(.rtable-ignore) td:first-child::before {
         display: none; /* pas de label sur la 1re cellule = titre */
     }
