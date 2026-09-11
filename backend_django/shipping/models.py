@@ -73,6 +73,12 @@ class Colis(TimeStampedModel):
     class Meta:
         db_table = "colis"
         ordering = ["-date_creation"]
+        indexes = [
+            models.Index(fields=["statut", "-date_creation"]),
+            models.Index(fields=["user", "-date_creation"]),
+            models.Index(fields=["ville", "pays", "statut"]),
+            models.Index(fields=["date_limite"]),
+        ]
 
     @staticmethod
     def prix_pour_poids(kg: float) -> int:
@@ -116,6 +122,11 @@ class Voyage(TimeStampedModel):
     class Meta:
         db_table = "voyages"
         ordering = ["-date_depart", "-heure_depart"]
+        indexes = [
+            models.Index(fields=["statut", "-date_depart"]),
+            models.Index(fields=["ville"]),
+            models.Index(fields=["pays_depart", "pays_destination"]),
+        ]
 
 
 class Reservation(TimeStampedModel):
@@ -139,6 +150,12 @@ class Reservation(TimeStampedModel):
     class Meta:
         db_table = "reservations"
         unique_together = ("colis", "voyage")
+        indexes = [
+            models.Index(fields=["statut"]),
+            models.Index(fields=["colis", "statut"]),
+            models.Index(fields=["voyage", "statut"]),
+            models.Index(fields=["transporteur"]),
+        ]
 
 
 class Paiement(TimeStampedModel):
@@ -164,6 +181,12 @@ class Paiement(TimeStampedModel):
     class Meta:
         db_table = "paiements"
         ordering = ["-date_creation"]
+        indexes = [
+            models.Index(fields=["user", "-date_creation"]),
+            models.Index(fields=["colis"]),
+            models.Index(fields=["statut"]),
+            models.Index(fields=["numero_transaction"]),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.reference:
@@ -189,6 +212,11 @@ class SuiviColis(TimeStampedModel):
     class Meta:
         db_table = "suivi_colis"
         ordering = ["date_etape"]
+        indexes = [
+            models.Index(fields=["colis", "-date_etape"]),
+            models.Index(fields=["statut"]),
+            models.Index(fields=["demande_livraison", "statut"]),
+        ]
 
 
 class Retrait(TimeStampedModel):

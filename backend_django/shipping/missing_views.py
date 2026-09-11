@@ -88,13 +88,17 @@ def retraits_transporteur_list(request: Request):
     return api_success(res["data"] if False else res)
 
 
-# ---------- Verify Kkiapay (sandbox-friendly) ----------
+# ---------- Verify Kkiapay (sandbox-friendly + vérif API réelle en prod) ----------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def paiement_verify_kkiapay(request: Request, pk: int):
     """POST /api/paiements/<id>/verify-kkiapay
-    Vérifie un paiement Kkiapay. En sandbox, le paiement est marqué payé si
-    un transactionId est fourni (simulation)."""
+    Vérifie un paiement Kkiapay :
+      - Sandbox / sans clés → marqué payé si transactionId présent (simulation).
+      - Production → appelle l'API Kkiapay /transactions/status et valide
+        seulement si status=SUCCESS."""
+    import logging
+    logger = logging.getLogger("kkiapay")
     try:
         p = Paiement.objects.select_related("colis").get(pk=pk)
     except Paiement.DoesNotExist:
@@ -106,31 +110,33 @@ def paiement_verify_kkiapay(request: Request, pk: int):
                       or request.data.get("transaction_id")
                       or request.data.get("reference")
                       or "").strip()
-    # En mode sandbox / sans clés Kkiapay, on marque payé si transactionId présent
+    if not transaction_id:
+        return api_error("Transaction ID manquant", 400)
+
     from django.conf import settings as dj_settings
     sandbox_or_fallback = dj_settings.KKIAPAY_SANDBOX or not (
-        dj_settings.KKIAPAY_PUBLIC_KEY and dj_settings.KKIAPAY_PRIVATE_KEY
-        and dj_settings.KKIAPAY_SECRET_KEY
+        dj_settings.KKIAPAY_PRIVATE_KEY
     )
     if sandbox_or_fallback:
-        if transaction_id:
-            p.statut = Paiement.STATUT_PAYE
-            p.numero_transaction = transaction_id
-            p.save(update_fields=["statut", "numero_transaction"])
-            # Créer une étape de suivi "Payé" si pas déjà
-            if p.colis:
-                SuiviColis.objects.get_or_create(
-                    colis=p.colis, statut="Payé",
-                    defaults={"commentaire": "Paiement confirmé (sandbox)"},
-                )
-            return api_success({
-                "message": "Paiement confirmé (sandbox)",
-                "numero_transaction": transaction_id,
-                "statut": p.statut,
-            })
-        return api_error("Transaction ID manquant", 400)
-    # En production (clés réelles), il faudrait appeler l'API Kkiapay ici.
-    return api_error("Vérification Kkiapay non implémentée en production (clés non sandbox)", 501)
+        from core.kkiapay import _mark_paid
+        _mark_paid(p, transaction_id)
+        if p.colis and not SuiviColis.objects.filter(colis=p.colis, statut="Payé").exists():
+            SuiviColis.objects.create(colis=p.colis, statut="Payé", auteur_id=request.user.id,
+                                      commentaire="Paiement confirmé (sandbox)")
+        return api_success({
+            "message": "Paiement confirmé (sandbox)",
+            "numero_transaction": transaction_id,
+            "statut": p.statut,
+        })
+    # Production : appel API Kkiapay
+    from core.kkiapay import verify_transaction, _mark_paid
+    data = verify_transaction(transaction_id)
+    status = (data or {}).get("status") or ""
+    if str(status).upper() in ("SUCCESS", "SUCCESSFUL", "COMPLETE", "COMPLETED"):
+        _mark_paid(p, transaction_id)
+        return api_success({"message": "Paiement confirmé", "numero_transaction": transaction_id, "statut": p.statut})
+    logger.warning("Vérif Kkiapay tx=%s → status=%s data=%s", transaction_id, status, data)
+    return api_error(f"Paiement non confirmé par Kkiapay (status={status or 'inconnu'})", 402)
 
 
 # ---------- DELETE contact message ----------

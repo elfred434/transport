@@ -27,6 +27,7 @@ import AdminIndex from './pages/admin/AdminIndex'
 import AdminMessagerie from './pages/admin/AdminMessagerie'
 import AdminLogin from './pages/admin/AdminLogin'
 import SuperAdmin from './pages/admin/SuperAdmin'
+import NotFound from './pages/NotFound'
 
 function LegacyRedirect({ to }: { to: string }) {
   const { search } = useLocation()
@@ -106,6 +107,7 @@ export default function App() {
       {LEGACY_ROUTES.map(([from, to]) => (
         <Route key={from} path={from} element={<LegacyRedirect to={to} />} />
       ))}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

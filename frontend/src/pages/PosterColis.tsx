@@ -34,6 +34,7 @@ export default function PosterColis() {
     ville: '',
     adresse_depart: '',
     adresse_destination: '',
+    description: '',
   })
 
   const prix = calcPrix(poids)
@@ -51,22 +52,29 @@ export default function PosterColis() {
     const fd = new FormData(form)
     const file = (fd.get('image_colis') as File | null) || null
     try {
-      const data = await api.upload<CreateResponse>(
-        '/api/colis',
-        {
-          nom_colis: formData.nom_colis,
-          type_produit: formData.type_produit,
-          nombre_produits: formData.nombre_produits,
-          poids: poids,
-          dimensions: formData.dimensions,
-          date_limite: formData.date_limite,
-          pays: formData.pays,
-          ville: formData.ville,
-          adresse_depart: formData.adresse_depart,
-          adresse_destination: formData.adresse_destination,
-        },
-        { image_colis: file && file.size > 0 ? file : null },
-      )
+      let imageUrl = ''
+      if (file && file.size > 0) {
+        const up = await api.upload<{ url: string }>(
+          '/api/upload?bucket=colis&field=image_colis',
+          {},
+          { image_colis: file },
+        )
+        imageUrl = up.url
+      }
+      const data = await api.post<CreateResponse>('/api/colis', {
+        nom_colis: formData.nom_colis,
+        type_produit: formData.type_produit,
+        nombre_produits: formData.nombre_produits,
+        poids: poids,
+        dimensions: formData.dimensions,
+        date_limite: formData.date_limite,
+        pays: formData.pays,
+        ville: formData.ville,
+        adresse_depart: formData.adresse_depart,
+        adresse_destination: formData.adresse_destination,
+        description: formData.description ?? '',
+        image_colis: imageUrl || '',
+      })
       setCreated(data)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inconnue')

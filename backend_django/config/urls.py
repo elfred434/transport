@@ -23,6 +23,7 @@ from shipping.paiement_views import (
     paiements_mine, contact_reponses,
     kkiapay_setup_payout, kkiapay_payout_direct,
 )
+from core.kkiapay import kkiapay_webhook
 
 
 @api_view(["GET"])
@@ -197,7 +198,7 @@ urlpatterns = [
     path("api/contact", sv.contact_send),
     path("api/contact/reponses", contact_reponses),
     path("api/kkiapay/public-config", sv.kkiapay_config),
-    path("api/webhooks/kkiapay", ok_json),
+    path("api/webhooks/kkiapay", kkiapay_webhook),
 
     # ========== ADMIN ==========
     path("api/admin/stats", adv.stats),

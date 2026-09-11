@@ -6,6 +6,7 @@ import GoogleOneTap from '../components/GoogleOneTap'
 
 interface LoginResponse {
   token: string
+  refresh?: string
   user: { id: number; role: string }
 }
 
@@ -39,7 +40,7 @@ export default function Login() {
     setAlert(null)
     try {
       const data = await api.post<LoginResponse>('/api/auth/login', { email, password })
-      await setToken(data.token)
+      await setToken({ token: data.token, refresh: data.refresh })
       const from = (location.state as { from?: string } | null)?.from
       if (from) navigate(from, { replace: true })
       else navigate(data.user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })

@@ -31,7 +31,7 @@ interface AuthContextValue {
   isTransporteur: boolean
   isClient: boolean
   refresh: () => Promise<Me | null>
-  setToken: (token: string) => Promise<Me | null>
+  setToken: (payload: string | { token: string; refresh?: string }) => Promise<Me | null>
   logout: () => Promise<void>
 }
 
@@ -81,8 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => loadMe(), [loadMe])
 
   const setToken = useCallback(
-    async (token: string) => {
-      Auth.save(token)
+    async (payload: string | { token: string; refresh?: string }) => {
+      if (typeof payload === 'string') {
+        Auth.saveAccess(payload)
+      } else {
+        Auth.saveTokens(payload.token, payload.refresh)
+      }
       setLoading(true)
       try {
         return await loadMe()
@@ -95,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/api/auth/logout')
+      await api.post('/api/auth/logout', { refresh: Auth.refresh() })
     } catch {}
     Auth.clear()
     setMe(null)

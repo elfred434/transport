@@ -118,7 +118,7 @@ def colis_mine(request: Request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def colis_available(request: Request):
-    qs = Colis.objects.filter(statut=Colis.STATUT_APPROUVE)
+    qs = Colis.objects.select_related("user").filter(statut=Colis.STATUT_APPROUVE)
     search = request.query_params.get("search", "")
     if search:
         qs = qs.filter(

@@ -173,7 +173,6 @@ export default function Paiement() {
     } catch {}
 
     window.addSuccessListener(async (response) => {
-      console.log('Kkiapay success', response)
       const txId = response?.transactionId
       if (txId) {
         await verifyWithBackend(txId)
@@ -182,8 +181,7 @@ export default function Paiement() {
       }
     })
 
-    window.addFailedListener((err) => {
-      console.log('Kkiapay failed', err)
+    window.addFailedListener(() => {
       setAlert({ type: 'danger', html: 'Paiement Kkiapay échoué ou annulé' })
     })
 

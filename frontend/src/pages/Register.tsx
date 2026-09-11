@@ -6,6 +6,7 @@ import GoogleOneTap from '../components/GoogleOneTap'
 
 interface RegisterResponse {
   token: string
+  refresh?: string
   user: { id: number }
 }
 
@@ -41,7 +42,7 @@ export default function Register() {
         },
         { photo_profil: file && file.size > 0 ? file : null },
       )
-      await setToken(data.token)
+      await setToken({ token: data.token, refresh: data.refresh })
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
