@@ -117,7 +117,7 @@ export default function ResponsiveTable<T>({
       </div>
 
       {/* ======================== MOBILE : cartes ======================== */}
-      <div className="rtable-mobile d-none">
+      <div className="rtable-mobile">
         {loading && <p className="text-muted small p-2">Chargement…</p>}
         {!loading && data && data.length === 0 && (
           <p className="text-muted text-center p-3">{emptyText}</p>
