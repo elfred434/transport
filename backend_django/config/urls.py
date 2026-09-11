@@ -79,12 +79,17 @@ def m(GET=None, POST=None, DELETE=None, PUT=None, auth=True):
 # la classe DRF sous-jacente, soit on les enrobe pour bypasser le wrap.
 def drf(view_fn):
     """Extrait la fonction sous-jacente d'une vue @api_view de façon à
-    pouvoir l'appeler directement depuis un autre @api_view."""
-    # @api_view retourne une WrappedAPIView qui, appelée, crée sa propre Request.
-    # On va à la place extraire la .cls de la vue et appeler la bonne méthode
-    # (get/post/...) sur une instance.
+    pouvoir l'appeler directement depuis un autre @api_view.
+    IMPORTANT: réapplique les permission_classes de la vue cible pour que les
+    permissions soient bien vérifiées (IsAdmin, etc.), sinon c'est la permission
+    du dispatcher parent qui s'applique.
+    """
     wrapped_cls = view_fn.cls
-    initkwargs = view_fn.initkwargs
+    initkwargs = dict(view_fn.initkwargs)
+    # Récupérer les permission_classes déclarées sur la vue cible
+    perms = getattr(view_fn, "permission_classes", None)
+    if perms:
+        initkwargs["permission_classes"] = perms
     instance = wrapped_cls(**initkwargs)
     instance.format_kwarg = None
 

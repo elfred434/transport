@@ -107,9 +107,20 @@ def profile_dispatch(request: Request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def transporteur_public(request: Request, tid: int):
+    # tid peut être soit l'ID du User, soit l'ID du Transporteur
+    # (la liste admin renvoie l'id du Transporteur avec user_id).
+    u = None
     try:
         u = User.objects.get(pk=tid, role=User.ROLE_TRANSPORTEUR)
     except User.DoesNotExist:
+        # Essayer via l'id du modèle Transporteur
+        from shipping.models import Transporteur
+        try:
+            t_obj = Transporteur.objects.select_related("user").get(pk=tid)
+            u = t_obj.user if t_obj.user.role == User.ROLE_TRANSPORTEUR else None
+        except Transporteur.DoesNotExist:
+            u = None
+    if u is None:
         return api_error("Transporteur introuvable", 404)
     t = getattr(u, "transporteur", None)
     from django.db.models import Avg
