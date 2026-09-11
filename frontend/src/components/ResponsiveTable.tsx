@@ -37,8 +37,8 @@ interface Props<T> {
   rowKey: (row: T, idx: number) => string | number
   /** État de chargement. */
   loading?: boolean
-  /** Message quand la liste est vide. */
-  emptyText?: string
+  /** Message quand la liste est vide (texte ou JSX). */
+  emptyText?: ReactNode
   /** Colonne d'actions (boutons), rendue à la fois dans le tableau et
    *  directement sur la carte mobile (pas dans la modale). */
   actions?: (row: T) => ReactNode

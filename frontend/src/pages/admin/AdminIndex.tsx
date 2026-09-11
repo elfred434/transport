@@ -157,7 +157,7 @@ function Pagination({ info, onChange }: { info: PaginationInfo; onChange: (p: nu
 /* ============================================================
    Section stat card
    ============================================================ */
-function StatCard({ value, label, sub, subColor='text-warning' }: { value: React.ReactNode; label: string; sub?: string; subColor?: string }) {
+function StatCard({ value, label, sub, subColor='text-warning' }: { value: React.ReactNode; label: string; sub?: React.ReactNode; subColor?: string }) {
   return (
     <div className="page-card text-center p-3 h-100">
       <div className="fs-4 fw-bold">{value}</div>
@@ -551,7 +551,8 @@ export default function AdminIndex() {
 
   /* ======================= Rendu ======================= */
 
-  const sectionsNav: { id: Section; label: string; icon?: string; badge?: React.ReactNode; color?: string }[] = [
+  // Liste des sections de navigation admin (pour référence future / menu latéral)
+  const _sectionsNav: { id: Section; label: string; icon?: string; badge?: React.ReactNode; color?: string }[] = [
     { id:'stats', label:'Tableau de bord', icon:'fa-gauge-high' },
     { id:'livraisons', label:'Livraisons', icon:'fa-truck-ramp-box', color:'danger',
       badge: stats && stats.demandes_livraison>0 ? <span className="badge bg-danger ms-1" style={{animation:'pulse 1s infinite'}}>{stats.demandes_livraison}</span> : null },
@@ -559,8 +560,8 @@ export default function AdminIndex() {
       badge: stats && stats.demandes_livraison>0 ? <span className="badge bg-danger ms-1" style={{animation:'pulse 1s infinite'}}>{stats.demandes_livraison}</span> : null },
     { id:'voyages', label:'Voyages', icon:'fa-route' },
     { id:'transporteurs', label:'Transporteurs', icon:'fa-truck' },
-    { id:'utilisateurs' as any, label:'', } as any, // on remplace via users
   ]
+  void _sectionsNav
 
   return (
     <>

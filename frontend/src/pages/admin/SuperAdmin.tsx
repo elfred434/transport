@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../lib/api'
 import { date, money } from '../../lib/format'
 import { useToast } from '../../components/Toasts'
-import ResponsiveTable, { type Column } from '../../components/ResponsiveTable'
+import ResponsiveTable from "../components/ResponsiveTable";
+import type { Column } from "../components/ResponsiveTable";
 
 interface AdminUser {
   id: number

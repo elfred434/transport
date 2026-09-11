@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, datetime, money, SmartImg } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toasts'
-import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
+import ResponsiveTable from '../components/ResponsiveTable'
+import type { Column } from '../components/ResponsiveTable'
 import '../styles/dashboard-originale.css'
 
 /**

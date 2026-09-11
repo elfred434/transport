@@ -73,7 +73,6 @@ export async function authResponse(res: any) {
 }
 
 type Body = Record<string, unknown> | null | undefined
-type ApiResponse<T> = T
 
 // Base URL de l'API en production.
 // En dev, Vite proxy les chemins relatifs /api → http://127.0.0.1:8000.
