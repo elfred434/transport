@@ -155,7 +155,7 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
     width: var(--sidebar-width);
     min-height: 100vh;
     min-height: 100dvh; /* vrai viewport mobile, prend en compte la barre d'URL */
-    background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
+    background-color: var(--sidebar-bg);  /* bleu uni #3498db du first-design */
     color: #fff;
     box-shadow: var(--shadow-lg);
     position: fixed;
@@ -170,7 +170,14 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
     -webkit-overflow-scrolling: touch;
     padding-bottom: env(safe-area-inset-bottom, 0);
     transform: translateX(0); /* par défaut visible sur desktop */
+    /* Scrollbar personnalisée webkit + Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
 }
+.vertical-menu::-webkit-scrollbar { width: 6px; }
+.vertical-menu::-webkit-scrollbar-track { background: transparent; }
+.vertical-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+.vertical-menu::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
 
 .logo-container {
     padding: 18px 16px;
