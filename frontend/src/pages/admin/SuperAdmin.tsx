@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../lib/api'
 import { date, money } from '../../lib/format'
 import { useToast } from '../../components/Toasts'
+import ResponsiveTable, { type Column } from '../../components/ResponsiveTable'
 
 interface AdminUser {
   id: number
@@ -94,26 +95,33 @@ export default function SuperAdmin() {
         <h5><i className="fa-solid fa-crown text-warning"></i> Liste des Administrateurs</h5>
         {!admins && <div className="text-muted">Chargement…</div>}
         {admins && (
-          <div className="table-responsive"><table className="table">
-            <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Inscrit</th><th>Actions</th></tr></thead>
-            <tbody>{admins.map(a=>(
-              <tr key={a.id}>
-                <td>{a.id}</td>
-                <td>{a.prenom} {a.nom}</td>
-                <td>{a.email}</td>
-                <td>{a.role==='super_admin' ? <span className="badge bg-warning text-dark"><i className="fa-solid fa-crown"></i> Super Admin</span> : <span className="badge bg-info text-dark">Admin</span>}</td>
-                <td className="small">{date(a.date_inscription)}</td>
-                <td>
-                  <div className="d-flex gap-1">
-                    {a.role==='admin' && <button className="btn btn-sm btn-warning" onClick={()=>changeRole(a.id,'super_admin')}>Promouvoir Super</button>}
-                    {a.role==='super_admin' && <button className="btn btn-sm btn-outline-info" onClick={()=>changeRole(a.id,'admin')}>Rétrograder Admin</button>}
-                    <button className="btn btn-sm btn-outline-primary" onClick={()=>changeRole(a.id,'client')}>→ Client</button>
-                    <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteUser(a.id)}><i className="fa-solid fa-trash"></i></button>
-                  </div>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table></div>
+          <ResponsiveTable<AdminUser>
+            columns={[
+              { key: 'id', label: 'ID' },
+              { key: 'nom', label: 'Nom', render: (a) => `${a.prenom} ${a.nom}` },
+              { key: 'email', label: 'Email' },
+              { key: 'role', label: 'Rôle',
+                render: (a) => a.role==='super_admin'
+                  ? <span className="badge bg-warning text-dark"><i className="fa-solid fa-crown"></i> Super Admin</span>
+                  : <span className="badge bg-info text-dark">Admin</span>,
+                primaryOnMobile: true },
+              { key: 'date_inscription', label: 'Inscrit',
+                render: (a) => <span className="small">{date(a.date_inscription)}</span> },
+            ]}
+            data={admins}
+            rowKey={(a) => a.id}
+            titleKey="nom"
+            subtitleKey="email"
+            className="table"
+            actions={(a) => (
+              <div className="d-flex gap-1 flex-wrap">
+                {a.role==='admin' && <button className="btn btn-sm btn-warning" onClick={()=>changeRole(a.id,'super_admin')}>Promouvoir</button>}
+                {a.role==='super_admin' && <button className="btn btn-sm btn-outline-info" onClick={()=>changeRole(a.id,'admin')}>Rétrograder</button>}
+                <button className="btn btn-sm btn-outline-primary" onClick={()=>changeRole(a.id,'client')}>→ Client</button>
+                <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteUser(a.id)}><i className="fa-solid fa-trash"></i></button>
+              </div>
+            )}
+          />
         )}
       </div>
 
@@ -125,26 +133,32 @@ export default function SuperAdmin() {
         </div>
         {!users && <div className="text-muted">Chargement…</div>}
         {users && (
-          <div className="table-responsive"><table className="table table-sm">
-            <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle actuel</th><th>Changer rôle</th><th>Actions</th></tr></thead>
-            <tbody>{users.map(u=>(
-              <tr key={u.id}>
-                <td>{u.id}</td>
-                <td>{u.prenom} {u.nom}</td>
-                <td className="small">{u.email}</td>
-                <td><span className="badge bg-light text-dark">{u.role}</span></td>
-                <td>
-                  <select className="form-select form-select-sm" style={{width:'auto'}} value={u.role} onChange={e=>changeRole(u.id, e.target.value)}>
-                    <option value="client">Client</option>
-                    <option value="transporteur">Transporteur</option>
-                    <option value="admin">Admin simple</option>
-                    <option value="super_admin">Super Admin</option>
-                  </select>
-                </td>
-                <td><button className="btn btn-sm btn-outline-danger" onClick={()=>deleteUser(u.id)}><i className="fa-solid fa-trash"></i></button></td>
-              </tr>
-            ))}</tbody>
-          </table></div>
+          <ResponsiveTable<AdminUser>
+            columns={[
+              { key: 'id', label: 'ID' },
+              { key: 'nom', label: 'Nom', render: (u) => `${u.prenom} ${u.nom}` },
+              { key: 'email', label: 'Email', render: (u) => <span className="small">{u.email}</span> },
+              { key: 'role', label: 'Rôle actuel',
+                render: (u) => <span className="badge bg-light text-dark">{u.role}</span>,
+                primaryOnMobile: true },
+            ]}
+            data={users}
+            rowKey={(u) => u.id}
+            titleKey="nom"
+            subtitleKey="email"
+            className="table table-sm"
+            actions={(u) => (
+              <div className="d-flex gap-1 flex-wrap align-items-center">
+                <select className="form-select form-select-sm" style={{width:'auto'}} value={u.role} onChange={e=>changeRole(u.id, e.target.value)}>
+                  <option value="client">Client</option>
+                  <option value="transporteur">Transporteur</option>
+                  <option value="admin">Admin simple</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+                <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteUser(u.id)}><i className="fa-solid fa-trash"></i></button>
+              </div>
+            )}
+          />
         )}
       </div>
 

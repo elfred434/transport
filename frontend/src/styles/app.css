@@ -658,3 +658,96 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
 @media (max-width: 767.98px) {
     .rtable-card .rtable-hide-mobile { display: none !important; }
 }
+
+/* ================================================================
+   TABLEAUX BOOTSTRAP AUTOMATIQUEMENT EN CARTES SUR MOBILE
+   Transforme les tableaux <table class="table"> non migrés en cartes
+   compactes en <768px. Affiche le data-label de chaque cellule pris
+   depuis <th data-label> ou, à défaut, depuis le texte du <th>
+   correspondant. Les ResponsiveTable (.rtable-desktop/.rtable-mobile)
+   ont leur propre CSS et ne sont pas affectés.
+   ================================================================ */
+@media (max-width: 767.98px) {
+    /* Ne rien faire sur les tableaux déjà gérés par ResponsiveTable */
+    .rtable-desktop table,
+    table.rtable-ignore { display: table !important; }
+
+    table.table:not(.rtable-ignore),
+    .table-responsive:not(.rtable-ignore) table.table {
+        display: block !important;
+        background: transparent;
+        border: 0;
+        width: 100%;
+    }
+    table.table:not(.rtable-ignore) thead { display: none; }
+    table.table:not(.rtable-ignore) tbody,
+    table.table:not(.rtable-ignore) tr,
+    table.table:not(.rtable-ignore) td,
+    table.table:not(.rtable-ignore) th {
+        display: block;
+        width: 100% !important;
+        max-width: 100%;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        text-align: left !important;
+    }
+    table.table:not(.rtable-ignore) tr {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--gray-200);
+        position: relative;
+        overflow: hidden;
+    }
+    table.table:not(.rtable-ignore) td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 6px 0;
+        border-bottom: 1px dashed var(--gray-200);
+        font-size: 0.9rem;
+        word-break: break-word;
+    }
+    table.table:not(.rtable-ignore) td:last-child { border-bottom: 0; }
+    /* Affiche le label (pris depuis le thead ou data-label) */
+    table.table:not(.rtable-ignore) td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--gray-500);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        flex: 0 0 38%;
+        text-align: left;
+        padding-right: 8px;
+    }
+    table.table:not(.rtable-ignore) td > * { flex: 1 1 auto; min-width: 0; text-align: right; }
+    table.table:not(.rtable-ignore) td .d-flex,
+    table.table:not(.rtable-ignore) td .btn,
+    table.table:not(.rtable-ignore) td .badge,
+    table.table:not(.rtable-ignore) td select,
+    table.table:not(.rtable-ignore) td form {
+        justify-content: flex-end;
+        text-align: right;
+    }
+    /* La colonne contenant un lien/image principale doit être en titre */
+    table.table:not(.rtable-ignore) td:first-child {
+        font-weight: 700;
+        font-size: 1rem;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--gray-200);
+        margin-bottom: 6px;
+    }
+    table.table:not(.rtable-ignore) td:first-child::before {
+        display: none; /* pas de label sur la 1re cellule = titre */
+    }
+    table.table:not(.rtable-ignore) td:first-child > * {
+        text-align: left;
+    }
+    /* Cache les images trop grandes dans les lignes */
+    table.table:not(.rtable-ignore) td img { max-width: 48px; max-height: 48px; object-fit: cover; border-radius: 6px; }
+}
