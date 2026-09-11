@@ -1,6 +1,82 @@
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+/* ------------------------------------------------------------------ */
+/*  Context global pour l'état ouvert/fermé du menu mobile.            */
+/*  Permet au bouton hamburger (dans TopbarMobile) et à la sidebar    */
+/*  de partager le même état, et à AppLayout de piloter le backdrop.  */
+/* ------------------------------------------------------------------ */
+interface SidebarCtx {
+  open: boolean
+  toggle: () => void
+  close: () => void
+}
+const SidebarContext = createContext<SidebarCtx>({ open: false, toggle: () => {}, close: () => {} })
+
+export function SidebarProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const toggle = useCallback(() => setOpen(o => !o), [])
+  const close = useCallback(() => setOpen(false), [])
+
+  // Ferme le menu quand on resize au-dessus du breakpoint md
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth >= 768) setOpen(false) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Verrouille le scroll du body quand le menu est ouvert (mobile)
+  useEffect(() => {
+    document.body.classList.toggle('has-sidebar', true)
+    if (open) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  return (
+    <SidebarContext.Provider value={{ open, toggle, close }}>
+      {children}
+    </SidebarContext.Provider>
+  )
+}
+
+export function useSidebar() { return useContext(SidebarContext) }
+
+/* ------------------------------------------------------------------ */
+/*  Topbar mobile avec bouton hamburger — visible uniquement < md.     */
+/* ------------------------------------------------------------------ */
+export function TopbarMobile() {
+  const { toggle } = useSidebar()
+  return (
+    <div className="topbar-mobile">
+      <button
+        className="hamburger"
+        onClick={toggle}
+        aria-label="Ouvrir le menu"
+      >
+        <i className="fa-solid fa-bars" />
+      </button>
+      <Link to="/dashboard" className="brand text-decoration-none text-white" onClick={useSidebar().close}>
+        <img src="/assets/img/OIG1.jpeg" alt="" style={{ height: 30, width: 30, borderRadius: '50%', objectFit: 'cover' }} />
+        SPIISTMOVE
+      </Link>
+      <div style={{ width: 44 }} /> {/* espace pour équilibrer */}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Backdrop semi-transparent qui ferme le menu au clic.              */
+/* ------------------------------------------------------------------ */
+export function SidebarBackdrop() {
+  const { open, close } = useSidebar()
+  return <div className={`sidebar-backdrop${open ? ' show' : ''}`} onClick={close} />
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar links & Sidebar                                           */
+/* ------------------------------------------------------------------ */
 export interface SidebarLink {
   to: string
   icon: string
@@ -14,10 +90,7 @@ export function useSidebarLinks() {
   const { me, isSuperAdmin, isAdmin } = useAuth()
   if (!me) return []
   const links: SidebarLink[] = [
-    // Section principale
     { to: '/dashboard', icon: 'fa-home', label: 'Tableau de bord', section: 'Général' },
-    
-    // Section Colis - intégration complète
     { to: '/poster-colis', icon: 'fa-box', label: 'Poster un colis', section: 'Colis', show: me.role === 'client' || me.role === 'transporteur' || isAdmin },
     { to: '/colis', icon: 'fa-boxes-stacked', label: 'Mes colis', section: 'Colis' },
     { to: '/colis', icon: 'fa-box-open', label: 'Colis disponibles', section: 'Colis', show: me.role === 'transporteur' || isAdmin },
@@ -25,23 +98,15 @@ export function useSidebarLinks() {
     { to: '/reservation-colis', icon: 'fa-handshake', label: 'Mes réservations', section: 'Colis' },
     { to: '/suivi', icon: 'fa-truck-fast', label: 'Suivi colis', section: 'Colis' },
     { to: '/paiement', icon: 'fa-credit-card', label: 'Paiements', section: 'Colis' },
-    
-    // Section Transporteur
     { to: '/devenir-transporteur', icon: 'fa-id-badge', label: 'Devenir Transporteur', section: 'Transporteur', show: !me.is_transporteur && me.role !== 'transporteur' },
     { to: '/transporteur-stats', icon: 'fa-chart-line', label: 'Mes statistiques', section: 'Transporteur', show: !!me.is_transporteur },
     { to: `/profil-transporteur?id=${me.id}`, icon: 'fa-user-tie', label: 'Profil Transporteur', section: 'Transporteur', show: !!me.is_transporteur },
-    
-    // Section Messagerie
     { to: '/liste-messagerie', icon: 'fa-envelope', label: 'Messages', section: 'Messagerie' },
-    { to: '/messagerie-admin', icon: 'fa-headset', label: "Support Admin", section: 'Messagerie' },
+    { to: '/messagerie-admin', icon: 'fa-headset', label: 'Support Admin', section: 'Messagerie' },
     { to: '/reponses', icon: 'fa-reply', label: 'Mes réponses', section: 'Messagerie' },
-    
-    // Section Compte
     { to: '/profil', icon: 'fa-user', label: 'Mon profil', section: 'Compte' },
     { to: '/modifier-profil', icon: 'fa-user-pen', label: 'Modifier profil', section: 'Compte' },
     { to: '/contact', icon: 'fa-phone-alt', label: 'Contact', section: 'Compte' },
-    
-    // Section Admin
     { to: '/admin', icon: 'fa-shield-halved', label: 'Administration', section: 'Admin', show: isAdmin, badge: isSuperAdmin ? 'Super' : 'Admin' },
     { to: '/admin/messagerie', icon: 'fa-comments', label: 'Messagerie Admin', section: 'Admin', show: isAdmin },
     { to: '/super-admin', icon: 'fa-crown', label: 'Super Admin', section: 'Admin', show: isSuperAdmin, badge: 'Super' },
@@ -50,59 +115,76 @@ export function useSidebarLinks() {
 }
 
 export function Sidebar() {
-  const { me, isSuperAdmin, logout } = useAuth()
+  const { me, isSuperAdmin, isTransporteur: isTransp, logout } = useAuth()
   const navigate = useNavigate()
+  const { open, close } = useSidebar()
   const links = useSidebarLinks()
 
   if (!me) return null
 
   const onLogout = async (e: React.MouseEvent) => {
     e.preventDefault()
+    close()
     await logout()
     navigate('/login')
   }
 
-  // Grouper par section
   const grouped: Record<string, SidebarLink[]> = {}
-  links.filter(l=>l.show!==false).forEach(l => {
+  links.filter(l => l.show !== false).forEach(l => {
     const sec = l.section || 'Autre'
     if (!grouped[sec]) grouped[sec] = []
     grouped[sec].push(l)
   })
 
   return (
-    <div className="vertical-menu">
-      <div className="logo-container" style={{padding: '12px 16px'}}>
-        <Link to="/" className="d-flex align-items-center justify-content-center gap-2 text-decoration-none">
-          <img src="/assets/img/OIG1.jpeg" alt="Logo" style={{height: 42, width: 42, borderRadius: '50%', objectFit: 'cover'}} />
-          <span className="fw-bold" style={{color: 'white', fontSize: '1rem'}}>SPIISTMOVE</span>
+    <div className={`vertical-menu${open ? ' show' : ''}`}>
+      <div className="logo-container">
+        <Link to="/dashboard" className="d-flex align-items-center justify-content-center gap-2 text-decoration-none text-white" onClick={close}>
+          <img src="/assets/img/OIG1.jpeg" alt="" style={{ height: 38, width: 38, borderRadius: '50%', objectFit: 'cover' }} />
+          <span className="fw-bold" style={{ color: 'white', fontSize: '1rem' }}>SPIISTMOVE</span>
         </Link>
       </div>
-      <div className="user-box" style={{padding: '10px 16px'}}>
-        {me.photo_url ? <img src={me.photo_url} alt="" className="user-avatar" style={{width: 40, height: 40}} /> : <div className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-1" style={{width: 40, height: 40}}><i className="fas fa-user text-primary"></i></div>}
-        <div className="user-name" style={{fontSize: '0.85rem'}}>{me.prenom} {me.nom}</div>
-        <div className="d-flex gap-1 justify-content-center flex-wrap" style={{fontSize: '0.7rem'}}>
-          <span className="badge bg-light text-dark" style={{fontSize: '0.65rem'}}>{me.role === 'utilisateur' ? 'client' : me.role}</span>
-          {isSuperAdmin && <span className="badge bg-warning text-dark" style={{fontSize: '0.6rem'}}><i className="fa-solid fa-crown"></i> Super</span>}
-          {me.role === 'admin' && <span className="badge bg-info text-dark" style={{fontSize: '0.6rem'}}>Admin</span>}
-          {me.is_transporteur && <span className="badge bg-success" style={{fontSize: '0.6rem'}}>Transp.</span>}
+      <div className="user-box">
+        {me.photo_url ? (
+          <img src={me.photo_url} alt="" className="user-avatar" />
+        ) : (
+          <div className="user-avatar d-flex align-items-center justify-content-center mx-auto mb-1" style={{ background: 'rgba(255,255,255,.15)', color: '#fff' }}>
+            <i className="fas fa-user" />
+          </div>
+        )}
+        <div className="user-name">{me.prenom} {me.nom}</div>
+        <div className="user-role">
+          {me.role === 'client' ? 'Client' : me.role === 'transporteur' ? 'Transporteur' : me.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+        </div>
+        <div className="d-flex gap-1 justify-content-center flex-wrap mt-1">
+          {isSuperAdmin && <span className="badge bg-warning text-dark"><i className="fa-solid fa-crown" /> Super</span>}
+          {me.role === 'admin' && !isSuperAdmin && <span className="badge bg-info text-dark">Admin</span>}
+          {isTransp && <span className="badge bg-success">Transp.</span>}
         </div>
       </div>
       <ul className="menu-items">
         {Object.entries(grouped).map(([section, items]) => (
           <div key={section}>
-            <li className="px-3 pt-3 pb-1 small text-uppercase fw-bold" style={{color: 'rgba(255,255,255,0.6)', fontSize: '0.65rem', letterSpacing: '1px'}}>{section}</li>
-            {items.map(l=>(
+            <li className="px-3 pt-3 pb-1 small text-uppercase fw-bold" style={{ color: 'rgba(255,255,255,.5)', fontSize: '.65rem', letterSpacing: '1px' }}>{section}</li>
+            {items.map(l => (
               <li key={l.to + l.label}>
-                <NavLink to={l.to} className={({ isActive }) => (isActive ? 'active' : '')} end={l.to==='/dashboard'}>
-                  <i className={`fas ${l.icon}`}></i> {l.label} {l.badge && <span className="badge bg-light text-dark ms-2" style={{fontSize:'0.55em'}}>{l.badge}</span>}
+                <NavLink
+                  to={l.to}
+                  end={l.to === '/dashboard'}
+                  className={({ isActive }) => (isActive ? 'active' : '')}
+                  onClick={close}
+                >
+                  <i className={`fas ${l.icon}`} /> {l.label}
+                  {l.badge && <span className="badge bg-light text-dark ms-auto" style={{ fontSize: '.65em' }}>{l.badge}</span>}
                 </NavLink>
               </li>
             ))}
           </div>
         ))}
-        <li className="mt-2"><a href="#" onClick={onLogout} style={{borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 8}}><i className="fas fa-sign-out-alt"></i> Déconnexion</a></li>
       </ul>
+      <button type="button" className="logout-link" onClick={onLogout}>
+        <i className="fas fa-sign-out-alt" /> Déconnexion
+      </button>
     </div>
   )
 }

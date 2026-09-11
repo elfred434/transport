@@ -1,153 +1,498 @@
-/* Styles partagés du frontend — Agence de Transport de Colis */
+/* ===================================================================
+   Agence de Transport de Colis — Design System & Responsive
+   Bonnes pratiques :
+   - Mobile-first : les styles de base ciblent le mobile, les media
+     queries ajoutent/modifient pour >= md/lg/xl.
+   - Breakpoints : sm=576, md=768, lg=992, xl=1200.
+   - Unités fluides : clamp() pour les polices, rem partout.
+   - Zone tactile minimale : 44×44px (WCAG).
+   - Pas de user-scalable=no (accessibilité).
+   - Préférence pour les users qui réduisent les animations.
+   =================================================================== */
 
 :root {
     --primary: #3498db;
+    --primary-dark: #2980b9;
     --secondary: #34495e;
-    --sidebar-width: 250px;
+    --success: #198754;
+    --danger: #dc3545;
+    --warning: #f39c12;
+    --info: #0d6efd;
+    --light: #f4f8fb;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-500: #adb5bd;
+    --gray-700: #495057;
+    --gray-900: #212529;
+    --sidebar-width: 260px;
+    --topbar-h: 60px;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,.12);
+    --transition: .2s ease;
+    --container-max: 1280px;
+}
+
+/* ----- Reset & base ----- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    font-size: 16px;
+    scroll-behavior: smooth;
 }
 
 body {
-    font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background: #f4f8fb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: clamp(.92rem, 2vw, 1rem);
+    line-height: 1.55;
+    color: var(--gray-900);
+    background: var(--light);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
 }
 
-/* --- Barre latérale --- */
+img, svg, video { max-width: 100%; height: auto; display: block; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--primary-dark); }
+button { cursor: pointer; font: inherit; }
+input, select, textarea, button { font: inherit; }
+
+/* Respect du choix utilisateur de réduire les animations */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ========================= TOPBAR MOBILE ========================= */
+.topbar-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--topbar-h);
+    padding: 0 14px;
+    background: var(--primary);
+    color: #fff;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    box-shadow: var(--shadow-md);
+}
+.topbar-mobile .brand { font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+.topbar-mobile .brand img { height: 30px; width: auto; }
+.hamburger {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.4rem;
+    padding: 10px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm);
+}
+.hamburger:active { background: rgba(255,255,255,.1); }
+
+/* Voile semi-transparent qui recouvre le contenu quand le menu est ouvert */
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition);
+}
+.sidebar-backdrop.show { opacity: 1; pointer-events: auto; }
+
+/* ========================= SIDEBAR ========================= */
 .vertical-menu {
     width: var(--sidebar-width);
     min-height: 100vh;
-    background-color: var(--primary);
+    background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
     color: #fff;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, .1);
+    box-shadow: 2px 0 10px rgba(0,0,0,.1);
     position: fixed;
-    left: 0;
-    top: 0;
+    left: 0; top: 0; bottom: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     z-index: 100;
+    transition: transform var(--transition);
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .logo-container {
     padding: 20px;
     text-align: center;
-    border-bottom: 1px solid var(--secondary);
+    border-bottom: 1px solid rgba(255,255,255,.1);
+    flex-shrink: 0;
 }
-
-.logo { max-width: 100%; height: auto; }
+.logo { max-width: 140px; height: auto; margin: 0 auto; }
 
 .user-box {
-    padding: 14px 20px;
+    padding: 16px 18px;
     text-align: center;
-    border-bottom: 1px solid var(--secondary);
+    border-bottom: 1px solid rgba(255,255,255,.1);
+    flex-shrink: 0;
 }
-
 .user-avatar {
     width: 56px; height: 56px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid #fff;
-    margin-bottom: 6px;
+    border: 2px solid rgba(255,255,255,.5);
+    margin: 0 auto 8px;
+    background: rgba(255,255,255,.1);
 }
+.user-name { font-weight: 600; margin-bottom: 3px; font-size: .95rem; }
+.user-role { font-size: .78rem; opacity: .8; text-transform: uppercase; letter-spacing: .5px; }
 
-.user-name { font-weight: bold; margin-bottom: 4px; }
-
-.menu-items { padding: 0; margin: 0; list-style-type: none; }
-
+.menu-items { padding: 8px 0; margin: 0; list-style: none; flex: 1; }
 .menu-items li a {
-    display: block;
-    padding: 13px 20px;
-    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    color: rgba(255,255,255,.88);
     text-decoration: none;
-    transition: all .25s ease;
-    border-left: 4px solid transparent;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+    border-left: 3px solid transparent;
+    min-height: 44px;
+    font-size: .95rem;
+}
+.menu-items li a i { width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+.menu-items li a:hover { background: rgba(255,255,255,.08); color: #fff; }
+.menu-items li a.active {
+    background: rgba(255,255,255,.15);
+    border-left-color: #fff;
+    color: #fff;
+    font-weight: 600;
 }
 
-.menu-items li a:hover { background-color: var(--secondary); border-left-color: var(--primary); }
-.menu-items li a.active { background-color: var(--secondary); border-left-color: #fff; font-weight: bold; }
-.menu-items li a i { margin-right: 10px; width: 18px; text-align: center; }
+.logout-link {
+    margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,.1);
+    padding: 12px 20px;
+    color: rgba(255,255,255,.85);
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    display: flex; align-items: center; gap: 12px;
+    min-height: 44px;
+    cursor: pointer;
+}
+.logout-link:hover { background: rgba(220,53,69,.2); color: #fff; }
+.logout-link i { width: 20px; text-align: center; }
 
-/* --- Contenu --- */
+/* ========================= CONTENU ========================= */
 .content {
     margin-left: var(--sidebar-width);
-    padding: 20px;
+    padding: 24px;
     min-height: 100vh;
+    max-width: var(--container-max);
 }
 
 .page-card {
     background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px #0001;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
     padding: 24px;
     margin-bottom: 20px;
+    overflow: hidden; /* évite les débordements de tables/cartes */
+}
+.page-card h5 { margin-top: 0; }
+
+/* ========================= TOPBAR PUBLIQUE ========================= */
+.topbar {
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.topbar .nav-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.topbar a { color: var(--gray-700); font-weight: 500; min-height: 40px; display: inline-flex; align-items: center; }
+
+/* ========================= FORMULAIRES ========================= */
+.form-control, .form-select {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 1rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    min-height: 44px;
+}
+.form-control:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(52,152,219,.15);
+}
+.form-label { font-weight: 600; margin-bottom: 6px; display: inline-block; font-size: .92rem; }
+
+/* Espacement vertical consistent dans les formulaires */
+.mb-3 { margin-bottom: 1rem !important; }
+.row { display: flex; flex-wrap: wrap; margin: 0 -12px; }
+.row > [class*="col-"] { padding: 0 12px; width: 100%; }
+
+/* Boutons : taille tactile minimale */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    transition: all var(--transition);
+    min-height: 44px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); color: #fff; }
+.btn-sm { padding: 6px 12px; min-height: 36px; font-size: .875rem; }
+.btn-lg { padding: 12px 24px; min-height: 52px; font-size: 1.05rem; }
+
+/* CountrySelect / CitySelect : le menu déroulant doit déborder */
+.position-relative .list-group {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-/* --- Pages publiques (sans sidebar) --- */
-/* --- Toasts --- */
+/* ========================= TABLEAUX ========================= */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -8px;
+    padding: 0 8px;
+}
+.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.table th, .table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: middle;
+    white-space: nowrap; /* mobile : le .table-responsive permet le scroll horizontal */
+}
+.table th { background: var(--gray-100); font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .3px; color: var(--gray-700); }
+.table img, .img-colis { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; }
+
+/* ========================= TOASTS ========================= */
 #toast-zone {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 2000;
+    top: calc(var(--topbar-h) + 12px);
+    right: 12px;
+    left: 12px;
+    z-index: 2100;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    pointer-events: none;
 }
 .toast-item {
-    padding: 12px 18px;
-    border-radius: 8px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
     color: #fff;
-    box-shadow: 0 4px 12px #0003;
-    max-width: 340px;
+    box-shadow: var(--shadow-lg);
     opacity: 1;
     transition: opacity .4s;
+    pointer-events: auto;
+    word-break: break-word;
 }
-.toast-success { background: #198754; }
-.toast-error   { background: #dc3545; }
-.toast-info    { background: #0d6efd; }
-.toast-item.hide { opacity: 0; }
+.toast-success { background: var(--success); }
+.toast-error   { background: var(--danger); }
+.toast-info    { background: var(--info); }
+.toast-item.hide { opacity: 0; transform: translateY(-10px); }
 
-/* --- Divers --- */
-.table img, .img-colis { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; }
-.avatar-lg { width: 96px; height: 96px; object-fit: cover; border-radius: 50%; }
-.cursor-pointer { cursor: pointer; }
-.conv-item.active { background: #eaf3fd !important; }
-
+/* ========================= CHAT ========================= */
 .chat-zone {
-    max-height: 420px;
+    max-height: 60vh;
     overflow-y: auto;
-    background: #f9f9f9;
-    border-radius: 8px;
+    background: var(--gray-100);
+    border-radius: var(--radius);
     padding: 16px;
     margin-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
 }
-.chat-msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
-.chat-msg.me { background: var(--primary); color: #fff; margin-left: auto; }
-.chat-msg.other { background: #ececec; }
-.chat-msg small { opacity: .75; display: block; margin-top: 4px; }
-
-/* --- Responsive --- */
-@media (max-width: 768px) {
-    .vertical-menu { width: 100%; position: static; min-height: auto; }
-    .content { margin-left: 0; padding: 14px; }
-    .mobile-hide { display: none; }
+.chat-msg {
+    padding: 10px 14px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    max-width: 80%;
+    word-break: break-word;
+    font-size: .95rem;
 }
+.chat-msg.me { background: var(--primary); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+.chat-msg.other { background: #fff; border: 1px solid var(--gray-200); border-bottom-left-radius: 4px; }
+.chat-msg small { opacity: .7; display: block; margin-top: 4px; font-size: .75rem; }
 
-/* --- Styles de pages (repris des blocs <style> inline du frontend vanilla) --- */
-
-/* Accueil */
-.hero { background: linear-gradient(135deg, #3498db 0%, #34495e 100%); color: #fff; padding: 90px 20px; text-align: center; }
-.hero h1 { font-size: 2.6rem; font-weight: bold; }
-.step-card { border: none; box-shadow: 0 2px 10px #0001; border-radius: 12px; height: 100%; }
-.step-icon { font-size: 2.4rem; color: var(--primary); }
-.topbar { background: #fff; box-shadow: 0 1px 6px #0001; padding: 12px 24px; }
-
-/* Suivi : timeline des étapes */
+/* ========================= TIMELINE SUIVI ========================= */
 .timeline { list-style: none; padding: 0; margin: 0; }
-.timeline li { position: relative; padding: 0 0 24px 36px; border-left: 2px solid #d7e4ef; }
+.timeline li { position: relative; padding: 0 0 24px 36px; border-left: 2px solid var(--gray-200); }
 .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
 .timeline li::before {
     content: ''; position: absolute; left: -9px; top: 2px;
     width: 16px; height: 16px; border-radius: 50%;
-    background: #3498db; border: 3px solid #fff; box-shadow: 0 0 0 2px #3498db;
+    background: var(--gray-300); border: 3px solid #fff;
+    box-shadow: 0 0 0 2px var(--gray-300);
 }
-.timeline li.livre::before { background: #198754; box-shadow: 0 0 0 2px #198754; }
+.timeline li:first-child::before { background: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+.timeline li.livre::before { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+
+/* ========================= HERO / PAGES PUBLIQUES ========================= */
+.hero {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: #fff;
+    padding: 60px 20px;
+    text-align: center;
+}
+.hero h1 { font-size: clamp(1.7rem, 5vw, 2.8rem); font-weight: 700; margin: 0 0 12px; line-height: 1.2; }
+.hero p { font-size: clamp(1rem, 2.5vw, 1.15rem); opacity: .95; max-width: 640px; margin: 0 auto; }
+
+.step-card {
+    background: #fff;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius);
+    height: 100%;
+    padding: 20px;
+    text-align: center;
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+.step-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.step-icon { font-size: 2.4rem; color: var(--primary); margin-bottom: 12px; }
+
+/* Kpi cards (stats dashboard) */
+.stat-card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    height: 100%;
+}
+.stat-card .stat-value { font-size: clamp(1.3rem, 3vw, 1.8rem); font-weight: 700; color: var(--gray-900); }
+.stat-card .stat-label { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-500); margin-top: 4px; }
+
+/* Badges */
+.badge { display: inline-block; padding: 4px 10px; border-radius: 100px; font-size: .76rem; font-weight: 600; }
+
+/* Images */
+.avatar-lg { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
+
+.cursor-pointer { cursor: pointer; }
+.conv-item.active { background: rgba(52,152,219,.08) !important; }
+
+/* Progress bar (étapes formulaire) */
+.progress { height: 6px; background: var(--gray-200); border-radius: 100px; overflow: hidden; }
+.progress-bar { background: var(--primary); height: 100%; transition: width .3s; }
+
+/* ===================================================================
+   MOBILE FIRST : par défaut (<768px)
+   =================================================================== */
+@media (max-width: 767.98px) {
+    .vertical-menu {
+        transform: translateX(-100%);
+        top: 0;
+        padding-top: 0;
+    }
+    .vertical-menu.show { transform: translateX(0); box-shadow: var(--shadow-lg); }
+    /* Pas de topbar desktop */
+    body.has-sidebar { padding-top: var(--topbar-h); }
+    .content {
+        margin-left: 0;
+        padding: 16px 14px;
+    }
+    .page-card { padding: 16px; margin-bottom: 16px; border-radius: 8px; }
+    .page-card h5 { font-size: 1.05rem; }
+    .topbar-mobile { display: flex; }
+    /* Colonnes pleine largeur sur mobile */
+    .row > [class*="col-"] { flex: 0 0 100%; max-width: 100%; margin-bottom: 10px; }
+    /* Tableaux : éviter le scroll horizontal sur les petits écrans si possible
+       en restreignant les colonnes. Le .table-responsive permet le scroll sinon. */
+    .table th, .table td { padding: 8px 10px; font-size: .85rem; }
+    /* Toasts prennent presque toute la largeur */
+    #toast-zone { right: 8px; left: 8px; top: calc(var(--topbar-h) + 8px); }
+    /* Réduire les paddings héros */
+    .hero { padding: 40px 16px; }
+    /* Espacement entre boutons dans les groupes d'actions */
+    .btn + .btn { margin-left: 0; margin-top: 8px; }
+    .d-flex.gap-2 { flex-wrap: wrap; }
+}
+
+/* Cacher la topbar mobile et afficher la sidebar en permanence >= md */
+@media (min-width: 768px) {
+    .topbar-mobile { display: none; }
+    .sidebar-backdrop { display: none !important; }
+    body.has-sidebar { padding-top: 0; }
+    .vertical-menu { transform: translateX(0) !important; }
+    .mobile-show { display: none; }
+}
+
+/* ============ TABLETTE (768px+) ============ */
+@media (min-width: 768px) {
+    .content { padding: 24px; }
+    .col-md-2 { flex: 0 0 16.6667%; max-width: 16.6667%; }
+    .col-md-3 { flex: 0 0 25%; max-width: 25%; }
+    .col-md-4 { flex: 0 0 33.3333%; max-width: 33.3333%; }
+    .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+    .col-md-8 { flex: 0 0 66.6667%; max-width: 66.6667%; }
+    .col-md-9 { flex: 0 0 75%; max-width: 75%; }
+    .col-md-12 { flex: 0 0 100%; max-width: 100%; }
+}
+
+/* ============ DESKTOP (992px+) ============ */
+@media (min-width: 992px) {
+    .col-lg-2 { flex: 0 0 16.6667%; max-width: 16.6667%; }
+    .col-lg-3 { flex: 0 0 25%; max-width: 25%; }
+    .col-lg-4 { flex: 0 0 33.3333%; max-width: 33.3333%; }
+    .col-lg-6 { flex: 0 0 50%; max-width: 50%; }
+    .col-lg-8 { flex: 0 0 66.6667%; max-width: 66.6667%; }
+    #toast-zone { left: auto; max-width: 380px; top: 20px; right: 20px; }
+}
+
+/* ============ LARGE DESKTOP (1200px+) ============ */
+@media (min-width: 1200px) {
+    .content { padding: 28px 32px; }
+}
+
+/* ============ GRANDS ÉCRANS ============ */
+@media (min-width: 1400px) {
+    .content { margin-left: var(--sidebar-width); }
+}
+
+/* ============ PAYSAGE SUR PETITS ÉCRANS ============ */
+@media (max-width: 767.98px) and (orientation: landscape) {
+    .hero { padding: 30px 20px; }
+    .hero h1 { font-size: 1.6rem; }
+}
+
+/* Classe utilitaire pratique */
+.mobile-hide { display: initial; }
+@media (max-width: 767.98px) { .mobile-hide { display: none !important; } }
+.mobile-only { display: none; }
+@media (max-width: 767.98px) { .mobile-only { display: initial; } }
+
+/* Éviter le zoom au focus des inputs sur iOS (font-size >=16px) */
+@supports (-webkit-touch-callout: none) {
+    .form-control, .form-select, input, select, textarea { font-size: 16px; }
+}

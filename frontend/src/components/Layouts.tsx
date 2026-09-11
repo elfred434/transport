@@ -1,9 +1,17 @@
 import { type ReactNode } from 'react'
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Sidebar } from './Sidebar'
+import { Sidebar, SidebarProvider, TopbarMobile, SidebarBackdrop } from './Sidebar'
 
 export function AppLayout() {
+  return (
+    <SidebarProvider>
+      <AppLayoutInner />
+    </SidebarProvider>
+  )
+}
+
+function AppLayoutInner() {
   const { me, loading } = useAuth()
   const location = useLocation()
 
@@ -23,6 +31,8 @@ export function AppLayout() {
 
   return (
     <>
+      <TopbarMobile />
+      <SidebarBackdrop />
       <div id="sidebar">
         <Sidebar />
       </div>
@@ -46,8 +56,8 @@ export function AdminGate({ children, superOnly = false }: { children: ReactNode
   if (superOnly) {
     if (!isSuperAdmin) {
       return (
-        <div className="p-5 text-center">
-          <h3><i className="fa-solid fa-crown text-warning"></i> Accès réservé au Super Admin</h3>
+        <div className="p-4 p-md-5 text-center">
+          <h3><i className="fa-solid fa-crown text-warning me-2"></i>Accès réservé au Super Admin</h3>
           <p className="text-muted">Vous devez être Super Admin pour accéder à cette section.</p>
           <Link className="btn btn-primary mt-3" to="/">Retour à l'accueil</Link>
         </div>
@@ -56,8 +66,8 @@ export function AdminGate({ children, superOnly = false }: { children: ReactNode
   } else {
     if (!isAdmin) {
       return (
-        <div className="p-5 text-center">
-          <h3>Accès réservé aux administrateurs</h3>
+        <div className="p-4 p-md-5 text-center">
+          <h3><i className="fa-solid fa-lock text-danger me-2"></i>Accès réservé aux administrateurs</h3>
           <Link className="btn btn-primary mt-3" to="/">Retour à l'accueil</Link>
         </div>
       )
