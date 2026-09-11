@@ -24,23 +24,45 @@ export default defineConfig({
     allowedHosts: ['.e2b.app', '.ngrok-free.app', '.ngrok.io', 'localhost'],
     proxy: {
       '/api': {
-        // Si VITE_API_TARGET finit par '/api' (ex: ngrok pointant directement sur l'API),
-        // on le retire pour éviter le double préfixe /api/api/.
-        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
+        // Ordre de priorité pour la cible :
+        // 1) variable d'environnement VITE_API_TARGET (si définie)
+        // 2) sinon http://127.0.0.1:8000 (Django par défaut)
+        // On nettoie automatiquement : supprime /api en fin, supprime les
+        // crochets/paranthèses qui ont pu être copiés-collés par erreur depuis
+        // un rendu markdown (ex: "[http://h](http://h)").
+        target: (() => {
+          let t = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000'
+          t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // retire les liens markdown
+          t = t.replace(/[<>"]/g, '').trim()              // retire chevrons/guillemets
+          t = t.replace(/\/api\/?$/, '')                  // retire le suffixe /api
+          return t
+        })(),
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
       },
       '/storage': {
-        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
+        target: (() => {
+          let t = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000'
+          t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          t = t.replace(/[<>"]/g, '').trim()
+          t = t.replace(/\/api\/?$/, '')
+          return t
+        })(),
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
       },
       '/uploads': {
-        target: (process.env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/api\/?$/, ''),
+        target: (() => {
+          let t = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000'
+          t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          t = t.replace(/[<>"]/g, '').trim()
+          t = t.replace(/\/api\/?$/, '')
+          return t
+        })(),
         changeOrigin: true,
       },
     },
