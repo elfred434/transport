@@ -198,9 +198,21 @@ export default function PosterColis() {
                 )}
 
                 {/* Boutons navigation */}
-                <div className="d-flex justify-content-between mt-4">
-                  {step > 1 ? <button type="button" className="btn btn-outline-primary btn-lg" onClick={prev}><i className="fas fa-arrow-left"></i> Précédent</button> : <div></div>}
-                  {step < totalSteps ? <button type="button" className="btn btn-primary btn-lg ms-auto" onClick={next}>Suivant <i className="fas fa-arrow-right"></i></button> : <button type="submit" className="btn btn-primary btn-lg ms-auto"><i className="fas fa-paper-plane"></i> Poster le colis</button>}
+                <div className="d-flex gap-2 justify-content-between align-items-stretch flex-wrap mt-4 form-nav-btns">
+                  {step > 1 ? (
+                    <button type="button" className="btn btn-outline-primary btn-lg flex-grow-1" onClick={prev}>
+                      <i className="fas fa-arrow-left"></i> Précédent
+                    </button>
+                  ) : <div className="flex-grow-1"></div>}
+                  {step < totalSteps ? (
+                    <button type="button" className="btn btn-primary btn-lg flex-grow-1" onClick={next}>
+                      Suivant <i className="fas fa-arrow-right"></i>
+                    </button>
+                  ) : (
+                    <button type="submit" className="btn btn-primary btn-lg flex-grow-1">
+                      <i className="fas fa-paper-plane"></i> Poster le colis
+                    </button>
+                  )}
                 </div>
               </form>
             )}

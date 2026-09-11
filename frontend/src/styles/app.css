@@ -593,3 +593,34 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
 @supports (-webkit-touch-callout: none) {
     .form-control, .form-select, input, select, textarea { font-size: 16px; }
 }
+
+/* Boutons de navigation dans les formulaires multi-étapes */
+.form-nav-btns { gap: 10px !important; }
+.form-nav-btns .btn {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 12px 14px;
+    font-size: .95rem;
+    white-space: nowrap;
+}
+@media (max-width: 576px) {
+    .form-nav-btns { flex-direction: column !important; gap: 8px !important; }
+    .form-nav-btns .btn {
+        width: 100%;
+        flex: none;
+        margin: 0 !important;
+        /* Sur très petit écran, raccourcir légèrement le padding horizontal */
+        padding: 12px 10px;
+        font-size: .92rem;
+    }
+    /* La div placeholder (espace à gauche quand pas de bouton Précédent)
+       disparaît pour que le bouton Suivant prenne toute la largeur */
+    .form-nav-btns > div.flex-grow-1 { display: none; }
+}
+
+/* Groupes de boutons avec .gap-2 : wrap en mobile */
+@media (max-width: 767.98px) {
+    .d-flex.gap-2.btn-group-mobile-wrap,
+    form .d-flex.gap-2:last-child { flex-wrap: wrap !important; }
+    form .d-flex.gap-2:last-child .btn { flex: 1 1 100%; margin-left: 0 !important; margin-top: 8px; }
+}
