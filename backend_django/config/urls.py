@@ -24,6 +24,7 @@ from shipping.paiement_views import (
     kkiapay_setup_payout, kkiapay_payout_direct,
 )
 from core.kkiapay import kkiapay_webhook
+from core.bootstrap import bootstrap_superadmin
 
 
 @api_view(["GET"])
@@ -136,6 +137,9 @@ urlpatterns = [
 
     # Upload sécurisé
     path("api/upload", upload),
+
+    # Bootstrap one-shot: créer le premier super_admin (à SUPPRIMER/retirer après usage)
+    path("api/bootstrap/superadmin", bootstrap_superadmin),
 
     # Profile
     path("api/profile", cv.profile_dispatch),
