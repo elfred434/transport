@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import '@fortawesome/fontawesome-free/css/all.min.css'
-import './styles/app.css'
+// Design hérité — chargé EN PREMIER pour que app.css (design system global)
+// puisse le surcharger sans avoir à utiliser !important partout.
 import './styles/first-design.css'
+import './styles/app.css'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './components/Toasts'

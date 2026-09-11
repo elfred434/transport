@@ -71,7 +71,6 @@ export default function App() {
     <Routes>
       {/* Pages publiques vanilla */}
       <Route path="/" element={<Home />} />
-      <Route path="/contact" element={<Contact />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/reset-request" element={<ResetRequest />} />
@@ -81,6 +80,7 @@ export default function App() {
       {/* Espace utilisateur + admin */}
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/poster-colis" element={<PosterColis />} />
         <Route path="/colis" element={<ColisDisponibles />} />
         <Route path="/colis/:id" element={<ColisDetail />} />

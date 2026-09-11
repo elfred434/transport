@@ -110,7 +110,7 @@ input, select, textarea, button { font: inherit; }
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,.5);
-    z-index: 99;
+    z-index: 240; /* entre le contenu et la sidebar */
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--transition);
@@ -119,10 +119,9 @@ input, select, textarea, button { font: inherit; }
 
 /* ========================= SIDEBAR ========================= */
 .vertical-menu {
-    width: 82%;
-    max-width: 320px;
+    width: var(--sidebar-width);
     min-height: 100vh;
-    min-height: 100dvh; /* vrai viewport sur mobile, prend en compte la barre d'URL */
+    min-height: 100dvh; /* vrai viewport mobile, prend en compte la barre d'URL */
     background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
     color: #fff;
     box-shadow: var(--shadow-lg);
@@ -130,22 +129,38 @@ input, select, textarea, button { font: inherit; }
     left: 0; top: 0; bottom: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    z-index: 150; /* < topbar (200), > backdrop (99) */
+    z-index: 250; /* > topbar (200) : le tiroir mobile couvre tout quand ouvert */
     transition: transform var(--transition);
     display: flex;
     flex-direction: column;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     padding-bottom: env(safe-area-inset-bottom, 0);
+    transform: translateX(0); /* par défaut visible sur desktop */
 }
 
 .logo-container {
-    padding: 20px;
-    text-align: center;
+    padding: 18px 16px;
     border-bottom: 1px solid rgba(255,255,255,.1);
     flex-shrink: 0;
 }
 .logo { max-width: 140px; height: auto; margin: 0 auto; }
+.sidebar-close {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.4rem;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.sidebar-close:active { background: rgba(255,255,255,.15); }
+@media (min-width: 768px) {
+    .sidebar-close { display: none !important; }
+}
 
 .user-box {
     padding: 16px 18px;
@@ -454,13 +469,18 @@ input, select, textarea, button { font: inherit; }
    =================================================================== */
 @media (max-width: 767.98px) {
     .vertical-menu {
+        /* Par défaut : caché hors écran à gauche */
         transform: translateX(-100%);
         top: 0;
         padding-top: 0;
         width: 82%;
         max-width: 320px;
+        z-index: 250;
     }
-    .vertical-menu.show { transform: translateX(0); box-shadow: var(--shadow-lg); }
+    .vertical-menu.show {
+        transform: translateX(0);
+        box-shadow: var(--shadow-lg);
+    }
     body.has-sidebar { padding-top: var(--topbar-h); }
     .content {
         margin-left: 0;

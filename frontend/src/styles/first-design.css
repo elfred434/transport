@@ -26,129 +26,53 @@ body {
   color: var(--text-color);
 }
 
-/* Sidebar - design original menu.php - FIX SCROLL */
-.vertical-menu {
-  width: 250px !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
-  max-height: 100vh !important;
-  background-color: var(--sidebar-bg) !important;
-  color: white !important;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-  position: fixed !important;
-  left: 0 !important;
-  top: 0 !important;
-  z-index: 1000 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-
-.logo-container {
-  padding: 12px 16px !important;
-  text-align: center;
-  border-bottom: 1px solid var(--sidebar-hover) !important;
-  flex-shrink: 0 !important;
-}
+/* ======================================================================
+   Sidebar & Content — design géré par app.css (design system responsive).
+   Ces anciennes règles en !important cassaient le menu hamburger mobile
+   (position:static !important, z-index incohérent, overflow:hidden…).
+   On conserve uniquement les scrollbars et le style général non conflictuel.
+   ====================================================================== */
+.vertical-menu { background-color: var(--sidebar-bg); }
 
 .logo {
-  width: 42px !important;
-  height: 42px !important;
-  border-radius: 50% !important;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   object-fit: cover;
-}
-
-.user-box {
-  padding: 10px 16px;
-  text-align: center;
-  border-bottom: 1px solid var(--sidebar-hover);
-  flex-shrink: 0 !important;
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #fff;
+  border: 2px solid rgba(255,255,255,.5);
   margin-bottom: 6px;
 }
 
-.user-name {
-  font-weight: bold;
-  margin-bottom: 4px;
-}
+.user-name { font-weight: bold; margin-bottom: 4px; }
 
 .menu-items {
-  padding: 0 !important;
-  margin: 0 !important;
-  list-style-type: none !important;
-  flex: 1 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  /* Scrollbar styling */
+  /* Scrollbar styling webkit/moz */
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.3) transparent;
 }
-
-.menu-items::-webkit-scrollbar {
-  width: 6px;
-}
-
-.menu-items::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.menu-items::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.3);
-  border-radius: 3px;
-}
-
-.menu-items::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.5);
-}
-
-.menu-items li {
-  flex-shrink: 0;
-}
-
-.menu-items li a {
-  display: block !important;
-  padding: 13px 20px !important;
-  color: white !important;
-  text-decoration: none !important;
-  transition: all 0.3s ease !important;
-  border-left: 4px solid transparent !important;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-items li a:hover {
-  background-color: var(--sidebar-hover) !important;
-  border-left: 4px solid var(--sidebar-bg) !important;
-}
-
-.menu-items li a.active {
-  background-color: var(--sidebar-hover) !important;
-  border-left-color: #fff !important;
-  font-weight: bold;
-}
+.menu-items::-webkit-scrollbar { width: 6px; }
+.menu-items::-webkit-scrollbar-track { background: transparent; }
+.menu-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+.menu-items::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+.menu-items li { flex-shrink: 0; }
 
 .menu-items li a i {
   margin-right: 10px;
-  width: 18px;
+  width: 20px;
   text-align: center;
 }
 
-/* Content */
+/* Content : styles de base non conflictuels — le responsive/marges sont gérés
+   par le design system dans app.css. */
 .content {
-  margin-left: 250px !important;
-  padding: 12px 16px !important;
-  min-height: 100vh;
   background: var(--light-color);
-  width: calc(100% - 250px);
 }
 
 /* Page cards - design original */
@@ -256,26 +180,9 @@ h2, h3 {
   border: none !important;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .vertical-menu {
-    width: 100% !important;
-    position: static !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: auto !important;
-    flex-direction: column !important;
-  }
-  .menu-items {
-    overflow-y: visible !important;
-    flex: none !important;
-  }
-  .content {
-    margin-left: 0 !important;
-    padding: 14px !important;
-    width: 100% !important;
-  }
-}
+/* Responsive : géré par app.css (Sidebar slide-in, topbar mobile, bottom nav).
+   Ces anciennes règles forçaient un rendu "sidebar en haut de page" qui entrait
+   en conflit avec le hamburger. */
 
 /* Home original déjà scopé, mais on s'assure qu'il reste prioritaire */
 .home-originale {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import { Sidebar } from '../components/Sidebar'
 import '../styles/contact-originale.css'
 import '../styles/home-originale.css'
 
@@ -77,35 +76,29 @@ export default function Contact() {
     </div>
   )
 
-  // Si connecté → avec sidebar COMMUN (même que toutes les autres pages)
-  if (me) {
+  // Maintenant /contact est dans AppLayout :
+  // - si connecté, AppLayout fournit automatiquement topbar/sidebar/bottomnav
+  // - si non connecté, AppLayout redirige vers /login (donc ce cas n'arrivera pas
+  //   pour le rendu principal). On garde un fallback publique minimal pour toute
+  //   éventualité (lien direct hors session).
+  if (!me) {
     return (
-      <>
-        <div id="sidebar">
-          <Sidebar />
+      <div className="public-body" style={{background: 'var(--light-color)'}}>
+        <div className="topbar d-flex justify-content-between align-items-center" style={{background: 'white', boxShadow: '0 1px 6px #0001', padding: '12px 24px'}}>
+          <Link to="/" className="fw-bold text-decoration-none" style={{color: 'var(--primary-color)'}}><img src="/assets/img/OIG1.jpeg" alt="" style={{height: 38, width: 38, borderRadius: '50%', marginRight: 8}} />SPIISTMOVE</Link>
+          <div className="d-flex gap-2">
+            <Link to="/login" className="btn btn-outline-primary btn-sm">Connexion</Link>
+            <Link to="/register" className="btn btn-primary btn-sm">Inscription</Link>
+          </div>
         </div>
-        <div className="content">
-          {contactContent}
-        </div>
-      </>
+        {contactContent}
+        <footer className="text-center text-muted py-4 border-top bg-white mt-4">
+          <p className="mb-1"><strong>Agence de Transport de Colis</strong> — Porto-Novo, quartier Hinkoudé, Bénin</p>
+          <p className="mb-0 small">© 2025 SPIISTMOVE</p>
+        </footer>
+      </div>
     )
   }
 
-  // Si non connecté → version publique avec topbar
-  return (
-    <div className="public-body" style={{background: 'var(--light-color)'}}>
-      <div className="topbar d-flex justify-content-between align-items-center" style={{background: 'white', boxShadow: '0 1px 6px #0001', padding: '12px 24px'}}>
-        <Link to="/" className="fw-bold text-decoration-none" style={{color: 'var(--primary-color)'}}><img src="/assets/img/OIG1.jpeg" alt="" style={{height: 38, width: 38, borderRadius: '50%', marginRight: 8}} />SPIISTMOVE</Link>
-        <div className="d-flex gap-2">
-          <Link to="/login" className="btn btn-outline-primary btn-sm">Connexion</Link>
-          <Link to="/register" className="btn btn-primary btn-sm">Inscription</Link>
-        </div>
-      </div>
-      {contactContent}
-      <footer className="text-center text-muted py-4 border-top bg-white mt-4">
-        <p className="mb-1"><strong>Agence de Transport de Colis</strong> — Porto-Novo, quartier Hinkoudé, Bénin</p>
-        <p className="mb-0 small">© 2025 SPIISTMOVE</p>
-      </footer>
-    </div>
-  )
+  return contactContent
 }

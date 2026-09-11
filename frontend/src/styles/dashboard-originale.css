@@ -81,58 +81,14 @@
     box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
 }
 
-/* Menu inférieur mobile */
-.mobile-bottom-menu {
-    display: none;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background-color: white;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-}
-
-.mobile-bottom-menu ul {
-    display: flex;
-    justify-content: space-around;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.mobile-bottom-menu li {
-    flex: 1;
-    text-align: center;
-}
-
-.mobile-bottom-menu a {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px 5px;
-    color: #34495e;
-    text-decoration: none;
-    font-size: 0.8rem;
-}
-
-.mobile-bottom-menu a.active {
-    color: #3498db;
-}
-
-.mobile-bottom-menu i {
-    font-size: 1.2rem;
-    margin-bottom: 5px;
-}
+/* Menu inférieur mobile — SUPPRIMÉ, géré globalement par .bottom-nav dans AppLayout */
+.mobile-bottom-menu { display: none !important; }
 
 /* Responsive (valeurs d'origine) */
 @media (max-width: 992px) {
-    .mobile-bottom-menu {
-        display: block;
-    }
-
     .dashboard-originale {
-        padding-bottom: 70px;
+        /* padding-bottom géré par .content dans app.css pour ne pas double-réserver */
+        padding-bottom: 0;
     }
 
     .dashboard-originale .table-responsive table {

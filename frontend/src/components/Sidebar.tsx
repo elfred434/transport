@@ -31,11 +31,22 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     document.body.classList.toggle('has-sidebar', true)
     if (open) {
       document.body.style.overflow = 'hidden'
-      // Remet la sidebar tout en haut quand on l'ouvre (évite qu'elle reste à
-      // la position de scroll du desktop ou d'une précédente ouverture).
-      requestAnimationFrame(() => {
+      // Remet la sidebar tout en haut quand on l'ouvre : on d'abord frame d'animation
+      // pour être sûr que l'élément est monté/visible, puis on attend la fin de la
+      // transition transform (300ms) avant de forcer scrollTop=0 (sinon le scroll
+      // peut rester à la position desktop ou précédente et couper le haut du menu).
+      const reset = () => {
         const el = document.querySelector('.vertical-menu') as HTMLElement | null
         if (el) el.scrollTop = 0
+      }
+      requestAnimationFrame(() => {
+        reset()
+        const t = window.setTimeout(reset, 350)
+        window.addEventListener('scroll', reset, { once: true })
+        return () => {
+          window.clearTimeout(t)
+          window.removeEventListener('scroll', reset)
+        }
       })
     } else {
       document.body.style.overflow = ''
@@ -182,11 +193,21 @@ export function Sidebar() {
   })
 
   return (
-    <div className={`vertical-menu${open ? ' show' : ''}`}>
+    <div className={`vertical-menu${open ? ' show' : ''}`} aria-hidden={!open}>
       <div className="logo-container">
-        <Link to="/dashboard" className="d-flex align-items-center justify-content-center gap-2 text-decoration-none text-white" onClick={close}>
-          <img src="/assets/img/OIG1.jpeg" alt="" style={{ height: 38, width: 38, borderRadius: '50%', objectFit: 'cover' }} />
-          <span className="fw-bold" style={{ color: 'white', fontSize: '1rem' }}>SPIISTMOVE</span>
+        <Link to="/dashboard" className="d-flex align-items-center justify-content-between gap-2 text-decoration-none text-white" onClick={close}>
+          <span className="d-flex align-items-center gap-2">
+            <img src="/assets/img/OIG1.jpeg" alt="" style={{ height: 38, width: 38, borderRadius: '50%', objectFit: 'cover' }} />
+            <span className="fw-bold" style={{ color: 'white', fontSize: '1rem' }}>SPIISTMOVE</span>
+          </span>
+          <button
+            type="button"
+            className="sidebar-close d-md-none"
+            onClick={(e) => { e.preventDefault(); close() }}
+            aria-label="Fermer le menu"
+          >
+            <i className="fa-solid fa-xmark" />
+          </button>
         </Link>
       </div>
       <div className="user-box">
