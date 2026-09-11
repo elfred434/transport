@@ -165,12 +165,12 @@ GOOGLE_ALLOW_JWT_FALLBACK = os.environ.get("GOOGLE_ALLOW_JWT_FALLBACK", "true").
 APP_NAME = "Transport.bj"
 APP_VERSION = "3.0-django"
 
-# Commission: transporteur reçoit (1 - X)%, plateforme X% (defaut 5%)
+# Commission: plateforme reçoit X%, transporteur reçoit (1 - X)% (defaut 95% / 5%)
 def _float_env(key, default):
     try:
         return float(os.environ.get(key, default))
     except (TypeError, ValueError):
         return float(default)
 
-COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.05)
+COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.95)
 MONTANT_MIN_RETRAIT = int(_float_env("MONTANT_MIN_RETRAIT", 1000))

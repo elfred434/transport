@@ -453,12 +453,12 @@ export default function AdminIndex() {
 
   const onLivraisonDecision = async (id:number, decision:'confirmer'|'refuser', silent=false) => {
     if (!silent && !window.confirm(decision==='confirmer'
-      ? 'Confirmer la livraison ? 95% seront crédités au solde transporteur (il pourra demander un retrait), 5% à ton wallet admin.'
+      ? 'Confirmer la livraison ? 5% seront crédités au solde transporteur (il pourra demander un retrait), 95% à ton wallet admin.'
       : 'Refuser la livraison ?')) return
     try {
       const res = await api.post<{commission_transporteur?:number;commission_admin?:number;payout?:any;message?:string;note_transporteur?:string}>(`/api/admin/suivi/${id}/livraison`,{decision})
       if (decision==='confirmer') {
-        toast(`Livraison confirmée — transporteur ${money(res.commission_transporteur||0)} (95%) + admin ${money(res.commission_admin||0)} (5%)`)
+        toast(`Livraison confirmée — transporteur ${money(res.commission_transporteur||0)} (5%) + admin ${money(res.commission_admin||0)} (95%)`)
       } else toast('Livraison refusée')
       loadLivraisons(); loadColis(); loadStats(); loadRetraits(); loadWallet()
       setSelectedLivs(prev => { const n = new Set(prev); n.delete(id); return n })
@@ -643,9 +643,9 @@ export default function AdminIndex() {
             <div className="col-6 col-md-3"><StatCard value={stats.messages_contact_non_lus} label="Messages non lus"/></div>
           </div>
           <div className="row g-3">
-            <div className="col-6 col-md-3"><div className="card bg-success text-white"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.admin_wallet_solde||0)}</h4><small>Wallet Admin (5%)</small></div></div></div>
-            <div className="col-6 col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.admin_commission_total||0)}</h4><small>Commission totale 5%</small></div></div></div>
-            <div className="col-6 col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.total_paye_transporteurs||0)}</h4><small>Payé transporteurs 95%</small></div></div></div>
+            <div className="col-6 col-md-3"><div className="card bg-success text-white"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.admin_wallet_solde||0)}</h4><small>Wallet Admin (95%)</small></div></div></div>
+            <div className="col-6 col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.admin_commission_total||0)}</h4><small>Commission totale 95%</small></div></div></div>
+            <div className="col-6 col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center p-3"><h4 className="mb-0">{money(stats.total_paye_transporteurs||0)}</h4><small>Payé transporteurs 5%</small></div></div></div>
             <div className="col-6 col-md-3"><div className="card bg-warning text-dark"><div className="card-body text-center p-3"><h4 className="mb-0">{stats.retraits_en_attente||0} / {stats.retraits_payes||0}</h4><small>Retraits attente / payés</small></div></div></div>
           </div>
         </>
@@ -731,8 +731,8 @@ export default function AdminIndex() {
                               <div className="col-12 col-sm-6">
                                 <div className="text-muted mb-1"><i className="fa-solid fa-sack-dollar"></i> Prix / Commissions</div>
                                 <div>Prix : <strong>{money(p.prix_estime)}</strong></div>
-                                <div className="text-success">Transporteur (95%) : <strong>{money(p.commission_transporteur)}</strong></div>
-                                <div className="text-primary">Admin (5%) : <strong>{money(p.commission_admin)}</strong></div>
+                                <div className="text-success">Transporteur (5%) : <strong>{money(p.commission_transporteur)}</strong></div>
+                                <div className="text-primary">Admin (95%) : <strong>{money(p.commission_admin)}</strong></div>
                               </div>
                               <div className="col-12 col-sm-6">
                                 <div className="text-muted mb-1"><i className="fa-solid fa-user"></i> Client</div>
@@ -1112,18 +1112,18 @@ export default function AdminIndex() {
       {/* ==================== WALLET ==================== */}
       {section==='wallet' && (
         <div className="page-card">
-          <h5 className="mb-3"><i className="fa-solid fa-wallet"></i> Portefeuille Admin (5% plateforme)</h5>
+          <h5 className="mb-3"><i className="fa-solid fa-wallet"></i> Portefeuille Admin (95% plateforme)</h5>
           {!wallet && <div className="text-muted py-4">Chargement…</div>}
           {wallet && (
             <>
               <div className="row g-3 mb-4">
                 <div className="col-6 col-md-3"><div className="card bg-success text-white"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.solde)}</h3><small>Solde disponible</small></div></div></div>
-                <div className="col-6 col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.total_commission_generee)}</h3><small>Commission totale (5%)</small></div></div></div>
-                <div className="col-6 col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.total_paye_transporteurs)}</h3><small>Payé transporteurs (95%)</small></div></div></div>
+                <div className="col-6 col-md-3"><div className="card bg-primary text-white"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.total_commission_generee)}</h3><small>Commission totale (95%)</small></div></div></div>
+                <div className="col-6 col-md-3"><div className="card bg-info text-dark"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.total_paye_transporteurs)}</h3><small>Payé transporteurs (5%)</small></div></div></div>
                 <div className="col-6 col-md-3"><div className="card bg-warning text-dark"><div className="card-body text-center p-3"><h3 className="mb-0">{money(wallet.total_retraits_admin)}</h3><small>Retraits admin effectués</small></div></div></div>
               </div>
               <div className="alert alert-info small">
-                <i className="fa-solid fa-circle-info"></i> Répartition : <strong>95%</strong> transporteur, <strong>5%</strong> admin. Payout automatique Kkiapay Mobile Money sur le numéro du transporteur après confirmation. Si échec, retrait en attente dans l'onglet Retraits.
+                <i className="fa-solid fa-circle-info"></i> Répartition : <strong>5%</strong> transporteur, <strong>95%</strong> admin. Payout automatique Kkiapay Mobile Money sur le numéro du transporteur après confirmation. Si échec, retrait en attente dans l'onglet Retraits.
               </div>
               <h6 className="mt-4"><i className="fa-solid fa-hand-holding-dollar"></i> Retirer mon solde admin</h6>
               <form onSubmit={onAdminRetrait} className="row g-2 align-items-end">
@@ -1142,7 +1142,7 @@ export default function AdminIndex() {
           <h5 className="mb-3"><i className="fa-solid fa-money-bill-transfer"></i> Retraits & Paiements</h5>
           <div className="row g-2 mb-3">
             <div className="col-12 col-sm-6 col-md-3"><input className="form-control form-control-sm" placeholder="Recherche réf/num/nom" value={rSearch} onChange={e=>setRSearch(e.target.value)}/></div>
-            <div className="col-6 col-sm-4 col-md-2"><select className="form-select form-select-sm" value={rType} onChange={e=>setRType(e.target.value)}><option value="">Tous types</option><option value="transporteur">Transporteur 95%</option><option value="admin">Admin 5%</option></select></div>
+            <div className="col-6 col-sm-4 col-md-2"><select className="form-select form-select-sm" value={rType} onChange={e=>setRType(e.target.value)}><option value="">Tous types</option><option value="transporteur">Transporteur 5%</option><option value="admin">Admin 95%</option></select></div>
             <div className="col-6 col-sm-4 col-md-2"><select className="form-select form-select-sm" value={rStatut} onChange={e=>setRStatut(e.target.value)}><option value="">Tous statuts</option><option value="en_attente">En attente</option><option value="paye">Payé</option><option value="echec">Échec</option><option value="refuse">Refusé</option></select></div>
             <div className="col-6 col-sm-2 col-md-2"><button className="btn btn-sm btn-outline-primary w-100" onClick={loadRetraits}><i className="fa-solid fa-magnifying-glass"></i> Filtrer</button></div>
             <div className="col-12 col-md-3 text-md-end">
@@ -1359,8 +1359,8 @@ KKIAPAY_FALLBACK_SIMULATE=false`}</pre>
                         <li>Les clients payent leurs colis via <strong>le widget Kkiapay</strong> (déjà en place) → l'argent arrive sur ton compte Kkiapay.</li>
                         <li>Quand tu confirmes une livraison, la base calcule :
                           <ul>
-                            <li><span className="text-success">95%</span> crédités sur le solde du transporteur (DANS L'APP)</li>
-                            <li><span className="text-primary">5%</span> crédités sur ton wallet admin (DANS L'APP)</li>
+                            <li><span className="text-success">5%</span> crédités sur le solde du transporteur (DANS L'APP)</li>
+                            <li><span className="text-primary">95%</span> crédités sur ton wallet admin (DANS L'APP)</li>
                           </ul>
                         </li>
                         <li>Le transporteur voit son solde dans son dashboard et fait une <strong>demande de retrait</strong>.</li>
@@ -1370,7 +1370,7 @@ KKIAPAY_FALLBACK_SIMULATE=false`}</pre>
                             <li>Sinon, tu as un bouton <strong>« Marquer payé manuellement »</strong> (espèces / virement / Orange Money depuis ton téléphone).</li>
                           </ul>
                         </li>
-                        <li>Pour TES commissions (5%), active <strong>Payout automatique</strong> ci-dessus : Kkiapay te reverse tout seul sur ton numéro Mobile Money dès que le seuil est atteint.</li>
+                        <li>Pour TES commissions (95%), active <strong>Payout automatique</strong> ci-dessus : Kkiapay te reverse tout seul sur ton numéro Mobile Money dès que le seuil est atteint.</li>
                       </ol>
                     </div>
                   </div>

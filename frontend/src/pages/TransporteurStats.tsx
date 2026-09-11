@@ -5,7 +5,7 @@ import { money } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 
-/** Statistiques transporteur — 95% transporteur / 5% admin + retraits auto */
+/** Statistiques transporteur — 5% transporteur / 95% plateforme + retraits auto */
 
 interface Stats {
   solde: string | number
@@ -129,7 +129,7 @@ export default function TransporteurStats() {
       {s && (
         <>
           <div className="row g-3">
-            <StatCard icon="fa-wallet" label="Solde disponible (95%)" value={money(soldeDetail?.solde ?? s.solde)} color="success" />
+            <StatCard icon="fa-wallet" label="Solde disponible (5%)" value={money(soldeDetail?.solde ?? s.solde)} color="success" />
             <StatCard icon="fa-plane" label="Voyages proposés" value={s.nb_voyages} />
             <StatCard icon="fa-handshake" label="Réservations acceptées" value={s.nb_reservations_acceptees} color="info" />
             <StatCard
@@ -158,8 +158,8 @@ export default function TransporteurStats() {
             <div className="col-md-4">
               <div className="page-card">
                 <h6><i className="fa-solid fa-percent text-primary"></i> Répartition</h6>
-                <div className="small">Transporteur <strong>95%</strong> du prix estimé</div>
-                <div className="small">Plateforme <strong>5%</strong></div>
+                <div className="small">Transporteur <strong>5%</strong> du prix estimé</div>
+                <div className="small">Plateforme <strong>95%</strong></div>
                 <small className="text-muted">Après vérification client, envoi auto sur votre numéro</small>
               </div>
             </div>
@@ -213,7 +213,7 @@ export default function TransporteurStats() {
           </div>
 
           <p className="text-muted small mt-3">
-            <i className="fa-solid fa-circle-info"></i> Le solde est crédité de <strong>95% du prix estimé</strong> de chaque colis dont la livraison est confirmée par l'agence (après vérification client). 5% reste pour la plateforme. Paiement automatique via Kkiapay Mobile Money sur le numéro enregistré.
+            <i className="fa-solid fa-circle-info"></i> Le solde est crédité de <strong>5% du prix estimé</strong> de chaque colis dont la livraison est confirmée par l'agence (après vérification client). 95% revient à la plateforme. Paiement automatique via Kkiapay Mobile Money sur le numéro enregistré.
           </p>
         </>
       )}
