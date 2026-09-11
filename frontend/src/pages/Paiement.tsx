@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { datetime, money, StatusBadge } from '../lib/format'
+import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 
 /** Paiement 100% Kkiapay — port de paiement.html (?colis_id=&reference=). 
  *  Si colis_id manquant, affiche la liste des paiements.
@@ -224,28 +225,35 @@ export default function Paiement() {
           {!liste && !listeError && <div className="text-center text-muted py-4">Chargement…</div>}
           {liste && liste.length === 0 && <div className="text-center text-muted py-4">Aucun paiement. <Link to="/poster-colis">Poster un colis</Link> pour générer un paiement Kkiapay.</div>}
           {liste && liste.length > 0 && (
-            <div className="table-responsive">
-              <table className="table table-sm align-middle">
-                <thead><tr><th>Colis</th><th>Montant XOF</th><th>Réf</th><th>Statut</th><th>Action</th></tr></thead>
-                <tbody>
-                  {liste.map(pm => (
-                    <tr key={pm.id}>
-                      <td>{pm.nom_colis || `Colis #${pm.colis_id}`}</td>
-                      <td>{money(pm.montant)}</td>
-                      <td><code className="small">{pm.reference}</code></td>
-                      <td><StatusBadge statut={pm.statut} /></td>
-                      <td>
-                        {pm.statut === 'paye' ? (
-                          <span className="small text-muted"><i className="fa-solid fa-check text-success"></i> {pm.numero_transaction || ''}</span>
-                        ) : (
-                          <Link to={`/paiement?colis_id=${pm.colis_id}`} className="btn btn-success btn-sm"><i className="fa-solid fa-credit-card"></i> Payer via Kkiapay</Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable<PaiementData>
+              columns={[
+                { key: 'nom_colis', label: 'Colis',
+                  render: (pm) => pm.nom_colis || `Colis #${pm.colis_id}` },
+                { key: 'montant', label: 'Montant XOF',
+                  render: (pm) => money(pm.montant), primaryOnMobile: true },
+                { key: 'reference', label: 'Référence',
+                  render: (pm) => <code className="small">{pm.reference}</code> },
+                { key: 'statut', label: 'Statut',
+                  render: (pm) => <StatusBadge statut={pm.statut} />, primaryOnMobile: true },
+              ]}
+              data={liste}
+              rowKey={(pm) => pm.id}
+              titleKey="nom_colis"
+              subtitleKey="montant"
+              emptyText="Aucun paiement."
+              className="table-sm align-middle"
+              actions={(pm) => (
+                pm.statut === 'paye' ? (
+                  <span className="small text-muted">
+                    <i className="fa-solid fa-check text-success"></i> {pm.numero_transaction || ''}
+                  </span>
+                ) : (
+                  <Link to={`/paiement?colis_id=${pm.colis_id}`} className="btn btn-success btn-sm">
+                    <i className="fa-solid fa-credit-card"></i> Payer
+                  </Link>
+                )
+              )}
+            />
           )}
         </div>
       </>

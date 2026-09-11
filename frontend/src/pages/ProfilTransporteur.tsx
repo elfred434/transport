@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
+import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 
 /** Fiche publique d'un transporteur — port de profil-transporteur.html (?id=). */
 
@@ -191,33 +192,25 @@ export default function ProfilTransporteur() {
             <i className="fa-solid fa-plane text-primary"></i> Prochains voyages
           </h5>
           {data.voyages.length ? (
-            <div className="table-responsive">
-              <table className="table table-sm align-middle">
-                <thead className="table-light">
-                  <tr>
-                    <th>Trajet</th>
-                    <th>Départ</th>
-                    <th>Poids max</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.voyages.map((v, i) => (
-                    <tr key={i}>
-                      <td>
-                        {v.pays_depart} → {v.pays_destination}
-                      </td>
-                      <td>
-                        {date(v.date_depart)}{' '}
-                        <span className="small text-muted">
-                          {(v.heure_depart || '').substring(0, 5)}
-                        </span>
-                      </td>
-                      <td>{v.poids_max} kg</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable<TransporteurVoyage>
+              columns={[
+                { key: 'trajet', label: 'Trajet',
+                  render: (v) => <>{v.pays_depart} → {v.pays_destination}</> },
+                { key: 'date_depart', label: 'Départ',
+                  render: (v) => <>
+                    {date(v.date_depart)}{' '}
+                    <span className="small text-muted">{(v.heure_depart || '').substring(0, 5)}</span>
+                  </>, primaryOnMobile: true },
+                { key: 'poids_max', label: 'Poids max',
+                  render: (v) => <>{v.poids_max} kg</>, primaryOnMobile: true },
+              ]}
+              data={data.voyages}
+              rowKey={(_, i) => i}
+              titleKey="trajet"
+              subtitleKey="date_depart"
+              emptyText="Aucun voyage à venir."
+              className="table-sm align-middle"
+            />
           ) : (
             <p className="text-muted mb-0">Aucun voyage à venir.</p>
           )}

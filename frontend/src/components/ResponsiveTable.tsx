@@ -48,7 +48,7 @@ interface Props<T> {
   wrapperClassName?: string
 }
 
-export default function ResponsiveTable<T extends Record<string, unknown>>({
+export default function ResponsiveTable<T>({
   columns,
   data,
   titleKey,
@@ -64,13 +64,13 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
 
   const titleCol = columns.find(c => c.key === titleKey) || columns[0]
   const subtitleCol = columns.find(c => c.key === subtitleKey)
-  // Colonnes à afficher en plus du titre sur la carte mobile
-  const cardPrimaries = columns.filter(c => c.primaryOnMobile && !c.hideOnCard && c.key !== titleCol?.key)
-  const renderCell = (col: Column<T>, row: T): ReactNode => {
+  const cellValue = (col: Column<T>, row: T): ReactNode => {
     if (col.render) return col.render(row)
-    const v = row[col.key]
+    const v = (row as Record<string, unknown>)[col.key]
     return v === null || v === undefined || v === '' ? '—' : String(v)
   }
+  // Colonnes à afficher en plus du titre sur la carte mobile
+  const cardPrimaries = columns.filter(c => c.primaryOnMobile && !c.hideOnCard && c.key !== titleCol?.key)
 
   return (
     <>
@@ -103,7 +103,7 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
             {!loading && (data || []).map((row, idx) => (
               <tr key={rowKey(row, idx)}>
                 {columns.map(c => (
-                  <td key={c.key} className={c.className || ''}>{renderCell(c, row)}</td>
+                  <td key={c.key} className={c.className || ''}>{cellValue(c, row)}</td>
                 ))}
                 {actions && (
                   <td className="text-end text-nowrap">
@@ -126,7 +126,7 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
           <div key={rowKey(row, idx)} className="rtable-card card shadow-sm mb-2">
             <div className="card-body p-3">
               <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
-                <h6 className="mb-0 fw-bold flex-grow-1">{renderCell(titleCol, row)}</h6>
+                <h6 className="mb-0 fw-bold flex-grow-1">{cellValue(titleCol, row)}</h6>
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-primary rtable-more"
@@ -137,14 +137,14 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
                 </button>
               </div>
               {subtitleCol && (
-                <div className="small text-muted mb-1">{renderCell(subtitleCol, row)}</div>
+                <div className="small text-muted mb-1">{cellValue(subtitleCol, row)}</div>
               )}
               {cardPrimaries.length > 0 && (
                 <div className="d-flex flex-wrap gap-2 small mt-2 rtable-tags">
                   {cardPrimaries.map(c => (
                     <span key={c.key} className="rtable-tag">
                       <span className="text-muted me-1">{c.label}:</span>
-                      <span className="fw-semibold">{renderCell(c, row)}</span>
+                      <span className="fw-semibold">{cellValue(c, row)}</span>
                     </span>
                   ))}
                 </div>
@@ -170,7 +170,7 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
               <div className="modal-header bg-light">
                 <h5 className="modal-title d-flex align-items-center gap-2">
                   <i className="fa-solid fa-circle-info text-primary" />
-                  {renderCell(titleCol, details)}
+                  {cellValue(titleCol, details)}
                 </h5>
                 <button
                   type="button"
@@ -187,7 +187,7 @@ export default function ResponsiveTable<T extends Record<string, unknown>>({
                       <li key={c.key} className="list-group-item d-flex justify-content-between align-items-start gap-3 py-2 px-3">
                         <span className="text-muted small" style={{ flex: '0 0 40%' }}>{c.label}</span>
                         <span className="text-end fw-semibold" style={{ flex: '1 1 auto', wordBreak: 'break-word' }}>
-                          {renderCell(c, details)}
+                          {cellValue(c, details)}
                         </span>
                       </li>
                     )

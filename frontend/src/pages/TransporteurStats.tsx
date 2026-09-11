@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { money } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
+import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 
 /** Statistiques transporteur — 95% transporteur / 5% admin + retraits auto */
 
@@ -187,25 +188,27 @@ export default function TransporteurStats() {
           <div className="page-card mt-4">
             <h5><i className="fa-solid fa-list"></i> Historique retraits / paiements automatiques</h5>
             {retraits.length===0 ? <p className="text-muted">Aucun retrait</p> : (
-              <div className="table-responsive">
-                <table className="table table-sm">
-                  <thead><tr><th>Date</th><th>Montant</th><th>Statut</th><th>Numéro</th><th>Référence</th><th>Colis</th></tr></thead>
-                  <tbody>
-                    {retraits.map(r=>(
-                      <tr key={r.id}>
-                        <td className="small">{new Date(r.date_demande).toLocaleString('fr-FR')}</td>
-                        <td className="fw-bold">{money(r.montant)}</td>
-                        <td>
-                          <span className={`badge ${r.statut==='paye'?'bg-success':r.statut==='en_attente'?'bg-warning text-dark':r.statut==='echec'?'bg-danger':'bg-secondary'}`}>{r.statut}</span>
-                        </td>
-                        <td className="small">{r.numero||'—'}</td>
-                        <td className="small">{r.reference}</td>
-                        <td className="small">{r.colis_id ? `#${r.colis_id}` : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable<Retrait>
+                columns={[
+                  { key: 'date_demande', label: 'Date',
+                    render: (r) => <span className="small">{new Date(r.date_demande).toLocaleString('fr-FR')}</span> },
+                  { key: 'montant', label: 'Montant',
+                    render: (r) => <span className="fw-bold">{money(r.montant)}</span>, primaryOnMobile: true },
+                  { key: 'statut', label: 'Statut',
+                    render: (r) => (
+                      <span className={`badge ${r.statut==='paye'?'bg-success':r.statut==='en_attente'?'bg-warning text-dark':r.statut==='echec'?'bg-danger':'bg-secondary'}`}>{r.statut}</span>
+                    ), primaryOnMobile: true },
+                  { key: 'numero', label: 'Numéro', render: (r) => <span className="small">{r.numero||'—'}</span> },
+                  { key: 'reference', label: 'Référence', render: (r) => <span className="small">{r.reference}</span> },
+                  { key: 'colis_id', label: 'Colis', render: (r) => <span className="small">{r.colis_id ? `#${r.colis_id}` : '—'}</span> },
+                ]}
+                data={retraits}
+                rowKey={(r) => r.id}
+                titleKey="reference"
+                subtitleKey="montant"
+                emptyText="Aucun retrait"
+                className="table-sm"
+              />
             )}
           </div>
 
