@@ -458,7 +458,14 @@ def avis_transporteur(request: Request, tid: int):
 def contact_send(request: Request):
     ser = ContactCreateSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    m = ContactMessage.objects.create(**ser.validated_data)
+    data = ser.validated_data
+    # Si l'utilisateur est connecté ET n'a pas fourni d'email, remplir automatiquement
+    if request.user.is_authenticated:
+        if not data.get("email"):
+            data["email"] = request.user.email
+        if not data.get("nom"):
+            data["nom"] = f"{request.user.prenom} {request.user.nom}".strip()
+    m = ContactMessage.objects.create(**data)
     return api_success({"id": m.id, "message": "Message envoyé"}, status_code=201)
 
 

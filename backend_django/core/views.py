@@ -105,7 +105,7 @@ def profile_dispatch(request: Request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def transporteur_public(request: Request, tid: int):
     try:
         u = User.objects.get(pk=tid, role=User.ROLE_TRANSPORTEUR)
