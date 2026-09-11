@@ -13,23 +13,39 @@ export function money(v: unknown): string {
   )
 }
 
+const TZ = 'Africa/Porto-Novo'
+const DATE_LOCALE: Intl.LocalesArgument = 'fr-FR'
+
+function _toDate(v: unknown): Date | null {
+  if (!v) return null
+  let s = String(v)
+  // Sécurise les timestamps ISO sans 'Z' (traitées en UTC par le backend Django)
+  if (!s.endsWith('Z') && !s.includes('+') && s.match(/T\d{2}:\d{2}/)) {
+    s = s + 'Z'
+  } else if (s.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    s = s + 'T00:00:00Z'
+  } else if (s.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)) {
+    s = s.replace(' ', 'T') + 'Z'
+  }
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return null
+  return d
+}
+
 export function date(v: unknown): string {
-  if (!v) return '—'
-  const d = new Date(String(v).replace(' ', 'T'))
-  if (isNaN(d.getTime())) return String(v)
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const d = _toDate(v)
+  if (!d) return v ? String(v) : '—'
+  return d.toLocaleDateString(DATE_LOCALE, {
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ,
+  })
 }
 
 export function datetime(v: unknown): string {
-  if (!v) return '—'
-  const d = new Date(String(v).replace(' ', 'T'))
-  if (isNaN(d.getTime())) return String(v)
-  return d.toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  const d = _toDate(v)
+  if (!d) return v ? String(v) : '—'
+  return d.toLocaleString(DATE_LOCALE, {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZone: TZ,
   })
 }
 

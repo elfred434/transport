@@ -185,8 +185,16 @@ def voyage_store(request: Request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def voyage_available(request: Request):
-    qs = Voyage.objects.filter(statut=Voyage.STATUT_APPROUVE)
-    return api_success(list(qs.values()))
+    qs = Voyage.objects.select_related("user").filter(statut=Voyage.STATUT_APPROUVE).order_by("-date_depart", "-heure_depart")
+    search = request.query_params.get("search", "")
+    if search:
+        qs = qs.filter(
+            Q(ville__icontains=search)
+            | Q(pays_depart__icontains=search)
+            | Q(pays_destination__icontains=search)
+        )
+    res = paginate_queryset(qs, request, serializer=VoyageSerializer)
+    return api_success(res)
 
 
 @api_view(["GET"])

@@ -254,5 +254,10 @@ urlpatterns = [
     path("api/super-admin/admins", adv.superadmin_admins_list),
 ]
 
+# Servir les fichiers médias en dev ET en prod (pour les déploiements Django
+# tout-en-un sans Nginx ; si Nginx est devant, il prendra le relais).
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    from django.urls import get_resolver  # noqa: F401
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
