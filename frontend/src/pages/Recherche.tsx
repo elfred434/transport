@@ -115,6 +115,8 @@ export default function Recherche() {
     })()
   }, [colisId])
 
+  // ⚠️ transporteurLink DOIT être défini AVANT les useMemo qui l'utilisent, sinon
+  //    on a ReferenceError (temporal dead zone) et la page crash complètement.
   const transporteurLink = (v: VoyageRow) => {
     const tid = v.transporteur_id || v.user_id
     return tid ? (
