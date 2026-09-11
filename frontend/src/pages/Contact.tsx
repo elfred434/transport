@@ -43,7 +43,7 @@ export default function Contact() {
           <h2 className="section-title text-center"><i className="fa-solid fa-envelope" style={{color: 'var(--primary-color)'}}></i> Contactez-nous</h2>
           <div className="card w-100" style={{maxWidth: 900, margin: '0 auto', textAlign: 'left', alignItems: 'stretch'}}>
             <div className="contact-row d-flex flex-wrap gap-4 justify-content-center">
-              <div className="contact-form flex-grow-1" style={{minWidth: 320, maxWidth: 450}}>
+              <div className="contact-form flex-grow-1" style={{minWidth: 'min(320px, 100%)', maxWidth: 450, width: '100%'}}>
                 {success && <div className="msg-success text-center p-2 mb-3" style={{background: '#d1fae5', color: '#065f46', borderRadius: 8}}>Votre message a bien été envoyé. Merci !</div>}
                 {error && <div className="msg-error text-center p-2 mb-3" style={{background: '#fee2e2', color: '#991b1b', borderRadius: 8}}>{error}</div>}
                 <form onSubmit={onSubmit}>
@@ -59,7 +59,7 @@ export default function Contact() {
                   <Link to="/reponses" className="btn btn-outline-primary"><i className="fas fa-reply"></i> Voir mes réponses</Link>
                 </div>
               </div>
-              <div className="flex-grow-1" style={{minWidth: 320, maxWidth: 400}}>
+              <div className="flex-grow-1" style={{minWidth: 'min(320px, 100%)', maxWidth: 400, width: '100%'}}>
                 <div className="contact-infos p-3 mb-3" style={{background: '#f1f8ff', borderRadius: 8}}>
                   <div className="mb-2"><i className="fa-solid fa-envelope" style={{color: 'var(--primary-color)'}}></i> contact@transportcolis.com</div>
                   <div className="mb-2"><i className="fa-solid fa-phone" style={{color: 'var(--primary-color)'}}></i> +229 97 00 00 00</div>

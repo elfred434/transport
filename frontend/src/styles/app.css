@@ -65,6 +65,37 @@ a { color: var(--primary); text-decoration: none; }
 a:hover { color: var(--primary-dark); }
 button { cursor: pointer; font: inherit; }
 input, select, textarea, button { font: inherit; }
+pre, code { white-space: pre-wrap; word-break: break-word; }
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.row { --bs-gutter-x: 12px; }
+/* Empêche les inputs trop larges de faire déborder les colonnes */
+.form-control, .form-select { width: 100%; }
+.page-card, .card { overflow: hidden; /* contient les dropdowns sans faire déborder */ }
+
+@media (max-width: 767.98px) {
+    /* Conteneurs Bootstrap : évitent le scroll horizontal */
+    .container, .container-fluid { padding-left: 12px; padding-right: 12px; max-width: 100%; }
+    .form-control, .form-select, .input-group { min-width: 0; }
+    /* Les nav pills/tabs scrollent horizontalement au lieu de pousser la page */
+    .nav-pills, .nav-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    .nav-pills::-webkit-scrollbar, .nav-tabs::-webkit-scrollbar { display: none; }
+    .nav-pills .nav-link, .nav-tabs .nav-link { white-space: nowrap; }
+    /* Modales */
+    .modal-dialog { margin: 8px; max-width: calc(100vw - 16px); }
+    /* Les badges/boutons trop longs passent à la ligne */
+    .btn, .badge { white-space: normal; }
+    /* Les listes de suggestions (CountrySelect/CitySelect) ne dépassent pas */
+    .list-group.position-absolute { left: 0; right: 0; max-width: 100%; }
+}
 
 /* Respect du choix utilisateur de réduire les animations */
 @media (prefers-reduced-motion: reduce) {
@@ -308,7 +339,11 @@ input, select, textarea, button { font: inherit; }
 /* Espacement vertical consistent dans les formulaires */
 .mb-3 { margin-bottom: 1rem !important; }
 .row { display: flex; flex-wrap: wrap; margin: 0 -12px; }
-.row > [class*="col-"] { padding: 0 12px; width: 100%; }
+.row > [class*="col-"] { padding: 0 12px; }
+@media (max-width: 767.98px) {
+    /* Sur mobile, forcer toutes les colonnes en pleine largeur */
+    .row > [class*="col-"] { flex: 0 0 100%; max-width: 100%; margin-bottom: 8px; width: 100%; }
+}
 
 /* Boutons : taille tactile minimale */
 .btn {

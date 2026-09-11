@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, money, SmartImg, StatusBadge } from '../lib/format'
-import { CountrySelect } from '../components/LocationSelect'
+import { CountrySelect, CitySelect } from '../components/LocationSelect'
 
 /** Recherche (colis / voyages + voyages compatibles) — port de recherche.html. */
 
