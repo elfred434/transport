@@ -70,9 +70,14 @@ export default function Recherche() {
     setColisLoading(true)
     setColisError(null)
     try {
-      setColisList(await api.get<ColisRow[]>('/api/colis/available' + (p.toString() ? '?' + p : '')))
+      // /api/colis/available est PAGINÉ : { data: Colis[], pagination: {...} }
+      const res = await api.get<{ data: ColisRow[]; pagination?: unknown }>(
+        '/api/colis/available' + (p.toString() ? '?' + p : '')
+      )
+      setColisList(Array.isArray(res) ? res : (res?.data || []))
     } catch (e) {
       setColisError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+      setColisList([])
     } finally {
       setColisLoading(false)
     }

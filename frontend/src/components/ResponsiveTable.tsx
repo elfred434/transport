@@ -69,6 +69,17 @@ export default function ResponsiveTable<T>({
     const v = (row as Record<string, unknown>)[col.key]
     return v === null || v === undefined || v === '' ? '—' : String(v)
   }
+  // Normalise data : peut être un tableau direct, ou une réponse paginée Laravel/DRF
+  // {data: [...], pagination/meta: {...}}. On extrait toujours un tableau.
+  const rows: T[] = (() => {
+    if (Array.isArray(data)) return data
+    if (data && typeof data === 'object' && 'data' in data) {
+      const inner = (data as { data?: unknown }).data
+      if (Array.isArray(inner)) return inner as T[]
+    }
+    // null / undefined / objet non paginé sans data=array → tableau vide
+    return []
+  })()
   // Colonnes à afficher en plus du titre sur la carte mobile
   const cardPrimaries = columns.filter(c => c.primaryOnMobile && !c.hideOnCard && c.key !== titleCol?.key)
 
@@ -93,14 +104,14 @@ export default function ResponsiveTable<T>({
                 </td>
               </tr>
             )}
-            {!loading && data && data.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted">
                   {emptyText}
                 </td>
               </tr>
             )}
-            {!loading && (data || []).map((row, idx) => (
+            {!loading && rows.map((row, idx) => (
               <tr key={rowKey(row, idx)}>
                 {columns.map(c => (
                   <td key={c.key} className={c.className || ''}>{cellValue(c, row)}</td>
@@ -119,10 +130,10 @@ export default function ResponsiveTable<T>({
       {/* ======================== MOBILE : cartes ======================== */}
       <div className="rtable-mobile">
         {loading && <p className="text-muted small p-2">Chargement…</p>}
-        {!loading && data && data.length === 0 && (
+        {!loading && rows.length === 0 && (
           <p className="text-muted text-center p-3">{emptyText}</p>
         )}
-        {(data || []).map((row, idx) => (
+        {rows.map((row, idx) => (
           <div key={rowKey(row, idx)} className="rtable-card card shadow-sm mb-2">
             <div className="card-body p-3">
               <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
