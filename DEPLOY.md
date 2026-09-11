@@ -1,132 +1,208 @@
 # 🚀 Guide de déploiement TEST (gratuit)
 
-Stack : **Backend Django sur Render** + **Frontend React sur Vercel** + **PostgreSQL gratuit (Render)**.
-Kkiapay reste en mode **SANDBOX** pour les tests.
+Stack : **Neon PostgreSQL** (BDD serverless gratuite) + **Django sur Render** (backend gratuit) + **React sur Vercel** (frontend gratuit).
+Kkiapay reste en mode **SANDBOX** pour les tests (pas de vrai débit).
 
 ---
 
-## Étape 1 — Créer les comptes (gratuits)
+## Étape 0 — Créer les comptes (tous gratuits)
 
-- **GitHub** : tu as déjà le repo `elfred434/transport`, c'est bon.
-- **Render.com** : s'inscrire avec GitHub (gratuit).
-- **Vercel.com** : s'inscrire avec GitHub (gratuit).
+- **GitHub** : tu as déjà le repo `elfred434/transport` ✅
+- **Neon.tech** : base de données PostgreSQL serverless gratuite à vie (512 MB, jamais en veille).
+  Inscris-toi avec GitHub → https://console.neon.tech
+- **Render.com** : héberge le backend Django (plan Free 750h/mois = suffisant pour tester).
+  Inscris-toi avec GitHub → https://dashboard.render.com
+- **Vercel.com** : héberge le frontend React (gratuit, HTTPS auto, redéploie à chaque push).
+  Inscris-toi avec GitHub → https://vercel.com
 
 ---
 
-## Étape 2 — Backend sur Render
+## Étape 1 — Créer la base de données sur Neon
+
+1. Connecte-toi sur https://console.neon.tech
+2. Clique **Create a project**
+   - **Project name** : `spiistmove`
+   - **Region** : choisis **Europe (Frankfurt)** — le plus proche du Bénin pour de bonnes latences.
+   - **Postgres version** : défaut (16).
+3. Clique **Create project**.
+4. Après 30 secondes tu arrives sur la page de connexion.
+5. Dans le bloc **Connection Details** :
+   - **Database** : `neondb` (par défaut)
+   - **Role/Password** : copiés auto
+   - **Host** : `ep-xxx.eu-central-1.aws.neon.tech`
+   - Clique sur **Pooled connection** ? Non, garde **Direct connection** (copie le bouton **URL** ou la chaîne `postgres://...`).
+   - **Copie l'URL complète** (bouton "Copy" à côté du lien) → elle ressemble à :
+     ```
+     postgres://spiistmove_owner:xxxxxxxxxxxxxxxxxxxxx@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require
+     ```
+6. **Garde cette URL sous la main** : c'est `DATABASE_URL` que tu colleras plus tard dans Render.
+
+---
+
+## Étape 2 — Déployer le backend sur Render
 
 1. Va sur https://dashboard.render.com → **New + → Web Service**
-2. Connecte ton compte GitHub et sélectionne le repo `transport`
-3. **Important** : dans "Root Directory", mets **`backend_django`**
-4. Remplis :
-   - **Name** : `spiistmove-api` (ce sera le sous-domaine `spiistmove-api.onrender.com`)
-   - **Runtime** : Python 3
-   - **Build Command** : `./build.sh`
-   - **Start Command** : `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
-   - **Plan** : **Free** (750h/mois — suffisant pour tester)
-5. Ouverte la section **Advanced → Add Environment Variable** et ajoute :
+2. Connecte ton compte GitHub et sélectionne le repo `elfred434/transport`
+3. Remplis le formulaire :
+
+   | Champ | Valeur |
+   |---|---|
+   | **Name** | `spiistmove-api` (libre à toi, ça donne le sous-domaine `spiistmove-api.onrender.com`) |
+   | **Region** | **Frankfurt (EU Central)** (même que Neon pour la latence) |
+   | **Branch** | `main` |
+   | **Root Directory** | ⚠️ **`backend_django`** (obligatoire : le backend n'est pas à la racine du repo) |
+   | **Runtime** | **Python 3** |
+   | **Build Command** | `./build.sh` |
+   | **Start Command** | `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120` |
+   | **Instance Type** | **Free** |
+
+4. Ouvre **Advanced → Add Environment Variable** et ajoute TOUTES ces variables :
 
    | Clé | Valeur |
-   |-----|--------|
+   |---|---|
    | `APP_DEBUG` | `false` |
-   | `APP_KEY` | clique **Generate** pour générer une valeur aléatoire |
-   | `SECRET_KEY` | clique **Generate** (même valeur que APP_KEY, ou différente) |
-   | `APP_NAME` | `SpiistMove` |
+   | `PYTHON_VERSION` | `3.12.0` |
    | `KKIAPAY_SANDBOX` | `true` |
    | `KKIAPAY_SKIP_SSL_VERIFY` | `false` |
-   | `PYTHON_VERSION` | `3.12.0` |
-   | `INSTALL_MYSQL` | (ne pas mettre cette variable) |
-   | `CORS_ALLOWED_ORIGINS` | laisse vide pour l'instant, on remplira après le frontend |
-   | `APP_FRONTEND_URL` | laisse vide pour l'instant |
-   | `DEFAULT_FROM_EMAIL` | `test@spiistmove.com` (les mails iront dans la console Render si pas de SMTP) |
+   | `APP_NAME` | `SpiistMove` |
+   | `DATABASE_URL` | **colle l'URL Neon copiée à l'étape 1** (commençant par `postgres://` et finissant par `?sslmode=require`) |
+   | `DEFAULT_FROM_EMAIL` | `test@spiistmove.com` (les mails s'afficheront dans les logs tant que tu n'auras pas configuré SMTP) |
+   | `APP_KEY` | clique **Generate** |
+   | `SECRET_KEY` | clique **Generate** (tu peux mettre la même chose que APP_KEY) |
+   | `APP_FRONTEND_URL` | **laisse vide pour l'instant** (on la remplira après le frontend) |
+   | `CORS_ALLOWED_ORIGINS` | **laisse vide aussi** (l'APP_FRONTEND_URL sera ajoutée automatiquement en CORS) |
 
-6. Ne crée pas la BDD manuellement :
-   - Après déploiement, va dans le dashboard du service → **PostgreSQL** → **Add PostgreSQL** (gratuit)
-   - Render injectera automatiquement `DATABASE_URL`, les migrations tourneront au prochain deploy.
-7. Clique **Create Web Service**. Attends 3-5 minutes (build + migrate).
-8. Quand c'est fini, ouvre `https://spiistmove-api.onrender.com/api/` dans ton navigateur : tu dois voir le JSON `{"success": true, "data": {...}}`.
+5. Clique **Create Web Service**.
+6. Attends ~3-5 minutes (logs qui défilent : `pip install` → `collectstatic` → `migrate`).
+   ⚠️ Si tu vois `django.db.utils.OperationalError: could not connect` → vérifie que l'URL DATABASE_URL est bien complète et qu'elle finit par `?sslmode=require`. Neon impose SSL.
+7. Quand la bulle en haut passe au **vert "Live"**, ouvre l'URL :
+   `https://spiistmove-api.onrender.com/api/`
+   Tu dois voir un JSON :
+   ```json
+   {"success": true, "data": {"name":"SpiistMove — API", ...}}
+   ```
+8. **Note cette URL backend** (ex: `https://spiistmove-api.onrender.com`).
 
-### URL du backend
-Note-la : `https://spiistmove-api.onrender.com` (adaptée au nom que tu as choisi).
-
-> ⚠️ Le plan Free de Render se met en veille après 15 min d'inactivité. Le premier chargement peut prendre 30-60 secondes le temps que le serveur démarre.
+> 💡 Le plan Free Render s'endort après 15 min d'inactivité, mais la BDD Neon reste active. Le premier chargement après une pause peut prendre 30-60s, c'est normal.
 
 ---
 
-## Étape 3 — Frontend sur Vercel
+## Étape 3 — Déployer le frontend sur Vercel
 
-1. Va sur https://vercel.com/new → importe le repo `transport`
-2. **Important** : dans "Root Directory", mets **`frontend`**
-3. Framework Preset : **Vite** (auto-détecté)
-4. Build Command : `npm run build`
-5. Output Directory : `dist`
-6. **Environment Variables** :
+1. Va sur https://vercel.com/new → importe le repo `transport` (clique **Import**).
+2. Configure le projet :
+
+   | Champ | Valeur |
+   |---|---|
+   | **Project Name** | `spiistmove` (donne `spiistmove.vercel.app`) |
+   | **Framework Preset** | Vite (auto-détecté) |
+   | **Root Directory** | ⚠️ **`frontend`** (obligatoire) |
+   | **Build Command** | `npm run build` |
+   | **Output Directory** | `dist` |
+   | **Install Command** | `npm install` |
+
+3. Clique **Environment Variables** et ajoute :
 
    | Clé | Valeur |
-   |-----|--------|
-   | `VITE_API_BASE_URL` | `https://spiistmove-api.onrender.com` (URL de l'étape 2, avec le bon nom) |
+   |---|---|
+   | `VITE_API_BASE_URL` | **l'URL backend Render** de l'étape 2, ex: `https://spiistmove-api.onrender.com` (SANS `/` à la fin) |
    | `VITE_KKIAPAY_SANDBOX` | `true` |
 
-7. Clique **Deploy**. Attends ~1 minute.
-8. Vercel te donne une URL du style `spiistmove.vercel.app`. Note-la.
+4. Clique **Deploy**. Attends ~1 minute.
+5. Quand c'est prêt, Vercel te félicite avec une coche ✨. Clique sur l'URL `https://spiistmove.vercel.app`.
+6. **Note cette URL frontend**.
 
 ---
 
-## Étape 4 — Connecter les deux entre eux
+## Étape 4 — Connecter les deux (CORS)
 
-1. Retourne sur **Render** → le service `spiistmove-api` → **Environment** → **Add Environment Variable**
-2. Ajoute/modifie :
-   - `APP_FRONTEND_URL` = `https://spiistmove.vercel.app` (URL Vercel)
-   - `CORS_ALLOWED_ORIGINS` = `https://spiistmove.vercel.app`
-3. Sauvegarde → Render redéploie automatiquement (~2min).
+Retourne sur Render → service `spiistmove-api` → menu **Environment** → **Add Environment Variable** :
 
-## Étape 5 — Premier test
+   | Clé | Valeur |
+   |---|---|
+   | `APP_FRONTEND_URL` | l'URL Vercel de l'étape 3, ex: `https://spiistmove.vercel.app` |
 
-1. Ouvre `https://spiistmove.vercel.app` dans ton navigateur
-2. Crée un compte client
-3. Poste un colis — le paiement restera en mode SANDBOX (pas de vrai débit)
-4. Vérifie que tu peux réserver en tant que transporteur depuis un autre compte
-5. Teste sur téléphone avec la même URL.
+Clique **Save Changes** → Render redéploie automatiquement (~1-2 min).
+
+L'URL frontend est automatiquement ajoutée à la liste blanche CORS, pas besoin de mettre `CORS_ALLOWED_ORIGINS`.
 
 ---
 
-## Étape 6 — Si tu veux tester les emails (optionnel)
+## Étape 5 — Tester
 
-En sandbox sans SMTP, les liens de réinitialisation de mot de passe sont visibles dans les logs Render :
-- Sur Render → service `spiistmove-api` → **Logs**
-- Cherche la ligne `Subject: SpiistMove — Réinitialisation` ou `Content-Type: text/plain` → tu verras le lien `/reset-password?token=xxx`
-- Copie-colle le lien après ton URL Vercel : `https://spiistmove.vercel.app/reset-password?token=xxx`
-
-Pour activer de vrais emails plus tard, ajoute sur Render les variables SMTP :
-- `EMAIL_HOST` (ex: `smtp-relay.brevo.com`, `smtp.gmail.com`)
-- `EMAIL_PORT` (`587`)
-- `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD`
-- `EMAIL_USE_TLS=true`
-- `DEFAULT_FROM_EMAIL`
+1. Ouvre `https://spiistmove.vercel.app` dans ton navigateur.
+2. Clique **S'inscrire** → crée un compte client.
+3. Poste un colis (tu peux uploader une photo pour vérifier que le stockage fonctionne).
+4. Déconnecte-toi, crée un compte **transporteur**.
+5. Teste la recherche, la réservation, etc.
+6. Le **paiement Kkiapay reste en sandbox** — aucune somme n'est réellement débitée. Utilise un numéro de test sandbox (généralement `+229 61 00 00 00` ou les cartes de test Kkiapay).
+7. Teste sur téléphone avec la même URL.
 
 ---
 
-## Commandes utiles (si tu dois débuguer)
+## Étape 6 — Créer un compte admin (optionnel)
 
-Depuis le dashboard Render → **Shell** (ou via SSH) :
-```bash
-python manage.py createsuperuser     # créer un admin
-python manage.py showmigrations      # vérifier que les migrations sont passées
-python manage.py dbshell             # accès console SQL (PostgreSQL)
-```
-
-Depuis ton PC :
-```bash
-cd transport
-git push                              # n'importe quel push déclenche un redéploiement auto (Vercel + Render rebuildent)
-```
+1. Rends-toi sur le dashboard Render → service `spiistmove-api` → bouton **Shell** en haut à droite.
+2. Une fois le shell ouvert :
+   ```bash
+   python manage.py createsuperuser
+   ```
+3. Réponds aux questions :
+   - Email : ton email
+   - Nom / Prénom
+   - Password (8 caractères minimum)
+4. Tu peux ensuite :
+   - Soit te connecter avec ce compte sur l'URL Vercel, puis modifier le rôle en base de données (via shell : `u.role='admin'; u.save()`).
+   - Soit plus simple : va sur https://console.neon.tech → ton projet → **SQL Editor** :
+     ```sql
+     UPDATE users SET role = 'super_admin' WHERE email = 'ton-email@test.com';
+     ```
+5. Déconnecte-toi / reconnecte-toi sur Vercel : tu devrais voir le bouton **Admin** dans la sidebar.
 
 ---
 
-## Passer en production vraie plus tard
+## Étape 7 — Emails et reset mot de passe
 
-Quand tu voudras ouvrir au public :
-1. Passer Kkiapay en live : `KKIAPAY_SANDBOX=false`, remplir les 3 clés Kkiapay
-2. Configurer un vrai SMTP (Brevo gratuit = 300 mails/jour)
-3. Passer le backend Render en plan **Starter** ($7/mois, pas de mise en veille)
-4. Acheter un nom de domaine, le connecter sur Vercel (frontend) et ajouter le domaine dans `ALLOWED_HOSTS` + `CORS_ALLOWED_ORIGINS`
+Pour l'instant (sans SMTP), les emails de réinitialisation de mot de passe ne sont pas envoyés. Pour tester le reset :
+1. Sur Render → service backend → **Logs**
+2. Fais "Mot de passe oublié" sur le site → dans les logs tu verras le lien de reset (format console)
+3. Copie le lien `/reset-password?token=...` et colle-le après ton URL Vercel :
+   `https://spiistmove.vercel.app/reset-password?token=xxx`
+
+Pour activer les vrais emails plus tard, crée un compte **Brevo** (gratuit, 300 mails/jour) puis ajoute sur Render :
+- `EMAIL_HOST` = `smtp-relay.brevo.com`
+- `EMAIL_PORT` = `587`
+- `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` (clés SMTP Brevo)
+- `EMAIL_USE_TLS` = `true`
+- `DEFAULT_FROM_EMAIL` = ton adresse d'expéditeur
+
+---
+
+## Mises à jour
+
+Désormais, **à chaque fois que tu feras `git push` sur `main`** :
+- Render re-build et redéploie automatiquement le backend (~1-2 min)
+- Vercel re-build et redéploie automatiquement le frontend (~30s)
+Tu n'as rien d'autre à faire.
+
+---
+
+## Débogage rapide
+
+| Problème | Solution |
+|---|---|
+| Page blanche au 1er chargement | Le backend Render s'est endormi : attends 30-60s et rafraîchis. |
+| Erreur CORS dans la console | Vérifie que `APP_FRONTEND_URL` sur Render contient bien l'URL Vercel **exacte** (avec `https://`, sans `/` final). Attends le redéploiement. |
+| Erreur 500 lors du POST colis | Ouvre Render → Logs : regarde la stack trace Django pour voir le problème. |
+| `SSL required` ou `psycopg2 error` | Vérifie que DATABASE_URL finit par `?sslmode=require` (Neon impose SSL). |
+| Redirection vers /login aléatoire | Le token a expiré ou la session est corrompue : vide le localStorage du navigateur et reconnecte-toi. |
+
+---
+
+## Quand tu passeras en production "vraie" (clients payants)
+
+1. **Kkiapay** : passe `KKIAPAY_SANDBOX=false` et colle les 3 clés **live** dans Render (`KKIAPAY_PUBLIC_KEY`, `KKIAPAY_PRIVATE_KEY`, `KKIAPAY_SECRET_KEY`).
+2. **Backend Render** : passe en plan **Starter** ($7/mois) pour ne plus s'endormir et avoir 512 MB de RAM.
+3. **Neon** : upgrade si nécessaire (le plan gratuit 512MB suffit pour plusieurs milliers d'utilisateurs).
+4. **Nom de domaine** : achète un `.com` / `.bj`, connecte-le à Vercel (domaine principal), ajoute le domaine sur Render, mets à jour `APP_FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` et `ALLOWED_HOSTS`.
+5. **HTTPS** : automatique via Vercel + Render (Let's Encrypt).

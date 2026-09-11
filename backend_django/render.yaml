@@ -1,16 +1,12 @@
 # Déploiement Render — https://render.com
-# Crée un Web Service pointant sur ce dossier (backend_django/) via GitHub.
-# Render détectera automatiquement le Procfile et build.sh.
-# Si tu préfères la config Dashboard au lieu de render.yaml :
-#   Build command: ./build.sh
-#   Start command: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
-#   Python version: 3.12
-#   Plan: Free
-# Tu devras ajouter un service PostgreSQL gratuit depuis le dashboard Render.
+# Le web service pointe sur backend_django/ (rootDir).
+# La base de données PostgreSQL est fournie par Neon (serverless gratuit, 512MB),
+# on passe la chaîne de connexion via la variable d'environnement DATABASE_URL.
 services:
   - type: web
     name: spiistmove-api
     env: python
+    rootDir: backend_django
     buildCommand: ./build.sh
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     plan: free
@@ -18,7 +14,7 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: PYTHON_VERSION
-        value: 3.12.0
+        value: "3.12.0"
       - key: KKIAPAY_SANDBOX
         value: "true"
       - key: KKIAPAY_SKIP_SSL_VERIFY
@@ -26,7 +22,9 @@ services:
       - key: APP_NAME
         value: SpiistMove
       - key: APP_FRONTEND_URL
-        sync: false   # à saisir : URL Vercel une fois le frontend déployé
+        sync: false   # URL Vercel une fois le frontend déployé
+      - key: DATABASE_URL
+        sync: false   # URL Neon : postgres://user:pass@host/dbname?sslmode=require
       - key: APP_KEY
         generateValue: true
       - key: SECRET_KEY

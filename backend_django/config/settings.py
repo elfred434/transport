@@ -87,10 +87,20 @@ WSGI_APPLICATION = "config.wsgi.application"
 #   3. Sinon SQLite par défaut (dev local sans config)
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL:
-    # Parse postgres:// ou postgresql://
-    import urllib.parse
-    parsed = urllib.parse.urlparse(DATABASE_URL)
+    # Parse postgres:// ou postgresql:// (Render Postgres, Neon, Railway, Heroku).
+    # Neon utilise "postgres://user:pass@ep-xxx.region.aws.neon.tech/db?sslmode=require".
+    import urllib.parse as _urlparse
+    parsed = _urlparse.urlparse(DATABASE_URL)
     if parsed.scheme in ("postgres", "postgresql"):
+        _qs = _urlparse.parse_qs(parsed.query or "")
+        _opts: dict = {}
+        for k in ("sslmode", "sslcert", "sslkey", "sslrootcert", "options"):
+            v = _qs.get(k)
+            if v:
+                _opts[k] = v[0]
+        # Neon exige SSL ; on force sslmode=require en prod si pas précisé.
+        if not DEBUG and "sslmode" not in _opts:
+            _opts["sslmode"] = "require"
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.postgresql",
@@ -100,7 +110,7 @@ if DATABASE_URL:
                 "HOST": parsed.hostname or "",
                 "PORT": str(parsed.port or 5432),
                 "CONN_MAX_AGE": 60,
-                "OPTIONS": {"sslmode": "require"} if not DEBUG else {},
+                "OPTIONS": _opts,
             }
         }
     else:
