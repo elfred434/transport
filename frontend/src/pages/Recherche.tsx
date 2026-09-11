@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, money, SmartImg, StatusBadge } from '../lib/format'
 import { CountrySelect, CitySelect } from '../components/LocationSelect'
+import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 
 /** Recherche (colis / voyages + voyages compatibles) — port de recherche.html. */
 
@@ -47,6 +48,7 @@ export default function Recherche() {
   const [cVille, setCVille] = useState('')
   const [colisList, setColisList] = useState<ColisRow[] | null>(null)
   const [colisError, setColisError] = useState<string | null>(null)
+  const [colisLoading, setColisLoading] = useState(true)
 
   // Voyages
   const [vSearch, setVSearch] = useState('')
@@ -54,6 +56,7 @@ export default function Recherche() {
   const [vDestination, setVDestination] = useState('')
   const [voyagesList, setVoyagesList] = useState<VoyageRow[] | null>(null)
   const [voyagesError, setVoyagesError] = useState<string | null>(null)
+  const [voyagesLoading, setVoyagesLoading] = useState(true)
 
   // Voyages compatibles
   const [compat, setCompat] = useState<CompatiblesData | null>(null)
@@ -64,12 +67,14 @@ export default function Recherche() {
     if (cSearch.trim()) p.set('search', cSearch.trim())
     if (cPays.trim()) p.set('pays', cPays.trim())
     if (cVille.trim()) p.set('ville', cVille.trim())
-    setColisList(null)
+    setColisLoading(true)
     setColisError(null)
     try {
       setColisList(await api.get<ColisRow[]>('/api/colis/available' + (p.toString() ? '?' + p : '')))
     } catch (e) {
       setColisError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+    } finally {
+      setColisLoading(false)
     }
   }, [cSearch, cPays, cVille])
 
@@ -78,19 +83,20 @@ export default function Recherche() {
     if (vSearch.trim()) p.set('search', vSearch.trim())
     if (vDepart.trim()) p.set('pays_depart', vDepart.trim())
     if (vDestination.trim()) p.set('pays_destination', vDestination.trim())
-    setVoyagesList(null)
+    setVoyagesLoading(true)
     setVoyagesError(null)
     try {
       setVoyagesList(await api.get<VoyageRow[]>('/api/voyages/available' + (p.toString() ? '?' + p : '')))
     } catch (e) {
       setVoyagesError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+    } finally {
+      setVoyagesLoading(false)
     }
   }, [vSearch, vDepart, vDestination])
 
   useEffect(() => {
     searchColis()
     searchVoyages()
-    // Recherche initiale uniquement (comme le vanilla).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -116,11 +122,76 @@ export default function Recherche() {
         {v.prenom} {v.nom}
       </Link>
     ) : (
-      <>
-        {v.prenom} {v.nom}
-      </>
+      <>{v.prenom} {v.nom}</>
     )
   }
+
+  const voyageColumns: Column<VoyageRow>[] = useMemo(() => [
+    {
+      key: 'transporteur',
+      label: 'Transporteur',
+      render: transporteurLink,
+    },
+    {
+      key: 'trajet',
+      label: 'Trajet',
+      render: (v) => <>{v.pays_depart} → {v.pays_destination}</>,
+      primaryOnMobile: true,
+    },
+    {
+      key: 'depart',
+      label: 'Départ',
+      render: (v) => (
+        <>
+          {date(v.date_depart)}{' '}
+          <span className="small text-muted">{(v.heure_depart || '').substring(0, 5)}</span>
+        </>
+      ),
+      primaryOnMobile: true,
+    },
+    {
+      key: 'poids_max',
+      label: 'Poids max',
+      render: (v) => <>{v.poids_max} kg</>,
+      primaryOnMobile: true,
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const colisColumns: Column<ColisRow>[] = useMemo(() => [
+    {
+      key: 'nom_colis',
+      label: 'Colis',
+      render: (c) => (
+        <span className="d-inline-flex align-items-center gap-2">
+          <SmartImg url={c.image_url} alt={c.nom_colis} className="img-colis rtable-hide-mobile" />
+          {c.nom_colis}
+        </span>
+      ),
+    },
+    {
+      key: 'destination',
+      label: 'Destination',
+      render: (c) => <>{c.ville}, {c.pays}</>,
+      primaryOnMobile: true,
+    },
+    {
+      key: 'poids',
+      label: 'Poids',
+      render: (c) => <>{c.poids} kg</>,
+    },
+    {
+      key: 'prix',
+      label: 'Prix',
+      render: (c) => money(c.prix_estime),
+      primaryOnMobile: true,
+    },
+    {
+      key: 'proprietaire',
+      label: 'Propriétaire',
+      render: (c) => c.proprietaire || '—',
+    },
+  ], [])
 
   return (
     <>
@@ -151,35 +222,14 @@ export default function Recherche() {
                 </div>
               ) : (
                 <>
-                  <div className="table-responsive">
-                    <table className="table align-middle">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Transporteur</th>
-                          <th>Trajet</th>
-                          <th>Départ</th>
-                          <th>Poids max</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {compat.voyages.map((v, i) => (
-                          <tr key={i}>
-                            <td>{transporteurLink(v)}</td>
-                            <td>
-                              {v.pays_depart} → {v.pays_destination}
-                            </td>
-                            <td>
-                              {date(v.date_depart)}{' '}
-                              <span className="small text-muted">
-                                {(v.heure_depart || '').substring(0, 5)}
-                              </span>
-                            </td>
-                            <td>{v.poids_max} kg</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ResponsiveTable<VoyageRow>
+                    columns={voyageColumns}
+                    data={compat.voyages}
+                    rowKey={(_, i) => i}
+                    titleKey="transporteur"
+                    subtitleKey="trajet"
+                    emptyText="Aucun voyage."
+                  />
                   <p className="text-muted small mb-0">
                     <i className="fa-solid fa-circle-info"></i> Les transporteurs vous envoient des
                     demandes de réservation ; vous les acceptez depuis votre tableau de bord.
@@ -218,39 +268,21 @@ export default function Recherche() {
             <div className="tab-pane fade show active">
               <form
                 className="row g-2 align-items-end mb-3"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  searchColis()
-                }}
+                onSubmit={(e) => { e.preventDefault(); searchColis() }}
               >
                 <div className="col-md-4">
                   <label className="form-label">Recherche</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Nom, type, ville…"
-                    value={cSearch}
-                    onChange={(e) => setCSearch(e.target.value)}
-                  />
+                  <input type="text" className="form-control" placeholder="Nom, type, ville…"
+                    value={cSearch} onChange={(e) => setCSearch(e.target.value)} />
                 </div>
                 <div className="col-md-3">
-                  <CountrySelect
-                    label="Pays"
-                    value={cPays}
+                  <CountrySelect label="Pays" value={cPays}
                     onChange={(v) => { setCPays(v); if (cPays !== v) setCVille('') }}
-                    placeholder="Tous les pays…"
-                    className="mb-0"
-                  />
+                    placeholder="Tous les pays…" className="mb-0" />
                 </div>
                 <div className="col-md-3">
-                  <CitySelect
-                    label="Ville"
-                    pays={cPays}
-                    value={cVille}
-                    onChange={setCVille}
-                    placeholder="Toutes les villes…"
-                    className="mb-0"
-                  />
+                  <CitySelect label="Ville" pays={cPays} value={cVille} onChange={setCVille}
+                    placeholder="Toutes les villes…" className="mb-0" />
                 </div>
                 <div className="col-md-2">
                   <button className="btn btn-primary w-100" type="submit">
@@ -259,45 +291,20 @@ export default function Recherche() {
                 </div>
               </form>
               {colisError && <div className="alert alert-danger">{colisError}</div>}
-              {!colisList && !colisError && <div className="text-muted small">Chargement…</div>}
-              {colisList && colisList.length === 0 && <p className="text-muted">Aucun résultat.</p>}
-              {colisList && colisList.length > 0 && (
-                <div className="table-responsive">
-                  <table className="table align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Colis</th>
-                        <th>Destination</th>
-                        <th>Poids</th>
-                        <th>Prix</th>
-                        <th>Propriétaire</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {colisList.map((c) => (
-                        <tr key={c.id}>
-                          <td>
-                            <SmartImg url={c.image_url} alt={c.nom_colis} className="img-colis" />{' '}
-                            <span className="ms-2">{c.nom_colis}</span>
-                          </td>
-                          <td>
-                            {c.ville}, {c.pays}
-                          </td>
-                          <td>{c.poids} kg</td>
-                          <td>{money(c.prix_estime)}</td>
-                          <td>{c.proprietaire || ''}</td>
-                          <td>
-                            <Link to={`/colis/${c.id}`} className="btn btn-sm btn-outline-primary">
-                              Détail
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <ResponsiveTable<ColisRow>
+                columns={colisColumns}
+                data={colisList}
+                loading={colisLoading}
+                rowKey={(c) => c.id}
+                titleKey="nom_colis"
+                subtitleKey="destination"
+                emptyText="Aucun colis disponible."
+                actions={(c) => (
+                  <Link to={`/colis/${c.id}`} className="btn btn-sm btn-outline-primary">
+                    Détail
+                  </Link>
+                )}
+              />
             </div>
           )}
 
@@ -305,38 +312,20 @@ export default function Recherche() {
             <div className="tab-pane fade show active">
               <form
                 className="row g-2 align-items-end mb-3"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  searchVoyages()
-                }}
+                onSubmit={(e) => { e.preventDefault(); searchVoyages() }}
               >
                 <div className="col-md-4">
                   <label className="form-label">Recherche</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Pays…"
-                    value={vSearch}
-                    onChange={(e) => setVSearch(e.target.value)}
-                  />
+                  <input type="text" className="form-control" placeholder="Pays…"
+                    value={vSearch} onChange={(e) => setVSearch(e.target.value)} />
                 </div>
                 <div className="col-md-3">
-                  <CountrySelect
-                    label="Pays de départ"
-                    value={vDepart}
-                    onChange={setVDepart}
-                    placeholder="Tous les départs…"
-                    className="mb-0"
-                  />
+                  <CountrySelect label="Pays de départ" value={vDepart} onChange={setVDepart}
+                    placeholder="Tous les départs…" className="mb-0" />
                 </div>
                 <div className="col-md-3">
-                  <CountrySelect
-                    label="Pays de destination"
-                    value={vDestination}
-                    onChange={setVDestination}
-                    placeholder="Toutes les destinations…"
-                    className="mb-0"
-                  />
+                  <CountrySelect label="Pays de destination" value={vDestination} onChange={setVDestination}
+                    placeholder="Toutes les destinations…" className="mb-0" />
                 </div>
                 <div className="col-md-2">
                   <button className="btn btn-primary w-100" type="submit">
@@ -345,39 +334,15 @@ export default function Recherche() {
                 </div>
               </form>
               {voyagesError && <div className="alert alert-danger">{voyagesError}</div>}
-              {!voyagesList && !voyagesError && <div className="text-muted small">Chargement…</div>}
-              {voyagesList && voyagesList.length === 0 && <p className="text-muted">Aucun résultat.</p>}
-              {voyagesList && voyagesList.length > 0 && (
-                <div className="table-responsive">
-                  <table className="table align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Transporteur</th>
-                        <th>Trajet</th>
-                        <th>Départ</th>
-                        <th>Poids max</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {voyagesList.map((v, i) => (
-                        <tr key={i}>
-                          <td>{transporteurLink(v)}</td>
-                          <td>
-                            {v.pays_depart} → {v.pays_destination}
-                          </td>
-                          <td>
-                            {date(v.date_depart)}{' '}
-                            <span className="small text-muted">
-                              {(v.heure_depart || '').substring(0, 5)}
-                            </span>
-                          </td>
-                          <td>{v.poids_max} kg</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <ResponsiveTable<VoyageRow>
+                columns={voyageColumns}
+                data={voyagesList}
+                loading={voyagesLoading}
+                rowKey={(_, i) => i}
+                titleKey="transporteur"
+                subtitleKey="trajet"
+                emptyText="Aucun voyage disponible."
+              />
             </div>
           )}
         </div>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, datetime, money, SmartImg } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toasts'
+import ResponsiveTable, { type Column } from '../components/ResponsiveTable'
 import '../styles/dashboard-originale.css'
 
 /**
@@ -301,125 +302,74 @@ export default function Dashboard() {
         <h2 className="text-primary text-center mb-4">
           <i className="fa-solid fa-box"></i> Mes colis postés
         </h2>
-        <div className="table-responsive mb-5">
-          <table className="table table-bordered align-middle shadow-sm">
-            <thead className="table-light">
-              <tr>
-                <th>Nom</th>
-                <th className="mobile-hide">Image</th>
-                <th className="mobile-hide">Type</th>
-                <th>Poids</th>
-                <th>Destination</th>
-                <th className="mobile-hide">Date limite</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!colis && (
-                <tr>
-                  <td colSpan={8} className="text-center text-muted">
-                    Chargement…
-                  </td>
-                </tr>
-              )}
-              {colis && colis.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center text-muted">
-                    Aucun colis posté. <Link to="/poster-colis">Poster un colis</Link>
-                  </td>
-                </tr>
-              )}
-              {(colis || []).map((c) => (
-                <tr key={c.id}>
-                  <td>{c.nom_colis}</td>
-                  <td className="mobile-hide">
-                    <SmartImg url={c.image_url} alt={c.nom_colis} className="rounded" />
-                  </td>
-                  <td className="mobile-hide">{TYPE_LABELS[c.type_produit || ''] || c.type_produit || '—'}</td>
-                  <td>{c.poids} kg</td>
-                  <td>
-                    {c.ville}, {c.pays}
-                  </td>
-                  <td className="mobile-hide">{date(c.date_limite)}</td>
-                  <td>
-                    <BadgeColis statut={c.statut} />
-                  </td>
-                  <td>
-                    <div className="d-flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-info"
-                        onClick={() => setDetailsColis(c)}
-                      >
-                        <i className="fas fa-info-circle"></i>
-                        <span className="d-none d-md-inline"> Détails</span>
-                      </button>
-                      <Link to={`/reservation-colis?id=${c.id}`} className="btn btn-sm btn-primary">
-                        <i className="fa-solid fa-eye"></i>
-                        <span className="d-none d-md-inline"> Réservations</span>
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-5">
+          <ResponsiveTable<ColisMine>
+            columns={[
+              { key: 'nom_colis', label: 'Nom' },
+              { key: 'image_url', label: 'Image',
+                render: (c) => <SmartImg url={c.image_url} alt={c.nom_colis} className="rounded" />,
+                hideOnCard: true },
+              { key: 'type_produit', label: 'Type',
+                render: (c) => TYPE_LABELS[c.type_produit || ''] || c.type_produit || '—' },
+              { key: 'poids', label: 'Poids',
+                render: (c) => <>{c.poids} kg</>, primaryOnMobile: true },
+              { key: 'destination', label: 'Destination',
+                render: (c) => <>{c.ville}, {c.pays}</>, primaryOnMobile: true },
+              { key: 'date_limite', label: 'Date limite', render: (c) => date(c.date_limite) },
+              { key: 'statut', label: 'Statut',
+                render: (c) => <BadgeColis statut={c.statut} />, primaryOnMobile: true },
+            ]}
+            data={colis || []}
+            loading={!colis}
+            rowKey={(c) => c.id}
+            titleKey="nom_colis"
+            subtitleKey="destination"
+            emptyText={<>Aucun colis posté. <Link to="/poster-colis">Poster un colis</Link></>}
+            className="table-bordered shadow-sm"
+            actions={(c) => (
+              <>
+                <button type="button" className="btn btn-sm btn-info" onClick={() => setDetailsColis(c)}>
+                  <i className="fas fa-info-circle"></i>
+                  <span className="d-none d-md-inline"> Détails</span>
+                </button>
+                <Link to={`/reservation-colis?id=${c.id}`} className="btn btn-sm btn-primary">
+                  <i className="fa-solid fa-eye"></i>
+                  <span className="d-none d-md-inline"> Réservations</span>
+                </Link>
+              </>
+            )}
+          />
         </div>
 
         {/* ====================== MES VOYAGES PROPOSÉS ======================= */}
         <h2 className="text-primary text-center mb-4">
           <i className="fa-solid fa-truck"></i> Mes voyages proposés
         </h2>
-        <div className="table-responsive">
-          <table className="table table-bordered align-middle shadow-sm">
-            <thead className="table-light">
-              <tr>
-                <th>Départ</th>
-                <th>Destination</th>
-                <th className="mobile-hide">Date</th>
-                <th className="mobile-hide">Heure</th>
-                <th>Poids max</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!voyages && (
-                <tr>
-                  <td colSpan={6} className="text-center text-muted">
-                    Chargement…
-                  </td>
-                </tr>
-              )}
-              {voyages && voyages.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center text-muted">
-                    Aucun voyage proposé.{' '}
-                    <Link to="/devenir-transporteur">Proposer un voyage</Link>
-                  </td>
-                </tr>
-              )}
-              {(voyages || []).map((v) => (
-                <tr key={v.id}>
-                  <td>{v.pays_depart}</td>
-                  <td>{v.pays_destination}</td>
-                  <td className="mobile-hide">{date(v.date_depart)}</td>
-                  <td className="mobile-hide">{(v.heure_depart || '').substring(0, 5) || '—'}</td>
-                  <td>{v.poids_max} kg</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-info"
-                      onClick={() => setDetailsVoyage(v)}
-                    >
-                      <i className="fas fa-info-circle"></i>
-                      <span className="d-none d-md-inline"> Détails</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-5">
+          <ResponsiveTable<VoyageMine>
+            columns={[
+              { key: 'pays_depart', label: 'Départ', primaryOnMobile: true },
+              { key: 'pays_destination', label: 'Destination', primaryOnMobile: true },
+              { key: 'date_depart', label: 'Date', render: (v) => date(v.date_depart) },
+              { key: 'heure_depart', label: 'Heure',
+                render: (v) => (v.heure_depart || '').substring(0, 5) || '—' },
+              { key: 'poids_max', label: 'Poids max',
+                render: (v) => <>{v.poids_max} kg</>, primaryOnMobile: true },
+            ]}
+            data={voyages || []}
+            loading={!voyages}
+            rowKey={(v) => v.id}
+            titleKey="pays_depart"
+            subtitleKey="pays_destination"
+            emptyText={<>Aucun voyage proposé.{' '}<Link to="/devenir-transporteur">Proposer un voyage</Link></>}
+            className="table-bordered shadow-sm"
+            actions={(v) => (
+              <button type="button" className="btn btn-sm btn-info" onClick={() => setDetailsVoyage(v)}>
+                <i className="fas fa-info-circle"></i>
+                <span className="d-none d-md-inline"> Détails</span>
+              </button>
+            )}
+          />
         </div>
 
         {/* ==================== MES RÉSERVATIONS (TRANSPORTEUR) ==================== */}
@@ -428,66 +378,42 @@ export default function Dashboard() {
             <h2 className="text-success text-center mb-4 mt-5">
               <i className="fa-solid fa-handshake"></i> Mes réservations
             </h2>
-            <div className="table-responsive mb-5">
-              <table className="table table-bordered align-middle shadow-sm">
-                <thead className="table-light">
-                  <tr>
-                    <th>Colis</th>
-                    <th className="mobile-hide">Image</th>
-                    <th>Poids</th>
-                    <th>Destination</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!reservations && (
-                    <tr>
-                      <td colSpan={6} className="text-center text-muted">
-                        Chargement…
-                      </td>
-                    </tr>
-                  )}
-                  {reservations && reservations.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="text-center text-muted">
-                        Aucune réservation sur vos voyages.
-                      </td>
-                    </tr>
-                  )}
-                  {(reservations || []).map((r, idx) => (
-                    <tr key={`${r.colis_id}-${idx}`}>
-                      <td>
+            <div className="mb-5">
+              <ResponsiveTable<ReservationRecue>
+                columns={[
+                  { key: 'nom_colis', label: 'Colis',
+                    render: (r) => (
+                      <>
                         <Link to={`/colis/${r.colis_id}`}>{r.nom_colis}</Link>
-                        <div className="small text-muted">
-                          <code>{r.numero_suivi}</code>
-                        </div>
-                      </td>
-                      <td className="mobile-hide">
-                        <SmartImg url={r.image_url} alt={r.nom_colis} className="rounded" />
-                      </td>
-                      <td>{r.poids} kg</td>
-                      <td>
-                        {r.ville}, {r.pays}
-                      </td>
-                      <td>
-                        <BadgeReservation statut={r.statut} />
-                      </td>
-                      <td>
-                        {r.statut_suivi !== 'Livré' ? (
-                          <SuiviRow
-                            colisId={r.colis_id}
-                            initial={r.statut_suivi}
-                            onSubmit={onSuivi}
-                          />
-                        ) : (
-                          <span className="badge bg-success">Livré</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div className="small text-muted"><code>{r.numero_suivi}</code></div>
+                      </>
+                    ) },
+                  { key: 'image_url', label: 'Image',
+                    render: (r) => <SmartImg url={r.image_url} alt={r.nom_colis} className="rounded" />,
+                    hideOnCard: true },
+                  { key: 'poids', label: 'Poids',
+                    render: (r) => <>{r.poids} kg</>, primaryOnMobile: true },
+                  { key: 'destination', label: 'Destination',
+                    render: (r) => <>{r.ville}, {r.pays}</>, primaryOnMobile: true },
+                  { key: 'statut', label: 'Statut',
+                    render: (r) => <BadgeReservation statut={r.statut} />,
+                    primaryOnMobile: true },
+                ]}
+                data={reservations || []}
+                loading={!reservations}
+                rowKey={(r, i) => `${r.colis_id}-${i}`}
+                titleKey="nom_colis"
+                subtitleKey="destination"
+                emptyText="Aucune réservation sur vos voyages."
+                className="table-bordered shadow-sm"
+                actions={(r) => (
+                  r.statut_suivi !== 'Livré' ? (
+                    <SuiviRow colisId={r.colis_id} initial={r.statut_suivi} onSubmit={onSuivi} />
+                  ) : (
+                    <span className="badge bg-success">Livré</span>
+                  )
+                )}
+              />
             </div>
           </>
         )}
@@ -524,76 +450,47 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="table-responsive mb-5">
-          <table className="table table-bordered align-middle shadow-sm">
-            <thead className="table-light">
-              <tr>
-                <th>Référence</th>
-                <th>Colis</th>
-                <th>Montant</th>
-                <th>Méthode</th>
-                <th>Opérateur</th>
-                <th>Date</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!paiements && (
-                <tr>
-                  <td colSpan={8} className="text-center text-muted">
-                    Chargement…
-                  </td>
-                </tr>
-              )}
-              {paiements && paiements.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center text-muted">
-                    Aucun paiement enregistré
-                  </td>
-                </tr>
-              )}
-              {(paiements || []).map((p) => (
-                <tr key={p.id}>
-                  <td>{p.reference}</td>
-                  <td>
-                    {p.nom_colis || 'N/A'}
-                    {p.nom_colis && (
-                      <small className="text-muted d-block">ID: {p.colis_id}</small>
-                    )}
-                  </td>
-                  <td>{money(p.montant)}</td>
-                  <td>{p.methode_paiement || '—'}</td>
-                  <td>{(p.details_paiement && p.details_paiement.operateur) || '—'}</td>
-                  <td>{datetime(p.date_creation)}</td>
-                  <td>
-                    <BadgePaiement statut={p.statut} />
-                  </td>
-                  <td>
-                    <div className="d-flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-info"
-                        onClick={() => setDetailsPaiement(p)}
-                      >
-                        <i className="fas fa-info-circle"></i>
-                        <span className="d-none d-md-inline"> Détails</span>
-                      </button>
-                      {p.statut === 'en_attente' && (
-                        <Link
-                          to={`/paiement?colis_id=${p.colis_id}`}
-                          className="btn btn-sm btn-success"
-                        >
-                          <i className="fas fa-money-bill-wave"></i>
-                          <span className="d-none d-md-inline"> Payer</span>
-                        </Link>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-5">
+          <ResponsiveTable<PaiementMine>
+            columns={[
+              { key: 'reference', label: 'Référence' },
+              { key: 'nom_colis', label: 'Colis',
+                render: (p) => p.nom_colis ? (
+                  <>{p.nom_colis}<small className="text-muted d-block">ID: {p.colis_id}</small></>
+                ) : 'N/A' },
+              { key: 'montant', label: 'Montant',
+                render: (p) => money(p.montant), primaryOnMobile: true },
+              { key: 'methode_paiement', label: 'Méthode',
+                render: (p) => p.methode_paiement || '—' },
+              { key: 'operateur', label: 'Opérateur',
+                render: (p) => (p.details_paiement && p.details_paiement.operateur) || '—' },
+              { key: 'date_creation', label: 'Date', render: (p) => datetime(p.date_creation) },
+              { key: 'statut', label: 'Statut',
+                render: (p) => <BadgePaiement statut={p.statut} />, primaryOnMobile: true },
+            ]}
+            data={paiements || []}
+            loading={!paiements}
+            rowKey={(p) => p.id}
+            titleKey="reference"
+            subtitleKey="nom_colis"
+            emptyText="Aucun paiement enregistré"
+            className="table-bordered shadow-sm"
+            actions={(p) => (
+              <>
+                <button type="button" className="btn btn-sm btn-info"
+                  onClick={() => setDetailsPaiement(p)}>
+                  <i className="fas fa-info-circle"></i>
+                  <span className="d-none d-md-inline"> Détails</span>
+                </button>
+                {p.statut === 'en_attente' && (
+                  <Link to={`/paiement?colis_id=${p.colis_id}`} className="btn btn-sm btn-success">
+                    <i className="fas fa-money-bill-wave"></i>
+                    <span className="d-none d-md-inline"> Payer</span>
+                  </Link>
+                )}
+              </>
+            )}
+          />
         </div>
 
         {/* ============================= SOLDE =============================== */}
