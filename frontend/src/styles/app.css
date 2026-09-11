@@ -796,3 +796,18 @@ pre, code { white-space: pre-wrap; word-break: break-word; }
     /* Cache les images trop grandes dans les lignes */
     table.table:not(.rtable-ignore) td img { max-width: 48px; max-height: 48px; object-fit: cover; border-radius: 6px; }
 }
+
+/* Les .mobile-hide sont complètement cachés sur mobile dans les cartes */
+@media (max-width: 767.98px) {
+    table.table:not(.rtable-ignore) .mobile-hide { display: none !important; }
+    /* Forcer le select de statut/paiement à se compacter */
+    table.table:not(.rtable-ignore) td select.form-select {
+        min-width: 0;
+        width: auto;
+        max-width: 100%;
+        padding: 4px 24px 4px 8px;
+        font-size: .85rem;
+    }
+    /* Les <code> dans les cartes se wrappent */
+    table.table:not(.rtable-ignore) code { word-break: break-all; }
+}
