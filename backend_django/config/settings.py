@@ -274,19 +274,20 @@ LOGGING = {
     },
 }
 
-# ---- Email (SMTP) ----
-# En dev, si aucun SMTP n'est configuré, les emails sont "tracés" dans la console
-# et le lien de reset mot de passe est renvoyé dans la réponse JSON.
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend",
-)
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "SpiistMove <noreply@spiistmove.com>")
+# ---- Email (Brevo API v3 uniquement — pas de SMTP) ----
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+BREVO_SENDER_NAME = os.environ.get("BREVO_SENDER_NAME", APP_NAME)
+BREVO_SENDER_EMAIL = os.environ.get("BREVO_SENDER_EMAIL", os.environ.get("DEFAULT_FROM_EMAIL", "").split("<")[-1].rstrip(">").strip())
+
+if BREVO_API_KEY:
+    EMAIL_BACKEND = "core.brevo_email.BrevoEmailBackend"
+    DEFAULT_FROM_EMAIL = os.environ.get(
+        "DEFAULT_FROM_EMAIL",
+        f"{BREVO_SENDER_NAME} <{BREVO_SENDER_EMAIL}>" if BREVO_SENDER_EMAIL else f"{APP_NAME} <noreply@spiistmove.com>",
+    )
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"{APP_NAME} <noreply@spiistmove.com>")
 
 APP_FRONTEND_URL = os.environ.get("APP_FRONTEND_URL", "http://localhost:5173")
 

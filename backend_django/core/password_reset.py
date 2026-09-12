@@ -21,7 +21,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMultiAlternatives
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
@@ -40,7 +40,7 @@ class ResetThrottle(AnonRateThrottle):
 
 
 def _email_configured() -> bool:
-    return bool(getattr(settings, "EMAIL_HOST", None))
+    return bool(getattr(settings, "EMAIL_HOST", None) or getattr(settings, "BREVO_API_KEY", None))
 
 
 @api_view(["POST"])
@@ -74,23 +74,34 @@ def reset_request(request: Request):
     dev_link = None
     if _email_configured():
         try:
-            send_mail(
-                subject=f"{getattr(settings, 'APP_NAME', 'SpiistMove')} — Réinitialisation de votre mot de passe",
-                message=(
-                    f"Bonjour,\n\n"
-                    f"Vous avez demandé la réinitialisation de votre mot de passe sur "
-                    f"{getattr(settings, 'APP_NAME', 'SpiistMove')}.\n\n"
-                    f"Cliquez sur ce lien (valable 1 heure) :\n{reset_link}\n\n"
-                    f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
-                    f"L'équipe {getattr(settings, 'APP_NAME', 'SpiistMove')}"
-                ),
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@spiistmove.local"),
-                recipient_list=[email],
-                fail_silently=False,
+            app_name = getattr(settings, "APP_NAME", "SpiistMove")
+            subject = f"{app_name} — Réinitialisation de votre mot de passe"
+            text_body = (
+                f"Bonjour,\n\n"
+                f"Vous avez demandé la réinitialisation de votre mot de passe sur {app_name}.\n\n"
+                f"Cliquez sur ce lien (valable 1 heure) :\n{reset_link}\n\n"
+                f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
+                f"L'équipe {app_name}"
             )
+            html_body = f"""<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fa;padding:20px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+<tr><td style="background:#3498db;padding:24px;text-align:center;color:#fff;font-size:22px;font-weight:600">🔐 {app_name}</td></tr>
+<tr><td style="padding:32px;color:#333;font-size:15px;line-height:1.6">
+<p>Bonjour,</p>
+<p>Vous avez demandé la réinitialisation de votre mot de passe sur <strong>{app_name}</strong>.</p>
+<p style="text-align:center;margin:28px 0"><a href="{reset_link}" style="display:inline-block;padding:12px 28px;background:#3498db;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Réinitialiser mon mot de passe</a></p>
+<p style="font-size:13px;color:#888">Ce lien est valable <strong>1 heure</strong>.<br/>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br/><a href="{reset_link}">{reset_link}</a></p>
+<p style="font-size:13px;color:#888">Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.</p>
+<p>— L'équipe {app_name}</p>
+</td></tr>
+<tr><td style="background:#f5f7fa;padding:16px;text-align:center;color:#888;font-size:12px">© {app_name}</td></tr>
+</table></body></html>"""
+            msg = EmailMultiAlternatives(subject, text_body, settings.DEFAULT_FROM_EMAIL, [email])
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
         except Exception as exc:  # pragma: no cover
-            # Ne pas casser la requête si le SMTP est en panne :
-            # en mode DEBUG, on renvoie le lien directement.
+            logger = __import__("logging").getLogger(__name__)
+            logger.exception("Erreur envoi email reset: %s", exc)
             if settings.DEBUG:
                 dev_link = reset_link
     else:
