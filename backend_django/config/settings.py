@@ -180,6 +180,27 @@ SIMPLE_JWT = {
     "BLACKLIST_TOKEN_CHECKS": ("access", "refresh"),
 }
 
+# ---- CACHE ----
+# Utilise Redis si REDIS_URL est fourni (Render Redis add-on) ; sinon LocMemCache.
+# IMPORTANT : Le throttling critique (login, verify-email, reset) est doublé
+# par des compteurs en BASE DE DONNÉES (failed_login_attempts, verification_attempts, etc.)
+# pour être résistant même sans cache partagé (workers multiples / free tier).
+_REDIS_URL = os.environ.get("REDIS_URL", "")
+if _REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "spiistmove",
+        }
+    }
+
 # ---- CORS (ouvert en dev ; restreint par liste blanche en prod) ----
 # H-4: localhost n'est PAS ajouté par défaut en production (risque cross-origin avec applis locales)
 _cors_default = "http://localhost:5173,http://127.0.0.1:5173" if DEBUG else ""
@@ -251,6 +272,13 @@ CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "h
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "https://ka-f.fontawesome.com")
 CSP_IMG_SRC = ("'self'", "data:", "blob:", "https:", "http:")  # images colis/profils + uploads locaux
 CSP_CONNECT_SRC = ("'self'", "https://api.kkiapay.me", "https://sandbox.kkiapay.me", "https://oauth2.googleapis.com", "https://accounts.google.com")
+# Ajouter automatiquement les origines API/Frontend à connect-src
+_extra_connect = [
+    os.environ.get("APP_FRONTEND_URL", "").rstrip("/"),
+    "https://" + RENDER_EXTERNAL_HOSTNAME if RENDER_EXTERNAL_HOSTNAME else "",
+]
+if _extra_connect[0]:
+    CSP_CONNECT_SRC = CSP_CONNECT_SRC + tuple(x for x in _extra_connect if x and x not in CSP_CONNECT_SRC)
 CSP_FRAME_SRC = ("'self'", "https://www.google.com", "https://accounts.google.com", "https://cdn.kkiapay.me")
 
 # ---- Logging (console + fichier en prod) ----

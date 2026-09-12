@@ -224,19 +224,53 @@ def resend_verification_code(request: Request):
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
 def login(request: Request):
+    from datetime import timedelta
     email = (request.data.get("email") or "").strip().lower()
     password = request.data.get("password") or ""
+
+    # Vérifier verrou BD (même sans auth, on bloque avant même de tester le mdp)
+    from accounts.models import User as _U
+    try:
+        existing = _U.objects.get(email=email)
+    except _U.DoesNotExist:
+        existing = None
+
+    MAX_LOGIN_ATTEMPTS = 5
+    LOGIN_LOCK_MINUTES = 15
+
+    if existing and existing.login_locked_until:
+        from django.utils import timezone as _tz
+        if _tz.now() < existing.login_locked_until:
+            seconds_left = int((existing.login_locked_until - _tz.now()).total_seconds())
+            from rest_framework.response import Response as _R
+            resp = _R({"success": False, "error": f"Compte temporairement verrouillé. Réessaie dans {LOGIN_LOCK_MINUTES} minutes."}, status=429)
+            resp["Retry-After"] = str(seconds_left)
+            return resp
+        # Verrou expiré → réinitialiser
+        existing.failed_login_attempts = 0
+        existing.login_locked_until = None
+        existing.save(update_fields=["failed_login_attempts", "login_locked_until"])
+
     user = authenticate(request, email=email, password=password)
     if not user:
-        # Essai manuel (quelques backends custom ignorent is_active)
-        try:
-            u = User.objects.get(email=email)
-            if u.check_password(password) and u.is_active:
-                user = u
-        except User.DoesNotExist:
-            user = None
-    if not user:
+        if existing:
+            existing.failed_login_attempts = (existing.failed_login_attempts or 0) + 1
+            if existing.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
+                from django.utils import timezone as _tz
+                existing.login_locked_until = _tz.now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
+                existing.failed_login_attempts = MAX_LOGIN_ATTEMPTS
+                existing.save(update_fields=["failed_login_attempts", "login_locked_until"])
+                from rest_framework.response import Response as _R
+                resp = _R({"success": False, "error": "Trop de tentatives. Compte verrouillé 15 minutes."}, status=429)
+                resp["Retry-After"] = str(LOGIN_LOCK_MINUTES * 60)
+                return resp
+            existing.save(update_fields=["failed_login_attempts"])
         return api_error("Identifiants invalides", status.HTTP_401_UNAUTHORIZED)
+
+    # Connexion réussie : réinitialiser les compteurs
+    user.failed_login_attempts = 0
+    user.login_locked_until = None
+    user.save(update_fields=["failed_login_attempts", "login_locked_until"])
     return _auth_response(user)
 
 

@@ -28,27 +28,36 @@ export class ApiError extends Error {
 }
 
 export const Auth = {
-  /** Token localStorage (fallback pour anciennes sessions). */
-  token(): string | null { return localStorage.getItem(TOKEN_KEY) },
-  refresh(): string | null { return localStorage.getItem(REFRESH_KEY) },
-  /** @deprecated Les tokens sont maintenant dans des cookies HttpOnly, ne plus utiliser localStorage. */
-  saveAccess(token: string) { localStorage.setItem(TOKEN_KEY, token) },
-  /** @deprecated */
-  saveRefresh(token: string) { localStorage.setItem(REFRESH_KEY, token) },
-  saveTokens(access: string, refresh?: string) {
-    this.saveAccess(access)
-    if (refresh) this.saveRefresh(refresh)
+  /** Déprécié : les tokens sont dans des cookies HttpOnly. Ces méthodes
+   *  nettoient l'ancien localStorage (rétrocompatibilité) au chargement. */
+  token(): string | null {
+    const v = localStorage.getItem(TOKEN_KEY)
+    if (v) localStorage.removeItem(TOKEN_KEY)
+    return null
   },
+  refresh(): string | null {
+    const v = localStorage.getItem(REFRESH_KEY)
+    if (v) localStorage.removeItem(REFRESH_KEY)
+    return null
+  },
+  saveAccess(_token: string) { /* no-op: tokens now in HttpOnly cookies */ },
+  saveRefresh(_token: string) { /* no-op */ },
+  saveTokens(_access: string, _refresh?: string) { /* no-op */ },
   clear() {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_KEY)
+    try {
+      // Supprimer le cookie booléen spiistmove_logged_in
+      document.cookie = 'spiistmove_logged_in=; Path=/; Max-Age=0; SameSite=Lax'
+    } catch { /* noop */ }
   },
-  /** Détecte si une session existe (cookie ou localStorage). */
+  /** Détecte la session via le cookie booléen spiistmove_logged_in posé par le backend. */
   isLoggedIn(): boolean {
-    // On ne peut pas lire un cookie HttpOnly depuis JS, donc on vérifie deux
-    // indices : (1) présence d'un token en localStorage (fallback) ; (2) un
-    // cookie non-HttpOnly booléen posé par le backend si la session est active.
-    if (this.token()) return true
+    // Nettoyer les anciennes clés localStorage au premier appel (transition).
+    try {
+      if (localStorage.getItem(TOKEN_KEY)) localStorage.removeItem(TOKEN_KEY)
+      if (localStorage.getItem(REFRESH_KEY)) localStorage.removeItem(REFRESH_KEY)
+    } catch { /* noop */ }
     try {
       return document.cookie.split(';').some((c) => c.trim().startsWith('spiistmove_logged_in='))
     } catch { return false }

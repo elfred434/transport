@@ -52,6 +52,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     verification_code_expires = models.DateTimeField(null=True, blank=True)
     verification_attempts = models.PositiveSmallIntegerField(default=0)
     verification_locked_until = models.DateTimeField(null=True, blank=True)
+    failed_login_attempts = models.PositiveSmallIntegerField(default=0)
+    login_locked_until = models.DateTimeField(null=True, blank=True)
     date_creation = models.DateTimeField(default=timezone.now)
     date_modification = models.DateTimeField(auto_now=True)
 
