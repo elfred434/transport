@@ -50,6 +50,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     email_verified = models.BooleanField(default=False)
     verification_code = models.CharField(max_length=6, blank=True, default="")
     verification_code_expires = models.DateTimeField(null=True, blank=True)
+    verification_attempts = models.PositiveSmallIntegerField(default=0)
+    verification_locked_until = models.DateTimeField(null=True, blank=True)
     date_creation = models.DateTimeField(default=timezone.now)
     date_modification = models.DateTimeField(auto_now=True)
 

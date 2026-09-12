@@ -9,7 +9,8 @@ from django.conf.urls.static import static
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenRefreshView
+# TokenRefreshView custom (supporte cookies HttpOnly + reset des cookies)
+# from rest_framework_simplejwt.views import TokenRefreshView
 
 from core import views as cv
 from core.password_reset import reset_request, reset_password
@@ -132,7 +133,7 @@ urlpatterns = [
     path("api/auth/google/one-tap", av.google_one_tap),
     path("api/auth/logout", av.logout),
     path("api/auth/me", av.me),
-    path("api/auth/refresh", TokenRefreshView.as_view()),
+    path("api/auth/refresh", av.token_refresh),
     path("api/auth/reset-request", reset_request),
     path("api/auth/reset-password", reset_password),
     path("api/auth/verify-email", verify_email),

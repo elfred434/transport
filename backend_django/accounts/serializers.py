@@ -35,6 +35,17 @@ def _validate_phone(value: str) -> str:
     raise serializers.ValidationError("Numéro de téléphone invalide (format Bénin attendu : +229 XX XX XX XX).")
 
 
+_COMMON_PASSWORDS = {
+    # Top 50+ mdp les plus utilisés (OWASP / HIBP)
+    "password", "12345678", "123456789", "1234567890", "00000000", "11111111",
+    "qwertyui", "qwerty123", "azertyui", "azerty123", "azertyuiop", "qwertyuiop",
+    "abcdefgh", "abcd1234", "password1", "passw0rd", "iloveyou", "admin123",
+    "welcome1", "letmein1", "monkey12", "dragon12", "master12", "login123",
+    "princess1", "qwerty1", "football1", "charlie", "shadow", "sunshine",
+    "trustno1", "spiistmove", "spiistmove1", "transport", "benin", "cotonou",
+}
+
+
 def _validate_password(value: str) -> str:
     if len(value) < 8:
         raise serializers.ValidationError("Le mot de passe doit contenir au moins 8 caractères.")
@@ -42,10 +53,15 @@ def _validate_password(value: str) -> str:
         raise serializers.ValidationError("Le mot de passe ne peut pas être entièrement numérique.")
     if value.isalpha():
         raise serializers.ValidationError("Le mot de passe doit contenir au moins un chiffre.")
-    # Interdire les mots de passe les plus communs
-    common = {"password", "12345678", "azertyui", "qwertyui", "00000000", "123456789"}
-    if value.lower() in common:
-        raise serializers.ValidationError("Ce mot de passe est trop commun.")
+    if value.isalnum() and len(value) < 12:
+        raise serializers.ValidationError(
+            "Ajoute au moins un caractère spécial (ex: ! @ # $ %) ou utilise 12+ caractères."
+        )
+    if value.lower() in _COMMON_PASSWORDS:
+        raise serializers.ValidationError("Ce mot de passe est trop commun, choisis-en un plus sûr.")
+    # Interdire les répétitions évidentes (aaaabbbb, 11112222, etc.)
+    if len(set(value.lower())) <= 3:
+        raise serializers.ValidationError("Le mot de passe est trop prévisible (trop peu de caractères différents).")
     return value
 
 

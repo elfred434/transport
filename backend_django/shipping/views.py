@@ -8,9 +8,11 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
+
+from core.throttles import ContactThrottle
 
 from accounts.models import User
 from core.pagination import paginate_queryset
@@ -484,6 +486,7 @@ def avis_transporteur(request: Request, tid: int):
 # ---------- CONTACT ----------
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([ContactThrottle])
 def contact_send(request: Request):
     ser = ContactCreateSerializer(data=request.data)
     ser.is_valid(raise_exception=True)

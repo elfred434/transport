@@ -51,6 +51,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # sert les static en prod sans Nginx
     "core.middleware.SecurityHeadersMiddleware",
+    "core.middleware_jwt_cookie.JWTCookieMiddleware",  # JWT depuis cookies HttpOnly (XSS-safe)
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -180,7 +181,9 @@ SIMPLE_JWT = {
 }
 
 # ---- CORS (ouvert en dev ; restreint par liste blanche en prod) ----
-_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+# H-4: localhost n'est PAS ajouté par défaut en production (risque cross-origin avec applis locales)
+_cors_default = "http://localhost:5173,http://127.0.0.1:5173" if DEBUG else ""
+_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", _cors_default)
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
 # Ajoute automatiquement les origines connues si elles sont fournies
 _auto_origins = [
@@ -217,9 +220,11 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/minute",
         "user": "300/minute",
-        "login": "10/minute",
+        "login": "5/minute",            # M-1: brute-force password
         "reset": "3/minute",
-        "verify": "6/minute",
+        "verify": "10/minute",          # vérif code — le lockout 5 essais/user gère le brute-force ciblé
+        "resend": "3/hour",             # anti-spam envoi d'emails
+        "contact": "3/hour",            # M-3: spam formulaire contact
     },
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
 }

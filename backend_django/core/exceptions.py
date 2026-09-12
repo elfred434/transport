@@ -17,7 +17,12 @@ def api_exception_handler(exc, context):
         if isinstance(exc, AuthenticationFailed):
             return api_error("Identifiants invalides", status.HTTP_401_UNAUTHORIZED)
         if isinstance(exc, PermissionDenied):
-            return api_error("Accès interdit", status.HTTP_403_FORBIDDEN)
+            # Si le détail est un dict (code: EMAIL_NOT_VERIFIED, etc.), le conserver pour que le frontend puisse réagir
+            detail = exc.detail
+            if isinstance(detail, dict):
+                from rest_framework.response import Response
+                return Response({"success": False, "error": detail}, status=status.HTTP_403_FORBIDDEN)
+            return api_error(str(detail) if detail else "Accès interdit", status.HTTP_403_FORBIDDEN)
         if isinstance(exc, NotFound):
             msg = exc.detail if isinstance(exc.detail, str) else "Ressource introuvable"
             if msg == "Not found.":
@@ -38,7 +43,13 @@ def api_exception_handler(exc, context):
                 msg = str(detail)
             return api_error(msg, status.HTTP_422_UNPROCESSABLE_ENTITY)
         if isinstance(exc, Throttled):
-            return api_error("Trop de requêtes, ralentissez", status.HTTP_429_TOO_MANY_REQUESTS)
+            from rest_framework.response import Response
+            wait = getattr(exc, "wait", None)
+            msg = "Trop de requêtes, ralentissez." + (f" Réessaie dans {int(wait)}s." if wait else "")
+            resp = Response({"success": False, "error": msg}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            if wait:
+                resp["Retry-After"] = str(int(wait))
+            return resp
         return api_error(str(exc.detail), response.status_code)
 
     # Exception non-DRF : 500 générique
