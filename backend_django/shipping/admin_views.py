@@ -206,10 +206,31 @@ def colis_statut(request: Request, pk: int):
         c = Colis.objects.get(pk=pk)
     except Colis.DoesNotExist:
         return api_error("Colis introuvable", 404)
+    ancien = Colis.objects.get(pk=pk).statut if False else None  # placeholder
     c.statut = statut
     c.save(update_fields=["statut"])
-    # Notif lue
     NotificationAdmin.objects.filter(colis=c, type="colis").update(lu=True)
+
+    # Quand un colis est approuvé, notifier les transporteurs qui ont un voyage approuvé
+    # vers la même ville (même ville de destination, date de départ >= date limite d'arrivée)
+    if statut == Colis.STATUT_APPROUVE:
+        try:
+            from core.emails import envoyer_nouveau_colis
+            from .models import Voyage, Transporteur
+            transporteurs_qs = (
+                User.objects.filter(
+                    role=User.ROLE_TRANSPORTEUR,
+                    transporteur__isnull=False,
+                    voyages__statut=Voyage.STATUT_APPROUVE,
+                    voyages__ville__iexact=c.ville,
+                    voyages__date_depart__gte=c.date_limite,
+                ).distinct()
+            )
+            nb = envoyer_nouveau_colis(transporteurs_qs, c)
+            logger.info("Colis %s approuvé, notifié %s transporteurs", c.pk, nb)
+        except Exception:
+            logger.exception("Erreur notification transporteurs colis %s", c.pk)
+
     return api_success({"message": f"Statut du colis mis à jour ({statut})"})
 
 
@@ -409,6 +430,13 @@ def livraison_decision(request: Request, pk: int):
         else:
             commission_plateforme = Decimal("0")
             commission_transporteur = Decimal("0")
+
+    # Email de confirmation de livraison au client
+    try:
+        from core.emails import envoyer_livraison_confirmee
+        envoyer_livraison_confirmee(etape.colis)
+    except Exception:
+        logger.exception("Erreur email livraison colis %s", etape.colis_id)
 
     return api_success({
         "message": "Livraison confirmée, commission versée",
@@ -874,4 +902,10 @@ def contact_reply(request: Request, pk: int):
         m.reponse = reponse
         m.date_reponse = _tz.now()
     m.save(update_fields=["lu", "reponse", "date_reponse"] if reponse else ["lu"])
+    if reponse:
+        try:
+            from core.emails import envoyer_reponse_admin
+            envoyer_reponse_admin(m, reponse)
+        except Exception:
+            logger.exception("Erreur envoi réponse admin contact %s", m.id)
     return api_success({"message": "Réponse enregistrée" if reponse else "Marqué comme lu", "id": m.id})

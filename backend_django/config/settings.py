@@ -294,6 +294,7 @@ else:
     DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"{APP_NAME} <noreply@spiistmove.com>")
 
 APP_FRONTEND_URL = os.environ.get("APP_FRONTEND_URL", "http://localhost:5173")
+CONTACT_ADMIN_EMAIL = os.environ.get("CONTACT_ADMIN_EMAIL", DEFAULT_FROM_EMAIL or "elfred434@gmail.com")
 
 # ---- Kkiapay ----
 KKIAPAY_PUBLIC_KEY = os.environ.get("KKIAPAY_PUBLIC_KEY", "")

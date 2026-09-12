@@ -67,6 +67,13 @@ def register(request: Request):
     if role == User.ROLE_TRANSPORTEUR:
         from shipping.models import Transporteur
         Transporteur.objects.get_or_create(user=user)
+    # Email de bienvenue (ne doit jamais casser l'inscription)
+    try:
+        from core.emails import envoyer_email_bienvenue
+        envoyer_email_bienvenue(user)
+    except Exception:
+        import logging as _log
+        _log.getLogger("accounts").exception("Échec email bienvenue pour %s", user.email)
     return api_success(_auth_payload(user), status_code=status.HTTP_201_CREATED)
 
 

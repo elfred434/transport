@@ -47,8 +47,9 @@ def _verify_signature(raw_body: bytes, signature: str) -> bool:
 
 
 def _mark_paid(p: Paiement, transaction_id: str) -> None:
-    """Marque un paiement comme payé + création étape de suivi 'Payé'."""
-    if p.statut == Paiement.STATUT_PAYE:
+    """Marque un paiement comme payé + création étape de suivi 'Payé' + envoi email."""
+    was_already_paid = p.statut == Paiement.STATUT_PAYE
+    if was_already_paid:
         return
     p.statut = Paiement.STATUT_PAYE
     p.numero_transaction = transaction_id
@@ -59,7 +60,23 @@ def _mark_paid(p: Paiement, transaction_id: str) -> None:
             statut="Payé",
             defaults={"commentaire": f"Paiement confirmé Kkiapay (tx {transaction_id})"},
         )
+        # Passe le colis en "En cours"
+        SuiviColis.objects.get_or_create(
+            colis=p.colis,
+            statut="En cours",
+            defaults={"commentaire": "Paiement reçu, prise en charge du colis"},
+        )
     logger.info("Paiement %s marqué PAYE tx=%s", p.id, transaction_id)
+
+    # Emails transactionnels (jamais bloquant)
+    try:
+        from core.emails import envoyer_confirmation_paiement, envoyer_colis_en_cours, envoyer_paiement_recu_transporteur
+        envoyer_confirmation_paiement(p)
+        if p.colis:
+            envoyer_colis_en_cours(p.colis)
+        envoyer_paiement_recu_transporteur(p)
+    except Exception:
+        logger.exception("Erreur envoi emails paiement %s", p.id)
 
 
 def verify_transaction(transaction_id: str) -> Optional[dict]:

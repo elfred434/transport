@@ -303,6 +303,16 @@ def paiement_simuler(request: Request, pk: int):
 
     # Passe le colis en En cours
     SuiviColis.objects.create(colis=p.colis, statut="En cours", auteur_id=request.user.id)
+
+    # Emails de confirmation
+    try:
+        from core.emails import envoyer_confirmation_paiement, envoyer_colis_en_cours, envoyer_paiement_recu_transporteur
+        envoyer_confirmation_paiement(p)
+        envoyer_colis_en_cours(p.colis)
+        envoyer_paiement_recu_transporteur(p)
+    except Exception:
+        logger.exception("Erreur envoi emails paiement (simuler) %s", p.id)
+
     return api_success({"message": "Paiement confirmé", "paiement": PaiementSerializer(p).data})
 
 
@@ -491,6 +501,12 @@ def contact_send(request: Request):
     if not data.get("nom"):
         data["nom"] = "Visiteur anonyme"
     m = ContactMessage.objects.create(**data)
+    try:
+        from core.emails import envoyer_confirmation_contact, envoyer_nouveau_contact_admin
+        envoyer_confirmation_contact(m)
+        envoyer_nouveau_contact_admin(m)
+    except Exception:
+        logger.exception("Erreur emails contact %s", m.id)
     return api_success({"id": m.id, "message": "Message envoyé"}, status_code=201)
 
 
