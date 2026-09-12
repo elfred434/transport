@@ -5,9 +5,14 @@ import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
 
 interface RegisterResponse {
-  token: string
+  token?: string
   refresh?: string
-  user: { id: number }
+  user?: { id: number }
+  message?: string
+  email?: string
+  email_verified?: boolean
+  verification_required?: boolean
+  code_envoye?: boolean
 }
 
 /** Inscription — port de register.html (multipart avec photo optionnelle). */
@@ -29,6 +34,7 @@ export default function Register() {
 
     const fd = new FormData(form)
     const file = (fd.get('photo_profil') as File | null) || null
+    const email = String(fd.get('email') || '')
 
     try {
       const data = await api.upload<RegisterResponse>(
@@ -36,14 +42,23 @@ export default function Register() {
         {
           nom: String(fd.get('nom') || ''),
           prenom: String(fd.get('prenom') || ''),
-          email: String(fd.get('email') || ''),
+          email,
           password: String(fd.get('password') || ''),
-          tel: String(fd.get('tel') || ''),
+          telephone: String(fd.get('tel') || ''),
         },
         { photo_profil: file && file.size > 0 ? file : null },
       )
-      await setToken({ token: data.token, refresh: data.refresh })
-      navigate('/dashboard', { replace: true })
+      if (data.verification_required) {
+        // Email non vérifié : rediriger vers la page de saisie du code
+        sessionStorage.setItem('verify_email', email)
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`, { replace: true })
+        return
+      }
+      // Cas historique (compte déjà vérifié, ex: Google One Tap ou future évolution)
+      if (data.token && data.refresh) {
+        await setToken({ token: data.token, refresh: data.refresh })
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     }

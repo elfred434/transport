@@ -3,6 +3,7 @@ import { AdminGate, AppLayout } from './components/Layouts'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import VerifyEmail from './pages/VerifyEmail'
 import ResetRequest from './pages/ResetRequest'
 import ResetPassword from './pages/ResetPassword'
 import Contact from './pages/Contact'
@@ -74,6 +75,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/reset-request" element={<ResetRequest />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin/login" element={<AdminLogin />} />

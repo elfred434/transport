@@ -126,13 +126,27 @@ async function rawFetch<T>(method: string, path: string, body: Body | FormData =
   try { data = text ? JSON.parse(text) : null } catch { /* non-JSON */ }
 
   if (!res.ok) {
-    if (res.status === 401 && Auth.isLoggedIn()) {
+    // 401 : refresh possible déjà géré ci-dessus → logout
+    if (res.status === 401 && Auth.isLoggedIn() && isRetry) {
       Auth.clear()
       if (window.location.pathname !== '/login') {
         window.location.href = '/login?expired=1'
       }
     }
-    throw new ApiError((data && data.error) || 'Erreur HTTP ' + res.status, res.status)
+    // 403 EMAIL_NOT_VERIFIED : rediriger vers la page de vérification
+    if (res.status === 403 && data?.error?.code === 'EMAIL_NOT_VERIFIED') {
+      const email = data.error.email || ''
+      if (email) sessionStorage.setItem('verify_email', email)
+      if (window.location.pathname !== '/verify-email') {
+        window.location.href = `/verify-email${email ? '?email=' + encodeURIComponent(email) : ''}`
+      }
+    }
+    const msg =
+      (data?.error?.message) ||
+      (data?.error && typeof data.error === 'string' ? data.error : null) ||
+      (data?.message) ||
+      'Erreur HTTP ' + res.status
+    throw new ApiError(msg, res.status)
   }
 
   return (data && data.data !== undefined ? data.data : data) as T
