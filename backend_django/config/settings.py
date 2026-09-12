@@ -274,6 +274,10 @@ LOGGING = {
     },
 }
 
+# ---- Nom de l'application ----
+APP_NAME = os.environ.get("APP_NAME", "SpiistMove")
+APP_VERSION = "3.0-django"
+
 # ---- Email (Brevo API v3 uniquement — pas de SMTP) ----
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 BREVO_SENDER_NAME = os.environ.get("BREVO_SENDER_NAME", APP_NAME)
@@ -310,9 +314,6 @@ GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", _default_redirect)
 GOOGLE_SKIP_SSL_VERIFY = os.environ.get("GOOGLE_SKIP_SSL_VERIFY", "false").lower() == "true"
 # En prod, on N'autorise JAMAIS le fallback JWT non vérifié (sécurité)
 GOOGLE_ALLOW_JWT_FALLBACK = os.environ.get("GOOGLE_ALLOW_JWT_FALLBACK", "false" if not DEBUG else "true").lower() == "true"
-
-APP_NAME = "Transport.bj"
-APP_VERSION = "3.0-django"
 
 # Commission: plateforme reçoit X%, transporteur reçoit (1 - X)% (defaut 95% / 5%)
 def _float_env(key, default):
