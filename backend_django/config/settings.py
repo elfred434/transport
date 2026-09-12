@@ -204,7 +204,10 @@ CORS_ALLOW_HEADERS = [
 # ---- DRF (auth JSON + throttling + handler d'exception custom) ----
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "core.auth.VerifiedJWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.AllowAny",
     ),
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_THROTTLE_CLASSES": [
@@ -216,6 +219,7 @@ REST_FRAMEWORK = {
         "user": "300/minute",
         "login": "10/minute",
         "reset": "3/minute",
+        "verify": "6/minute",
     },
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
 }

@@ -48,6 +48,7 @@ def _auth_payload(user: User):
         "token": str(RefreshToken.for_user(user).access_token),
         "refresh": str(RefreshToken.for_user(user)),
         "role": user.role,
+        "email_verified": bool(getattr(user, "email_verified", False)),
     }
 
 
@@ -67,14 +68,92 @@ def register(request: Request):
     if role == User.ROLE_TRANSPORTEUR:
         from shipping.models import Transporteur
         Transporteur.objects.get_or_create(user=user)
-    # Email de bienvenue (ne doit jamais casser l'inscription)
+    # Envoi du code de vérification d'email (jamais bloquant)
+    code_envoye = False
     try:
-        from core.emails import envoyer_email_bienvenue
-        envoyer_email_bienvenue(user)
+        from core.verification import envoyer_code_verification
+        code_envoye = envoyer_code_verification(user)
     except Exception:
         import logging as _log
-        _log.getLogger("accounts").exception("Échec email bienvenue pour %s", user.email)
-    return api_success(_auth_payload(user), status_code=status.HTTP_201_CREATED)
+        _log.getLogger("accounts").exception("Échec envoi code vérification pour %s", user.email)
+    # On NE LOGUE PAS l'utilisateur automatiquement : il doit d'abord vérifier son email.
+    return api_success({
+        "message": "Inscription réussie ! Un code de vérification a été envoyé à ton adresse email.",
+        "email": user.email,
+        "code_envoye": code_envoye,
+        "email_verified": False,
+        "verification_required": True,
+    }, status_code=status.HTTP_201_CREATED)
+
+
+class VerifyEmailThrottle(AnonRateThrottle):
+    scope = "verify"
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([VerifyEmailThrottle])
+def verify_email(request: Request):
+    """Vérifie l'email à partir du code envoyé (soit après inscription, soit via JWT)."""
+    email = (request.data.get("email") or "").strip().lower()
+    code = (request.data.get("code") or "").strip()
+    # Si connecté, utiliser son email ; sinon exiger email+code (vérification à la sortie d'inscription)
+    user = request.user if request.user.is_authenticated else None
+    if not user:
+        if not email:
+            return api_error("Email requis", 400)
+        from accounts.models import User as _U
+        try:
+            user = _U.objects.get(email=email)
+        except _U.DoesNotExist:
+            return api_error("Aucun compte pour cet email", 404)
+    from core.verification import verifier_code
+    ok, msg = verifier_code(user, code)
+    if not ok:
+        return api_error(msg, 400)
+    # Si déjà connecté avec JWT, juste refresh le payload ; sinon générer tokens
+    tokens = {}
+    if request.user.is_authenticated:
+        # Renvoyer un nouveau access token avec la valeur email_verified=True
+        tokens = _auth_payload(user)
+    return api_success({
+        "message": msg,
+        "email_verified": True,
+        **tokens,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def resend_verification_code(request: Request):
+    """Renvoyer le code de vérification (limité dans le temps)."""
+    email = (request.data.get("email") or "").strip().lower()
+    user = request.user if request.user.is_authenticated else None
+    if not user:
+        if not email:
+            return api_error("Email requis", 400)
+        from accounts.models import User as _U
+        try:
+            user = _U.objects.get(email=email)
+        except _U.DoesNotExist:
+            # Message générique pour ne pas dévoiler l'existence du compte
+            return api_success({"message": "Si ce compte existe, un nouveau code a été envoyé."})
+    if user.email_verified:
+        return api_error("Cet email est déjà vérifié.", 400)
+    # Anti-spam : interdire de renvoyer avant 60s
+    from django.utils import timezone
+    from datetime import timedelta
+    if user.verification_code_expires and (user.verification_code_expires - timedelta(minutes=15 - 1)) > timezone.now():
+        # Le code a été généré il y a moins de 60s
+        return api_error("Attends au moins 60 secondes avant de demander un nouveau code", 429)
+    ok = False
+    try:
+        from core.verification import envoyer_code_verification
+        ok = envoyer_code_verification(user)
+    except Exception:
+        import logging as _log
+        _log.getLogger("accounts").exception("Erreur renvoi code à %s", user.email)
+    return api_success({"message": "Un nouveau code a été envoyé à ton adresse email.", "sent": ok})
 
 
 @api_view(["POST"])
@@ -207,6 +286,7 @@ def google_one_tap(request: Request):
     user = User.objects.filter(google_id=google_id).first() \
         or User.objects.filter(email=email).first()
 
+    # Google a déjà vérifié l'email → on marque comme vérifié pour nos nouveaux users
     if not user:
         prenom = given_name.strip() or (name.split(" ")[0] if name else "Google")
         nom = family_name.strip() or (name.split(" ")[-1] if name and " " in name else "User")
@@ -219,13 +299,20 @@ def google_one_tap(request: Request):
             role=User.ROLE_CLIENT,
             photo=picture[:500],
         )
-        logger.info("Nouvel utilisateur Google créé: %s", email)
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+        logger.info("Nouvel utilisateur Google créé (vérifié): %s", email)
     else:
         updates = {}
         if not user.google_id:
             updates["google_id"] = google_id
         if picture and not user.photo:
             updates["photo"] = picture[:500]
+        # Si Google confirme l'email et que le compte ne l'est pas encore, le vérifier
+        if email_verified and not user.email_verified:
+            updates["email_verified"] = True
+            updates["verification_code"] = ""
+            updates["verification_code_expires"] = None
         if updates:
             for k, v in updates.items():
                 setattr(user, k, v)

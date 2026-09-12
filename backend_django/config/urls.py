@@ -16,6 +16,7 @@ from core.password_reset import reset_request, reset_password
 from core.responses import api_success, api_error
 from core.upload import upload
 from accounts import views as av
+from accounts.views import verify_email, resend_verification_code
 from shipping import views as sv
 from shipping import admin_views as adv
 from shipping import missing_views as mv
@@ -134,6 +135,8 @@ urlpatterns = [
     path("api/auth/refresh", TokenRefreshView.as_view()),
     path("api/auth/reset-request", reset_request),
     path("api/auth/reset-password", reset_password),
+    path("api/auth/verify-email", verify_email),
+    path("api/auth/resend-code", resend_verification_code),
 
     # Upload sécurisé
     path("api/upload", upload),
