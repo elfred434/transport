@@ -14,9 +14,9 @@ import { useAuth } from '../context/AuthContext'
 export default function VerifyEmail() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const { setToken, user } = useAuth()
-  const emailRef = useRef(params.get('email') || sessionStorage.getItem('verify_email') || user?.email || '')
-  const [email, setEmail] = useState<string>(emailRef.current || '')
+  const { setToken, me } = useAuth()
+  const emailRef = useRef(params.get('email') || sessionStorage.getItem('verify_email') || me?.email || '')
+  const [email] = useState<string>(emailRef.current || '')
   const [code, setCode] = useState<string[]>(['', '', '', '', '', ''])
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +75,7 @@ export default function VerifyEmail() {
     try {
       const payload: Record<string, string> = { code: c }
       // Si connecté, pas besoin d'email (JWT suffit), sinon on envoie l'email
-      if (!user?.email) payload.email = email
+      if (!me?.email) payload.email = email
       const data = await api.post<{
         token?: string
         refresh?: string
@@ -106,7 +106,7 @@ export default function VerifyEmail() {
     setError(null); setInfo(null); setLoading(true)
     try {
       const payload: Record<string, string> = {}
-      if (!user?.email) payload.email = email
+      if (!me?.email) payload.email = email
       await api.post('/api/auth/resend-code', payload)
       const until = Date.now() + 60_000
       sessionStorage.setItem('verify_resend_at', String(until))
