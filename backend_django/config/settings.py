@@ -278,8 +278,8 @@ _KKIAPAY_CDN = "https://cdn.kkiapay.me"
 _KKIAPAY_API = "https://api.kkiapay.me"
 _KKIAPAY_API_SB = "https://sandbox.kkiapay.me"
 
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://www.google.com", "https://www.gstatic.com")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://fonts.googleapis.com", "https://ka-f.fontawesome.com")
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://www.google.com", "https://www.gstatic.com", "https://accounts.google.com")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://fonts.googleapis.com", "https://ka-f.fontawesome.com", "https://accounts.google.com")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "https://ka-f.fontawesome.com")
 CSP_IMG_SRC = ("'self'", "data:", "blob:", "https:", "http:")
 CSP_CONNECT_SRC = ("'self'", _KKIAPAY_API, _KKIAPAY_API_SB, _FEDAPAY_API, _FEDAPAY_API_SB, _FEDAPAY_CHECKOUT, _FEDAPAY_CHECKOUT_SB, "https://oauth2.googleapis.com", "https://accounts.google.com")
