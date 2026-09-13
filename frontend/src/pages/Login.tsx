@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { api, Auth } from '../lib/api'
+import { api, Auth, ApiError } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
 
@@ -15,6 +15,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState<{ type: 'danger' | 'success'; text: string } | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -35,8 +36,9 @@ export default function Login() {
       setAlert({ type: 'success', text: 'Opération réussie, vous pouvez vous connecter.' })
   }, [params])
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const doLogin = async () => {
+    if (submitting) return
+    setSubmitting(true)
     setAlert(null)
     try {
       const data = await api.post<LoginResponse>('/api/auth/login', { email, password })
@@ -45,8 +47,27 @@ export default function Login() {
       if (from) navigate(from, { replace: true })
       else navigate(data.user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
     } catch (err) {
-      setAlert({ type: 'danger', text: err instanceof Error ? err.message : 'Erreur inconnue' })
+      let msg = 'Erreur inconnue'
+      if (err instanceof ApiError) {
+        msg = err.message || `Erreur HTTP ${err.status}`
+      } else if (err instanceof Error) {
+        msg = err.message
+      }
+      // Si c'est un échec réseau / cookie non reçu
+      if (msg === 'Failed to fetch' || msg.includes('injoignable')) {
+        msg = 'Connexion au serveur impossible. Vérifie ta connexion Internet ou désactive ton adblock pour ce site.'
+      }
+      setAlert({ type: 'danger', text: msg })
+    } finally {
+      setSubmitting(false)
     }
+  }
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    doLogin()
+    return false
   }
 
   return (
@@ -91,8 +112,26 @@ export default function Login() {
                 Mot de passe oublié ?
               </Link>
             </div>
-            <button type="submit" className="btn btn-primary w-100 fw-bold">
-              <i className="fa-solid fa-right-to-bracket"></i> Se connecter
+            <button
+              type="submit"
+              className="btn btn-primary w-100 fw-bold"
+              disabled={submitting}
+              onClick={(e) => {
+                // Double-sécurité anti-rechargement (onSubmit a déjà preventDefault,
+                // mais si le formulaire n'est pas monté par React on l'intercepte ici aussi).
+                e.preventDefault()
+                doLogin()
+              }}
+            >
+              {submitting ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-1"></span>Connexion…
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-right-to-bracket"></i> Se connecter
+                </>
+              )}
             </button>
             <div className="text-center mt-3">
               Pas encore de compte ?{' '}
