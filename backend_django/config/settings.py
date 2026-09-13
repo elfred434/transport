@@ -392,3 +392,10 @@ def _float_env(key, default):
 
 COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.95)
 MONTANT_MIN_RETRAIT = int(_float_env("MONTANT_MIN_RETRAIT", 1000))
+
+# --- Cookies d'auth cross-site ---
+# Front (Vercel) et API (Render) sont sur deux domaines distincts → SameSite=None
+# est requis pour que fetch(credentials:'include') fonctionne.
+if not DEBUG:
+    SESSION_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SAMESITE = "None"
