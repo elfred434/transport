@@ -32,10 +32,11 @@ def set_auth_cookies(response, access: str, refresh: str | None = None):
     Pose aussi un cookie NON-HttpOnly `spiistmove_logged_in=1` que le frontend
     peut lire pour savoir si une session est active (sans exposer de secret).
     """
+    is_prod = not settings.DEBUG
+    samesite = "None" if is_prod else "Lax"
     response.set_cookie("access_token", access, **auth_cookie_kwargs("access_token"))
     if refresh:
         response.set_cookie("refresh_token", refresh, **auth_cookie_kwargs("refresh_token"))
-    is_prod = not settings.DEBUG
     response.set_cookie(
         "spiistmove_logged_in", "1",
         max_age=7 * 24 * 60 * 60,
