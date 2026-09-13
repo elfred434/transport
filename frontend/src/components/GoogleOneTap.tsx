@@ -12,6 +12,7 @@ declare global {
           renderButton: (el: HTMLElement, opts: any) => void
           prompt: () => void
           cancel: () => void
+          disableAutoSelect: () => void
         }
       }
     }
@@ -24,33 +25,67 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 function loadGsi(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${GSI_SCRIPT}"]`) as HTMLScriptElement | null
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SCRIPT}"]`)
     if (existing) {
-      if ((existing as any)._loaded) resolve()
-      else {
-        existing.addEventListener('load', () => resolve())
-        existing.addEventListener('error', () => reject(new Error('Impossible de charger Google Identity')))
+      if ((existing as HTMLScriptElement & { _loaded?: boolean })._loaded) {
+        resolve()
+        return
       }
+      const onLoad = () => { cleanup(); resolve() }
+      const onErr = () => { cleanup(); reject(new Error('Impossible de charger Google Identity')) }
+      const cleanup = () => {
+        existing.removeEventListener('load', onLoad)
+        existing.removeEventListener('error', onErr)
+      }
+      existing.addEventListener('load', onLoad)
+      existing.addEventListener('error', onErr)
       return
     }
     const s = document.createElement('script') as HTMLScriptElement & { _loaded?: boolean }
     s.src = GSI_SCRIPT
     s.async = true
     s.defer = true
+    s.nonce = ''
     s.onload = () => {
       s._loaded = true
       resolve()
     }
-    s.onerror = () => reject(new Error('Impossible de charger Google Identity'))
+    s.onerror = () => reject(new Error('Impossible de charger Google Identity (connexion bloquée par un adblock/filter ou réseau)'))
     document.head.appendChild(s)
   })
+}
+
+// Initialise GSI une SEULE fois pour toute la session de page
+let initPromise: Promise<void> | null = null
+function ensureGsiInitialized(): Promise<void> {
+  if (!GOOGLE_CLIENT_ID) return Promise.reject(new Error('GOOGLE_CLIENT_ID manquant'))
+  if (initPromise) return initPromise
+  initPromise = loadGsi().then(() => {
+    if (window._googleOneTapInitialized) return
+    // Callback global relais : il redirige vers cbRef.current qui pointe
+    // toujours vers le dernier handleCredential (login ou register)
+    ;(window as any)._googleOneTapCallback = (resp: { credential: string }) => {
+      ;(window as any)._googleOneTapHandler?.(resp.credential)
+    }
+    window.google!.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (resp: { credential: string }) => {
+        ;(window as any)._googleOneTapHandler?.(resp.credential)
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      use_fedcm_for_prompt: false,
+    })
+    window._googleOneTapInitialized = true
+  })
+  return initPromise
 }
 
 export default function GoogleOneTap({ mode = 'login' }: { mode?: 'login' | 'register' }) {
   const btnRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const initializedRef = useRef(false)
+  const [ready, setReady] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const { setToken } = useAuth()
@@ -67,10 +102,9 @@ export default function GoogleOneTap({ mode = 'login' }: { mode?: 'login' | 'reg
       if (from) navigate(from, { replace: true })
       else navigate(data.user.role === 'admin' || data.user.role === 'super_admin' ? '/admin' : '/dashboard', { replace: true })
     } catch (e: any) {
-      // Erreur 500 SSL cURL 60 -> message explicite
       const msg = e?.message || 'Connexion Google échouée'
       if (msg.includes('cURL error 60') || msg.includes('SSL certificate') || msg.includes('unable to get local issuer')) {
-        setError('Erreur SSL Windows (cURL 60) – ajoutez cacert.pem à php.ini ou mettez GOOGLE_SKIP_SSL_VERIFY=true dans backend/.env (voir GUIDE)')
+        setError('Erreur SSL backend (cURL 60) – contacter l\'administrateur')
       } else {
         setError(msg)
       }
@@ -79,44 +113,30 @@ export default function GoogleOneTap({ mode = 'login' }: { mode?: 'login' | 'reg
     }
   }, [navigate, location.state, setToken])
 
+  // Brancher notre handler courant sur le callback global GSI
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return
-    if (initializedRef.current) return
+    ;(window as any)._googleOneTapHandler = handleCredential
+    return () => {
+      // Nettoyage si composant démonté pour éviter appel sur instance périmée
+      if ((window as any)._googleOneTapHandler === handleCredential) {
+        delete (window as any)._googleOneTapHandler
+      }
+    }
+  }, [handleCredential])
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return
     let cancelled = false
 
-    loadGsi()
+    ensureGsiInitialized()
       .then(() => {
         if (cancelled) return
         if (!window.google || !btnRef.current) return
-        // Eviter double init (React StrictMode)
-        if (window._googleOneTapInitialized && initializedRef.current) {
-          // Juste re-render le bouton
-          try {
-            window.google.accounts.id.renderButton(btnRef.current, {
-              theme: 'outline',
-              size: 'large',
-              width: 350,
-              text: mode === 'register' ? 'signup_with' : 'signin_with',
-              locale: 'fr',
-            })
-          } catch {}
-          return
-        }
-
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (resp: { credential: string }) => {
-            handleCredential(resp.credential)
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          // Eviter FedCM qui cause Cross-Origin-Opener-Policy warnings
-          use_fedcm_for_prompt: false,
-        })
-        window._googleOneTapInitialized = true
-        initializedRef.current = true
-
-        if (btnRef.current) {
+        // Render le bouton seulement — initialize() est déjà appelé une fois
+        try {
+          // Vider d'abord pour éviter les doublons de bouton StrictMode
+          if (btnRef.current.firstChild) btnRef.current.innerHTML = ''
           window.google.accounts.id.renderButton(btnRef.current, {
             theme: 'outline',
             size: 'large',
@@ -124,25 +144,22 @@ export default function GoogleOneTap({ mode = 'login' }: { mode?: 'login' | 'reg
             text: mode === 'register' ? 'signup_with' : 'signin_with',
             locale: 'fr',
           })
+          if (!cancelled) setReady(true)
+        } catch (e: any) {
+          if (!cancelled) setError('Impossible d\'afficher le bouton Google: ' + (e?.message || e))
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message)
+        if (!cancelled) setError(err.message || 'Erreur de chargement Google')
       })
 
-    return () => {
-      cancelled = true
-      try {
-        window.google?.accounts.id.cancel()
-      } catch {}
-    }
-  }, [handleCredential, mode])
+    return () => { cancelled = true }
+  }, [mode])
 
   if (!GOOGLE_CLIENT_ID) {
     return (
       <div className="alert alert-warning small py-2">
-        <i className="fa-brands fa-google"></i> Google login non configuré – ajoutez <code>VITE_GOOGLE_CLIENT_ID</code> dans <code>frontend/.env</code><br/>
-        <small>Voir guide dans <code>GOOGLE_LOGIN_GUIDE.md</code></small>
+        <i className="fa-brands fa-google"></i> Google login non configuré – ajoutez <code>VITE_GOOGLE_CLIENT_ID</code> dans <code>frontend/.env</code>
       </div>
     )
   }
@@ -157,9 +174,9 @@ export default function GoogleOneTap({ mode = 'login' }: { mode?: 'login' | 'reg
       <div ref={btnRef} className="d-flex justify-content-center"></div>
       {loading && <div className="text-center small text-muted mt-2"><span className="spinner-border spinner-border-sm me-1"></span>Connexion Google…</div>}
       {error && <div className="alert alert-danger small mt-2" style={{whiteSpace:'pre-wrap'}}>{error}</div>}
-      <div className="small text-muted mt-2 text-center" style={{fontSize:'0.7rem'}}>
-        Si bouton bloqué par adblock, désactivez-le pour ce site. Erreurs Permissions-Policy / favicon 404 sont normales en dev.
-      </div>
+      {!ready && !error && (
+        <div className="small text-muted mt-2 text-center">Chargement du bouton Google…</div>
+      )}
     </div>
   )
 }
