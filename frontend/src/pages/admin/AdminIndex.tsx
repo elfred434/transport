@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
    Types
    ============================================================ */
 
-type Section = 'stats' | 'livraisons' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits' | 'kkiapay'
+type Section = 'stats' | 'livraisons' | 'users' | 'colis' | 'voyages' | 'transporteurs' | 'paiements' | 'avis' | 'contact' | 'admins' | 'wallet' | 'retraits' | 'fedapay' | 'kkiapay'
 
 interface PaginationInfo {
   page: number
@@ -91,6 +91,8 @@ interface AdminWallet { solde:number; total_commission_generee:number; total_pay
 interface AdminRetrait { id:number; user_id:number; type:string; montant:number; statut:string; methode:string; numero:string|null; reference:string; details:string|null; colis_id:number|null; nom:string|null; prenom:string|null; email:string|null; nom_colis:string|null; numero_suivi:string|null; date_demande:string; date_traitement:string|null; kkiapay_response?:string|null }
 interface KkiapayStatus { configured:boolean; sandbox:boolean; public_key_masked:string|null; base_url:string; simulate_fallback:boolean; admin_phone:string|null }
 interface KkiapayBalance { status:string; [k:string]:any }
+interface FedapayStatus { public_key:string; sandbox:boolean; configured:boolean; enabled:boolean }
+interface FedapayBalance { status:string; sandbox:boolean; balances: {id:number;amount:number;mode:string}[]; message?:string }
 
 
 /* ============================================================
@@ -196,6 +198,11 @@ export default function AdminIndex() {
   const [kkPayoutLoading, setKkPayoutLoading] = useState(false)
   const [kkPayoutForm, setKkPayoutForm] = useState({ phone:'', amount:'', name:'' })
   const [kkSetupForm, setKkSetupForm] = useState({ destination:'', roof_amount:'50000' })
+  // FedaPay
+  const [fpStatus, setFpStatus] = useState<FedapayStatus | null>(null)
+  const [fpBalance, setFpBalance] = useState<FedapayBalance | null>(null)
+  const [fpPayoutLoading, setFpPayoutLoading] = useState(false)
+  const [fpPayoutForm, setFpPayoutForm] = useState({ phone:'', amount:'', name:'', retrait_id:'' })
 
   // Filtres
   const [uSearch, setUSearch] = useState(''); const [uRole, setURole] = useState(''); const [uPage, setUPage] = useState(1)
@@ -376,6 +383,7 @@ export default function AdminIndex() {
       wallet: loadWallet,
       retraits: loadRetraits,
       kkiapay: () => { loadKkiapayStatus(); loadKkiapayBalance() },
+      fedapay: () => { loadFedaPay() },
     }
     setSelectedLivs(new Set())
     loaders[section]()
@@ -541,6 +549,30 @@ export default function AdminIndex() {
       toast(`Retry: ${res.statut} - ${res.payout?.status||''}`); loadRetraits()
     } catch (err) { toast(errMsg(err),'error') }
   }
+  const loadFedaPay = useCallback(async () => {
+    try {
+      const s = await api.get<FedapayStatus>('/api/fedapay/public-config')
+      setFpStatus(s)
+    } catch (e) { toast(errMsg(e),'error') }
+    try { setFpBalance(await api.get<FedapayBalance>('/api/admin/fedapay/balance')) } catch (e) { toast(errMsg(e),'error') }
+  }, [toast])
+
+  const onFpDirectPayout = async (e:React.FormEvent) => {
+    e.preventDefault()
+    if (!fpPayoutForm.phone || !fpPayoutForm.amount) { toast('Numéro et montant requis','error'); return }
+    if (!window.confirm(`Envoyer ${money(parseFloat(fpPayoutForm.amount))} XOF à ${fpPayoutForm.phone} via FedaPay ?`)) return
+    setFpPayoutLoading(true)
+    try {
+      const body: any = { phone: fpPayoutForm.phone, amount: parseFloat(fpPayoutForm.amount), name: fpPayoutForm.name }
+      if (fpPayoutForm.retrait_id) body.retrait_id = parseInt(fpPayoutForm.retrait_id)
+      const res = await api.post<{status:string;message:string;result:any}>('/api/admin/fedapay/payout-direct', body)
+      toast(res.message)
+      setFpPayoutForm({ phone:'', amount:'', name:'', retrait_id:'' })
+      loadFedaPay(); loadRetraits(); loadWallet()
+    } catch (err) { toast(errMsg(err),'error') }
+    finally { setFpPayoutLoading(false) }
+  }
+
   const onAdminRetrait = async (e:React.FormEvent) => {
     e.preventDefault()
     try {
@@ -600,6 +632,7 @@ export default function AdminIndex() {
           <NavBtn icon="fa-envelope" label="Contact" active={section==='contact'} onClick={()=>setSection('contact')} badge={stats?.messages_contact_non_lus || 0} />
           <NavBtn icon="fa-wallet" label="Wallet" active={section==='wallet'} onClick={()=>setSection('wallet')} />
           <NavBtn icon="fa-money-bill-transfer" label="Retraits" active={section==='retraits'} onClick={()=>setSection('retraits')} badge={stats?.retraits_en_attente || 0} />
+          <NavBtn icon="fa-credit-card" label="FedaPay" active={section==='fedapay'} onClick={()=>setSection('fedapay')} variant="primary" />
           <NavBtn icon="fa-credit-card" label="Kkiapay" active={section==='kkiapay'} onClick={()=>setSection('kkiapay')} variant="primary" />
           <NavBtn icon="fa-users" label="Utilisateurs" active={section==='users'} onClick={()=>setSection('users')} />
           {isSuperAdmin && <NavBtn icon="fa-crown" label="Admins" active={section==='admins'} onClick={()=>setSection('admins')} variant="warning" />}
@@ -1186,6 +1219,132 @@ export default function AdminIndex() {
                 </table>
               </div>
               <Pagination info={retraits.pagination} onChange={setRPage}/>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ==================== FEDAPAY ==================== */}
+      {section==='fedapay' && (
+        <div className="page-card">
+          <h5 className="mb-3">
+            <i className="fa-solid fa-credit-card text-primary"></i> FedaPay — Paiements & Payouts Mobile Money
+            <small className="badge bg-success ms-2">ACTIF</small>
+          </h5>
+
+          {!fpStatus && <div className="text-muted py-4">Chargement…</div>}
+
+          {fpStatus && (
+            <>
+              <div className={`alert ${fpStatus.configured?'alert-success':'alert-warning'}`}>
+                <div className="d-flex flex-wrap gap-3 align-items-center">
+                  <span>
+                    <i className={`fa-solid ${fpStatus.configured?'fa-circle-check':'fa-triangle-exclamation'} me-2`}></i>
+                    <strong>Statut :</strong>{' '}
+                    {fpStatus.configured ? 'Clés API configurées' : 'Clés manquantes'}
+                  </span>
+                  <span className={`badge ${fpStatus.sandbox?'bg-warning text-dark':'bg-success'}`}>
+                    <i className={`fa-solid ${fpStatus.sandbox?'fa-flask':'fa-rocket'} me-1`}></i>
+                    {fpStatus.sandbox ? 'SANDBOX (test)' : 'PRODUCTION'}
+                  </span>
+                  {fpStatus.configured && (
+                    <span className="badge bg-dark">Clé : {fpStatus.public_key.substring(0,14)}…{fpStatus.public_key.slice(-6)}</span>
+                  )}
+                </div>
+                {!fpStatus.configured && (
+                  <div className="mt-2 small">
+                    Variables d'environnement attendues :
+                    <pre className="mt-2 bg-light p-2 rounded">{`FEDAPAY_ENV=sandbox
+FEDAPAY_PUBLIC_KEY=pk_sandbox_xxx
+FEDAPAY_SECRET_KEY=sk_sandbox_xxx
+FEDAPAY_WEBHOOK_SECRET=whsec_xxx (depuis le dashboard FedaPay → Webhooks)`}</pre>
+                  </div>
+                )}
+              </div>
+
+              <div className="row g-3">
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                      <strong><i className="fa-solid fa-sack-dollar"></i> Soldes compte FedaPay</strong>
+                      <button className="btn btn-sm btn-light" onClick={loadFedaPay}><i className="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <div className="card-body small">
+                      {fpBalance?.balances && fpBalance.balances.length>0 ? (
+                        <div className="d-flex flex-column gap-1">
+                          {fpBalance.balances.slice(0, 15).map(b => (
+                            <div key={b.id} className="d-flex justify-content-between p-2 bg-light rounded">
+                              <span className="text-muted">{b.mode}</span>
+                              <strong className="text-primary">{money(b.amount)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted mb-0">{fpBalance?.message || 'Cliquez sur ↻ pour charger…'}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <div className="card h-100">
+                    <div className="card-header bg-success text-white py-2">
+                      <strong><i className="fa-solid fa-paper-plane"></i> Payout direct vers Mobile Money</strong>
+                    </div>
+                    <div className="card-body">
+                      <p className="small text-muted mb-2">
+                        Envoie des fonds depuis le compte FedaPay marchand vers un numéro MTN/Moov/Celtiis Bénin (et plusieurs autres opérateurs dans la sous-région).
+                      </p>
+                      <form onSubmit={onFpDirectPayout} className="row g-2">
+                        <div className="col-12 col-sm-8">
+                          <label className="form-label small">Numéro (Bénin, sans +229)</label>
+                          <input type="tel" className="form-control form-control-sm" placeholder="97000001"
+                            value={fpPayoutForm.phone} onChange={e=>setFpPayoutForm({...fpPayoutForm,phone:e.target.value})} required/>
+                        </div>
+                        <div className="col-12 col-sm-4">
+                          <label className="form-label small">Montant XOF</label>
+                          <input type="number" className="form-control form-control-sm" min={100}
+                            value={fpPayoutForm.amount} onChange={e=>setFpPayoutForm({...fpPayoutForm,amount:e.target.value})} required/>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label small">Nom bénéficiaire (optionnel)</label>
+                          <input type="text" className="form-control form-control-sm"
+                            value={fpPayoutForm.name} onChange={e=>setFpPayoutForm({...fpPayoutForm,name:e.target.value})}/>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label small">ID Retrait (optionnel, pour lier)</label>
+                          <input type="number" className="form-control form-control-sm"
+                            value={fpPayoutForm.retrait_id} onChange={e=>setFpPayoutForm({...fpPayoutForm,retrait_id:e.target.value})}/>
+                        </div>
+                        <div className="col-12 d-grid">
+                          <button className="btn btn-sm btn-success" disabled={fpPayoutLoading || !fpStatus?.configured}>
+                            {fpPayoutLoading ? <><i className="fa-solid fa-spinner fa-spin"></i> Envoi…</> : <><i className="fa-solid fa-paper-plane"></i> Envoyer</>}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-12 col-md-12">
+                  <div className="card">
+                    <div className="card-header bg-info text-dark py-2"><strong><i className="fa-solid fa-book"></i> Workflow FedaPay sur SpiistMove</strong></div>
+                    <div className="card-body small">
+                      <ol className="mb-0 ps-3">
+                        <li>Les clients paient via <strong>le widget FedaPay</strong> intégré sur la page Paiement → l'argent arrive sur le compte marchand FedaPay.</li>
+                        <li>À la confirmation de livraison, la répartition <strong>5% transporteur / 95% plateforme</strong> est appliquée en base.</li>
+                        <li>Le webhook <code>/api/webhooks/fedapay</code> est vérifié par <strong>HMAC-SHA256</strong> (clé secrète) AVANT toute validation de paiement — pas de faille de spoofing.</li>
+                        <li>Quand un transporteur demande un retrait et que tu cliques « Payer » dans l'onglet Retraits, un payout FedaPay est créé et démarré automatiquement vers son numéro Mobile Money.</li>
+                        <li>Les webhooks <code>payout.sent</code> marquent le retrait comme payé sans autre action.</li>
+                      </ol>
+                      <div className="alert alert-secondary small mt-3 mb-0">
+                        <strong>Frais entrants Bénin :</strong> 1,8% (MTN/Moov/Celtiis) – 3,6% (cartes).{' '}
+                        <strong>Frais de sortie (payout Bénin) :</strong> 150 à 2 500 XOF par palier (très prévisibles).
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>

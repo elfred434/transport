@@ -181,7 +181,7 @@ def envoyer_nouveau_colis(transporteurs, colis) -> int:
 
 
 # ---------------------------------------------------------------------------
-# 3) Confirmation de paiement Kkiapay
+# 3) Confirmation de paiement (FedaPay / Kkiapay / manuel)
 # ---------------------------------------------------------------------------
 def envoyer_confirmation_paiement(paiement) -> bool:
     app = _app_name()
@@ -193,6 +193,8 @@ def envoyer_confirmation_paiement(paiement) -> bool:
 
     montant = getattr(paiement, "montant", 0)
     tx = getattr(paiement, "numero_transaction", "") or ""
+    methode = (getattr(paiement, "methode", "") or "").lower()
+    provider_label = "FedaPay" if "fedapay" in methode else ("Kkiapay" if "kkiapay" in methode else "paiement")
     colis_ref = f"colis #{colis.pk}" if colis else "ta commande"
     suivi_url = f"{_frontend_url()}/mes-colis"
 
@@ -201,7 +203,7 @@ def envoyer_confirmation_paiement(paiement) -> bool:
     text = (
         f"Bonjour,\n\n"
         f"Ton paiement de {montant} FCFA pour {colis_ref} a bien été reçu par {app}.\n"
-        f"Référence Kkiapay : {tx or '—'}\n\n"
+        f"Référence {provider_label} : {tx or '—'}\n\n"
         f"Suivre la livraison : {suivi_url}\n\n"
         f"L'équipe {app}"
     )
@@ -212,7 +214,7 @@ def envoyer_confirmation_paiement(paiement) -> bool:
         <p>Ton paiement de <strong>{montant} FCFA</strong> pour {colis_ref} a bien été reçu par <strong>{app}</strong>.</p>
         <table role="presentation" cellpadding="10" cellspacing="0" style="border-collapse:collapse;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:6px;margin:16px 0">
           <tr><td style="font-weight:600;color:#16a34a">Paiement accepté</td></tr>
-          {f'<tr><td style="font-size:13px;color:#666">Référence Kkiapay : <code>{tx}</code></td></tr>' if tx else ''}
+          {f'<tr><td style="font-size:13px;color:#666">Référence {provider_label} : <code>{tx}</code></td></tr>' if tx else ''}
         </table>
         {_btn(suivi_url, "Suivre mon colis")}
         <p>Le transporteur est prévenu et la livraison peut démarrer.</p>

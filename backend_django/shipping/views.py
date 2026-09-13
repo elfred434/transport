@@ -276,10 +276,14 @@ def paiement_for_colis(request: Request, colis_id: int):
     if not p:
         return api_error("Aucun paiement pour ce colis", 404)
     data = PaiementSerializer(p).data
-    # Complète les champs attendus par le front (nom_colis, prix_estime, kkiapay)
+    # Complète les champs attendus par le front
     data["nom_colis"] = c.nom_colis
     data["prix_estime"] = float(c.prix_estime) if c.prix_estime else 0
     data["kkiapay"] = _kkiapay_cfg_payload()
+    # FedaPay (par défaut si configuré)
+    from core import fedapay as _fp
+    data["fedapay"] = _fp.public_config()
+    data["provider"] = "fedapay" if _fp.is_configured() else "kkiapay"
     return api_success(data)
 
 

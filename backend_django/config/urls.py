@@ -24,8 +24,11 @@ from shipping import missing_views as mv
 from shipping.paiement_views import (
     paiements_mine, contact_reponses,
     kkiapay_setup_payout, kkiapay_payout_direct,
+    fedapay_status, fedapay_balance, fedapay_create_transaction,
+    fedapay_verify, fedapay_setup_payout, fedapay_payout_direct,
 )
 from core.kkiapay import kkiapay_webhook
+from core.fedapay import fedapay_webhook
 from core.bootstrap import bootstrap_superadmin
 
 
@@ -185,6 +188,9 @@ urlpatterns = [
     path("api/paiements/<int:pk>/simuler", sv.paiement_simuler),
     path("api/paiements/<int:pk>/payer", sv.paiement_simuler),  # alias utilisé par le front/test
     path("api/paiements/<int:pk>/verify-kkiapay", mv.paiement_verify_kkiapay),
+    # FedaPay
+    path("api/paiements/<int:pk>/fedapay/create", fedapay_create_transaction),
+    path("api/paiements/<int:pk>/verify-fedapay", fedapay_verify),
     path("api/paiements/<int:pk>/statut", adv.paiement_statut),
 
     # Retraits & wallet
@@ -206,7 +212,9 @@ urlpatterns = [
     path("api/contact", sv.contact_send),
     path("api/contact/reponses", contact_reponses),
     path("api/kkiapay/public-config", sv.kkiapay_config),
+    path("api/fedapay/public-config", fedapay_status),  # GET public (any)
     path("api/webhooks/kkiapay", kkiapay_webhook),
+    path("api/webhooks/fedapay", fedapay_webhook),
 
     # ========== ADMIN ==========
     path("api/admin/stats", adv.stats),
@@ -249,6 +257,10 @@ urlpatterns = [
     path("api/admin/kkiapay/balance", adv.kkiapay_balance),
     path("api/admin/kkiapay/setup-payout", kkiapay_setup_payout),
     path("api/admin/kkiapay/payout-direct", kkiapay_payout_direct),
+    # FedaPay admin
+    path("api/admin/fedapay/balance", fedapay_balance),
+    path("api/admin/fedapay/setup-payout", fedapay_setup_payout),
+    path("api/admin/fedapay/payout-direct", fedapay_payout_direct),
     path("api/admin/notifications", mv.notifications_list),
     path("api/admin/notifications/<int:pk>/read", mv.notifications_read),
     path("api/admin/notifications/read-all", mv.notifications_read_all),

@@ -756,16 +756,60 @@ def livraison_bulk(request: Request):
 
 
 def _retrait_payer_impl(request, pk):
-    """Logique payout, appelable depuis d'autres vues."""
+    """Logique payout, appelable depuis d'autres vues.
+    Si FedaPay est configuré, tente un payout réel vers le numéro du transporteur.
+    Sinon, marque comme payé en mode manuel/simulé.
+    """
     try:
         r = Retrait.objects.select_related("user").get(pk=pk, statut=Retrait.STATUT_DEMANDE)
     except Retrait.DoesNotExist:
         return api_error("Retrait introuvable ou déjà payé", 404)
+
+    payout_result: dict | None = None
+    payout_status = "manuel"
+    # Tentative payout FedaPay réel si configuré et que force_manuel n'est pas passé
+    force_manuel = bool(request.data.get("force_manuel")) if hasattr(request, "data") else False
+    if not force_manuel:
+        try:
+            from core import fedapay as fp
+            if fp.is_configured():
+                ref = f"RET-{r.id}"
+                name_parts = []
+                u = r.user
+                if getattr(u, "prenom", ""): name_parts.append(u.prenom)
+                if getattr(u, "nom", ""): name_parts.append(u.nom)
+                full_name = " ".join(name_parts) or "Transporteur SpiistMove"
+                amount_int = int(round(float(r.montant_net or r.montant)))
+                po = fp.create_payout(
+                    amount=amount_int,
+                    phone_number=(r.numero or "").strip(),
+                    name=full_name,
+                    description=f"Retrait transporteur {ref}",
+                    merchant_reference=ref,
+                )
+                start_resp = fp.start_payout([int(po["id"])])
+                payout_result = {"payout_id": po.get("id"), "reference": po.get("reference"), "start": start_resp}
+                payout_status = "fedapay_initiated"
+        except Exception as exc:
+            logger.warning("Payout FedaPay échoué pour retrait %s: %s", r.id, exc)
+            # On NE fail pas: on laisse l'admin payer manuellement
+            payout_status = f"fedapay_failed:{exc}"
+
     with transaction.atomic():
         r.statut = Retrait.STATUT_PAYE
-        r.reference_kkiapay = request.data.get("reference", "PAYOUT-" + str(r.id))
-        r.note = request.data.get("note", "") or r.note
-        r.save(update_fields=["statut", "reference_kkiapay", "note"])
+        r.reference_kkiapay = (
+            (payout_result.get("reference") if payout_result else None)
+            or request.data.get("reference", f"RET-{r.id}")
+        )
+        r.reference_transaction = (
+            str(payout_result["payout_id"]) if payout_result else (request.data.get("reference") or "")
+        )
+        r.note = (
+            (request.data.get("note") or "")
+            + (f"\n[FedaPay payout_id={payout_result['payout_id'] if payout_result else 'none'}]" if payout_result else "")
+            + (f"\nPayout FedaPay en erreur, paiement manuel. {payout_status}" if payout_status.startswith("fedapay_failed") else "")
+        )
+        r.save(update_fields=["statut", "reference_kkiapay", "reference_transaction", "note"])
         t, _ = Transporteur.objects.get_or_create(user=r.user)
         t.solde_en_attente -= r.montant
         t.total_paye += r.montant_net
@@ -774,8 +818,11 @@ def _retrait_payer_impl(request, pk):
         w.solde -= r.montant_net
         w.save(update_fields=["solde"])
     return api_success({
-        "message": "Retrait payé (payout effectué)",
+        "message": "Retrait payé",
         "retrait": RetraitSerializer(r).data,
+        "payout": payout_result,
+        "manuel": not bool(payout_result),
+        "status": payout_status,
     })
 
 

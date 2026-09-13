@@ -213,7 +213,7 @@ export default function TransporteurStats() {
           </div>
 
           <p className="text-muted small mt-3">
-            <i className="fa-solid fa-circle-info"></i> Le solde est crédité de <strong>5% du prix estimé</strong> de chaque colis dont la livraison est confirmée par l'agence (après vérification client). 95% revient à la plateforme. Paiement automatique via Kkiapay Mobile Money sur le numéro enregistré.
+            <i className="fa-solid fa-circle-info"></i> Le solde est crédité de <strong>5% du prix estimé</strong> de chaque colis dont la livraison est confirmée par l'agence (après vérification client). 95% revient à la plateforme. Paiement automatique via <strong>FedaPay</strong> Mobile Money sur le numéro enregistré.
           </p>
         </>
       )}

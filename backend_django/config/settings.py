@@ -267,11 +267,22 @@ if not DEBUG:
     CSRF_COOKIE_HTTPONLY = True
 
 CSP_DEFAULT_SRC = ("'self'",)
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.kkiapay.me", "https://www.google.com", "https://www.gstatic.com")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.kkiapay.me", "https://fonts.googleapis.com", "https://ka-f.fontawesome.com")
+# FedaPay domaines (widget + API + checkout sandbox/live)
+_FEDAPAY_CDN = "https://cdn.fedapay.com"
+_FEDAPAY_API = "https://api.fedapay.com"
+_FEDAPAY_API_SB = "https://sandbox-api.fedapay.com"
+_FEDAPAY_CHECKOUT = "https://checkout.fedapay.com"
+_FEDAPAY_CHECKOUT_SB = "https://sandbox-checkout.fedapay.com"
+# Kkiapay conservé en fallback le temps de la migration, pourra être supprimé
+_KKIAPAY_CDN = "https://cdn.kkiapay.me"
+_KKIAPAY_API = "https://api.kkiapay.me"
+_KKIAPAY_API_SB = "https://sandbox.kkiapay.me"
+
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://www.google.com", "https://www.gstatic.com")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", _KKIAPAY_CDN, _FEDAPAY_CDN, "https://fonts.googleapis.com", "https://ka-f.fontawesome.com")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "https://ka-f.fontawesome.com")
-CSP_IMG_SRC = ("'self'", "data:", "blob:", "https:", "http:")  # images colis/profils + uploads locaux
-CSP_CONNECT_SRC = ("'self'", "https://api.kkiapay.me", "https://sandbox.kkiapay.me", "https://oauth2.googleapis.com", "https://accounts.google.com")
+CSP_IMG_SRC = ("'self'", "data:", "blob:", "https:", "http:")
+CSP_CONNECT_SRC = ("'self'", _KKIAPAY_API, _KKIAPAY_API_SB, _FEDAPAY_API, _FEDAPAY_API_SB, _FEDAPAY_CHECKOUT, _FEDAPAY_CHECKOUT_SB, "https://oauth2.googleapis.com", "https://accounts.google.com")
 # Ajouter automatiquement les origines API/Frontend à connect-src
 _extra_connect = [
     os.environ.get("APP_FRONTEND_URL", "").rstrip("/"),
@@ -279,7 +290,7 @@ _extra_connect = [
 ]
 if _extra_connect[0]:
     CSP_CONNECT_SRC = CSP_CONNECT_SRC + tuple(x for x in _extra_connect if x and x not in CSP_CONNECT_SRC)
-CSP_FRAME_SRC = ("'self'", "https://www.google.com", "https://accounts.google.com", "https://cdn.kkiapay.me")
+CSP_FRAME_SRC = ("'self'", "https://www.google.com", "https://accounts.google.com", _KKIAPAY_CDN, _FEDAPAY_CDN, _FEDAPAY_CHECKOUT, _FEDAPAY_CHECKOUT_SB)
 
 # ---- Logging (console + fichier en prod) ----
 LOG_DIR = BASE_DIR / "logs"
@@ -308,6 +319,7 @@ LOGGING = {
         "django": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
         "django.request": {"level": "ERROR", "handlers": ["console", "file"], "propagate": False},
         "kkiapay": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
+        "fedapay": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
     },
 }
 
@@ -333,13 +345,31 @@ else:
 APP_FRONTEND_URL = os.environ.get("APP_FRONTEND_URL", "http://localhost:5173")
 CONTACT_ADMIN_EMAIL = os.environ.get("CONTACT_ADMIN_EMAIL", DEFAULT_FROM_EMAIL or "elfred434@gmail.com")
 
-# ---- Kkiapay ----
+# ---- Kkiapay (conservé le temps de la migration, à retirer par la suite) ----
 KKIAPAY_PUBLIC_KEY = os.environ.get("KKIAPAY_PUBLIC_KEY", "")
 KKIAPAY_PRIVATE_KEY = os.environ.get("KKIAPAY_PRIVATE_KEY", "")
 KKIAPAY_SECRET_KEY = os.environ.get("KKIAPAY_SECRET_KEY", "")
 KKIAPAY_SANDBOX = os.environ.get("KKIAPAY_SANDBOX", "true").lower() == "true"
 KKIAPAY_SKIP_SSL_VERIFY = (
     os.environ.get("KKIAPAY_SKIP_SSL_VERIFY", "true").lower() == "true"
+)
+
+# ---- FedaPay ----
+FEDAPAY_ENV = os.environ.get("FEDAPAY_ENV", "sandbox").lower()  # sandbox | live
+FEDAPAY_PUBLIC_KEY = os.environ.get("FEDAPAY_PUBLIC_KEY", "pk_sandbox_yP28l2gkI7TZGpzfRkGRwDTB")
+FEDAPAY_SECRET_KEY = os.environ.get("FEDAPAY_SECRET_KEY", "sk_sandbox_pXhRYonXl2wZNTZmCHQ8xb_T")
+FEDAPAY_WEBHOOK_SECRET = os.environ.get("FEDAPAY_WEBHOOK_SECRET", "")
+FEDAPAY_API_URL_SANDBOX = os.environ.get(
+    "FEDAPAY_API_URL_SANDBOX", "https://sandbox-api.fedapay.com/v1"
+)
+FEDAPAY_API_URL_LIVE = os.environ.get(
+    "FEDAPAY_API_URL_LIVE", "https://api.fedapay.com/v1"
+)
+FEDAPAY_JS_URL = os.environ.get("FEDAPAY_JS_URL", "https://cdn.fedapay.com/checkout.js")
+# URL de retour après paiement widget (page React Paiement)
+FEDAPAY_CALLBACK_URL = os.environ.get(
+    "FEDAPAY_CALLBACK_URL",
+    (os.environ.get("APP_FRONTEND_URL", "").rstrip("/") + "/paiement"),
 )
 
 # ---- Google OAuth / One Tap ----
