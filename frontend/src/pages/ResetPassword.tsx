@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import PasswordGenerator from '../components/PasswordGenerator'
 
 /** Nouveau mot de passe — port de reset-password.html (token en query string). */
 export default function ResetPassword() {
@@ -10,6 +11,12 @@ export default function ResetPassword() {
   const [confirm, setConfirm] = useState('')
   const [alert, setAlert] = useState<{ type: 'danger' | 'success'; text: string } | null>(null)
   const navigate = useNavigate()
+  const pwdRef = useRef<HTMLInputElement>(null)
+
+  const setPwdBoth = (p: string) => {
+    setPassword(p)
+    setConfirm(p)
+  }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,9 +52,10 @@ export default function ResetPassword() {
           <form onSubmit={onSubmit} autoComplete="off" style={{ display: token ? undefined : 'none' }}>
             <div className="mb-3">
               <label className="form-label">
-                Nouveau mot de passe <small className="text-muted">(8 caractères min.)</small>
+                Nouveau mot de passe <small className="text-muted">(8 caractères min. + 1 chiffre)</small>
               </label>
               <input
+                ref={pwdRef}
                 type="password"
                 className="form-control"
                 minLength={8}
@@ -55,6 +63,7 @@ export default function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              <PasswordGenerator onSelect={setPwdBoth} inputRef={pwdRef} />
             </div>
             <div className="mb-3">
               <label className="form-label">Confirmer le mot de passe</label>

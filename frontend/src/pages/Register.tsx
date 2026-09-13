@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, Auth } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
+import PasswordGenerator from '../components/PasswordGenerator'
 
 interface RegisterResponse {
   token?: string
@@ -18,6 +19,7 @@ interface RegisterResponse {
 /** Inscription — port de register.html (multipart avec photo optionnelle). */
 export default function Register() {
   const formRef = useRef<HTMLFormElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const { setToken } = useAuth()
@@ -89,9 +91,13 @@ export default function Register() {
             </div>
             <div className="mb-3">
               <label className="form-label">
-                Mot de passe <small className="text-muted">(8 caractères min.)</small>
+                Mot de passe <small className="text-muted">(8 caractères min. + 1 chiffre)</small>
               </label>
-              <input type="password" name="password" className="form-control" minLength={8} required />
+              <input ref={passwordRef} type="password" name="password" className="form-control" minLength={8} required />
+              <PasswordGenerator
+                onSelect={(p) => { if (passwordRef.current) passwordRef.current.value = p }}
+                inputRef={passwordRef}
+              />
             </div>
             <div className="mb-3">
               <label className="form-label">Téléphone</label>
