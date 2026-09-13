@@ -33,7 +33,9 @@ import requests as http_requests
 from django.conf import settings as dj_settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from rest_framework import status as drf_status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied as DRFPermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 
@@ -284,34 +286,33 @@ def _parse_fedapay_signature(header_value: str) -> Tuple[int, str]:
     return ts, v1
 
 
+class WebhookSignatureError(Exception):
+    """Erreur personnalisée pour webhook signature invalide (pour éviter d'utiliser
+    le builtin PermissionError qui n'est pas attrapé par DRF)."""
+
+
 def verify_webhook_signature(
     raw_body: bytes, signature_header: str, tolerance: int = WEBHOOK_TOLERANCE_SECONDS
 ) -> dict:
     """Vérifie la signature HMAC-SHA256 envoyée par FedaPay.
 
-    Le format attendu est : "t=1700000000,v1=hex_hmac" où le message signé est
-    "{timestamp}.{body}" et la clé est le secret webhook (FEDAPAY_WEBHOOK_SECRET,
-    différent entre sandbox et live).
+    Lève WebhookSignatureError en cas d'erreur. Retourne {"ts": ts} si OK.
     """
     secret = dj_settings.FEDAPAY_WEBHOOK_SECRET
     if not secret:
-        raise PermissionError("FEDAPAY_WEBHOOK_SECRET non configuré")
+        raise WebhookSignatureError("FEDAPAY_WEBHOOK_SECRET non configuré")
     try:
         ts, sig = _parse_fedapay_signature(signature_header)
     except ValueError as e:
-        raise PermissionError(f"Signature mal formée: {e}")
+        raise WebhookSignatureError(f"Signature mal formée: {e}")
     if abs(time.time() - ts) > tolerance:
-        raise PermissionError("Webhook trop ancien (replay?)")
-    # FedaPay signe : "{t}.{raw_body}"
+        raise WebhookSignatureError("Webhook trop ancien (replay?)")
     signed_payload = f"{ts}.".encode("utf-8") + raw_body
     expected = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, sig):
-        # Tentative alternative (certaines versions signent le body seul)
-        expected_alt = hmac.new(
-            secret.encode("utf-8"), raw_body, hashlib.sha256
-        ).hexdigest()
+        expected_alt = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected_alt, sig):
-            raise PermissionError("Signature FedaPay invalide")
+            raise WebhookSignatureError("Signature FedaPay invalide")
     return {"ts": ts}
 
 
@@ -410,9 +411,9 @@ def _find_paiement(event_data: dict) -> Optional[Paiement]:
 # Vue webhook
 # ---------------------------------------------------------------------------
 
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@method_decorator(csrf_exempt, name="dispatch")
 def fedapay_webhook(request: Request):
     """POST /api/webhooks/fedapay
 
@@ -430,7 +431,7 @@ def fedapay_webhook(request: Request):
     if dj_settings.FEDAPAY_WEBHOOK_SECRET:
         try:
             verify_webhook_signature(raw, sig)
-        except PermissionError as e:
+        except WebhookSignatureError as e:
             logger.warning("Webhook FedaPay signature invalide: %s", e)
             return api_error(f"Signature invalide: {e}", 401)
 
