@@ -18,8 +18,9 @@ interface TwoFaResponse {
 
 /** Connexion — port de login.html (mêmes alertes par query string). */
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('remember_email') || '')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(Boolean(localStorage.getItem('remember_email')))
   const [alert, setAlert] = useState<{ type: 'danger' | 'success' | 'info'; text: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [twofa, setTwofa] = useState<{ challengeId: string; code: string } | null>(null)
@@ -48,7 +49,9 @@ export default function Login() {
     setSubmitting(true)
     setAlert(null)
     try {
-      const data = await api.post<LoginResponse | TwoFaResponse>('/api/auth/login', { email, password })
+      // Mémoriser email si remember coché
+      if (remember) localStorage.setItem('remember_email', email); else localStorage.removeItem('remember_email')
+      const data = await api.post<LoginResponse | TwoFaResponse>('/api/auth/login', { email, password, remember_me: remember })
       // Cas 2FA admin requis
       if ('require_2fa' in data && data.require_2fa) {
         setTwofa({ challengeId: data.challenge_id, code: '' })
@@ -165,6 +168,18 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+            </div>
+            <div className="form-check mb-3">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                id="remember"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              <label className="form-check-label small" htmlFor="remember">
+                <i className="fa-solid fa-circle-check me-1"></i> Se souvenir de moi (30 jours)
+              </label>
             </div>
             <div className="mb-2 text-end">
               <Link to="/reset-request" className="text-primary text-decoration-underline">

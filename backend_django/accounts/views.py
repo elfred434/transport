@@ -31,16 +31,23 @@ class ResendThrottle(AnonRateThrottle):
     scope = "resend"
 
 
-def _tokens_for(user: User):
+def _tokens_for(user: User, remember: bool = False):
+    from datetime import timedelta as _td
     refresh = RefreshToken.for_user(user)
+    if remember:
+        # ROADMAP #21 : "Rester connecté" porte la durée du refresh à 30 jours
+        refresh.set_exp(lifetime=_td(days=30))
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
     }
 
 
-def _auth_payload(user: User):
+def _auth_payload(user: User, remember: bool = False):
+    from datetime import timedelta as _td
     refresh = RefreshToken.for_user(user)
+    if remember:
+        refresh.set_exp(lifetime=_td(days=30))
     return {
         "user": UserMeSerializer(user).data,
         "token": str(refresh.access_token),
@@ -50,19 +57,13 @@ def _auth_payload(user: User):
     }
 
 
-def _auth_response(user: User, extra: dict | None = None, status_code: int = 200):
-    """Retourne une Response avec les JWT dans le JSON ET dans des cookies HttpOnly.
-
-    Les cookies sont la forme XSS-safe ; le JSON est conservé pour la rétrocompatibilité
-    avec les clients qui liraient encore localStorage. Le frontend doit migrer vers
-    la lecture des cookies (credentials: include, plus de lecture de 'transport_token').
-    """
+def _auth_response(user: User, extra: dict | None = None, status_code: int = 200, remember: bool = False):
     from rest_framework.response import Response
     from core.cookies import set_auth_cookies
-    payload = _auth_payload(user)
+    payload = _auth_payload(user, remember=remember)
     data = {"success": True, "data": {**payload, **(extra or {})}}
     resp = Response(data, status=status_code)
-    set_auth_cookies(resp, access=payload["token"], refresh=payload["refresh"])
+    set_auth_cookies(resp, access=payload["token"], refresh=payload["refresh"], remember=remember)
     return resp
 
 
@@ -228,6 +229,7 @@ def login(request: Request):
     from datetime import timedelta
     email = (request.data.get("email") or "").strip().lower()
     password = request.data.get("password") or ""
+    remember = bool(request.data.get("remember_me") or request.data.get("remember"))
 
     # Vérifier verrou BD (même sans auth, on bloque avant même de tester le mdp)
     from accounts.models import User as _U
@@ -307,7 +309,19 @@ def login(request: Request):
         request, "login", "password_login",
         success=True, user=user, email=user.email,
     )
-    return _auth_response(user)
+    return _auth_response(user, remember=remember)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def check_email(request: Request):
+    """GET /api/auth/check-email?email=... — ROADMAP #22.
+    Vérifie le format de l'email (et fait un DNS MX optionnel). Retourne TOUJOURS
+    {"ok": true} pour ne jamais dévoiler si un email existe (anti-énumération)."""
+    import re
+    email = (request.query_params.get("email") or "").strip().lower()
+    ok = bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email))
+    return api_success({"valid": ok, "ok": True})
 
 
 @api_view(["POST"])

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import PasswordGenerator from '../components/PasswordGenerator'
+import PasswordStrength from '../components/PasswordStrength'
 
 /** Nouveau mot de passe — port de reset-password.html (token en query string). */
 export default function ResetPassword() {
@@ -63,6 +64,7 @@ export default function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              <PasswordStrength password={password} />
               <PasswordGenerator onSelect={setPwdBoth} inputRef={pwdRef} />
             </div>
             <div className="mb-3">

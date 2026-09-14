@@ -4,6 +4,8 @@ import { api, Auth } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
 import PasswordGenerator from '../components/PasswordGenerator'
+import PasswordStrength from '../components/PasswordStrength'
+import PhoneInput from '../components/PhoneInput'
 
 interface RegisterResponse {
   token?: string
@@ -21,8 +23,28 @@ export default function Register() {
   const formRef = useRef<HTMLFormElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pwdValue, setPwdValue] = useState('')
+  const [emailValue, setEmailValue] = useState('')
+  const [emailState, setEmailState] = useState<'idle' | 'checking' | 'ok' | 'invalid' | 'exists'>('idle')
   const navigate = useNavigate()
   const { setToken } = useAuth()
+
+  // Validation email en temps réel (ROADMAP #22) : format basique + vérification anti-énumération discrète côté backend
+  useEffect(() => {
+    const email = emailValue.trim().toLowerCase()
+    if (!email) { setEmailState('idle'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailState('invalid'); return }
+    setEmailState('checking')
+    const t = setTimeout(async () => {
+      try {
+        // Endpoint discret (anti-énumération) : /api/auth/check-email
+        const r = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/auth/check-email?email=${encodeURIComponent(email)}`, { credentials: 'include' })
+        if (r.ok) setEmailState('ok')
+        else setEmailState('ok') // ne jamais afficher "existe" (anti-énumération)
+      } catch { setEmailState('ok') }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [emailValue])
 
   useEffect(() => {
     if (Auth.isLoggedIn()) navigate('/dashboard', { replace: true })
@@ -87,21 +109,40 @@ export default function Register() {
             </div>
             <div className="mb-3">
               <label className="form-label">Email</label>
-              <input type="email" name="email" className="form-control" required />
+              <input type="email" name="email" className="form-control" required
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
+                onInput={(e) => setEmailValue((e.target as HTMLInputElement).value)}
+                autoComplete="email" />
+              {emailState === 'invalid' && <small className="text-danger">Format d'email invalide.</small>}
             </div>
             <div className="mb-3">
               <label className="form-label">
                 Mot de passe <small className="text-muted">(8 caractères min. + 1 chiffre)</small>
               </label>
-              <input ref={passwordRef} type="password" name="password" className="form-control" minLength={8} required />
+              <input ref={passwordRef} type="password" name="password" className="form-control" minLength={8} required
+                value={pwdValue}
+                onChange={(e) => {
+                  setPwdValue(e.target.value)
+                  // Synchroniser avec le generative password qui utilise la valeur du ref
+                  if (passwordRef.current) passwordRef.current.value = e.target.value
+                }}
+                autoComplete="new-password" />
+              <PasswordStrength password={pwdValue} />
               <PasswordGenerator
-                onSelect={(p) => { if (passwordRef.current) passwordRef.current.value = p }}
+                onSelect={(p) => {
+                  if (passwordRef.current) {
+                    passwordRef.current.value = p
+                    setPwdValue(p)
+                  }
+                }}
                 inputRef={passwordRef}
               />
             </div>
             <div className="mb-3">
               <label className="form-label">Téléphone</label>
-              <input type="tel" name="tel" className="form-control" />
+              <PhoneInput name="tel" required />
+              <small className="form-text text-muted">Numéro mobile (indicatif pays auto).</small>
             </div>
             <div className="mb-3">
               <label className="form-label">Photo de profil</label>

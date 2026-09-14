@@ -133,6 +133,7 @@ urlpatterns = [
     # Auth
     path("api/auth/register", av.register),
     path("api/auth/login", av.login),
+    path("api/auth/check-email", av.check_email),
     path("api/auth/2fa/verify", av.twofa_verify),
     path("api/auth/google/one-tap", av.google_one_tap),
     path("api/auth/logout", av.logout),
