@@ -9,13 +9,20 @@ interface LoginResponse {
   refresh?: string
   user: { id: number; role: string }
 }
+interface TwoFaResponse {
+  require_2fa: boolean
+  challenge_id: string
+  message: string
+  expires_in_minutes: number
+}
 
 /** Connexion — port de login.html (mêmes alertes par query string). */
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [alert, setAlert] = useState<{ type: 'danger' | 'success'; text: string } | null>(null)
+  const [alert, setAlert] = useState<{ type: 'danger' | 'success' | 'info'; text: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [twofa, setTwofa] = useState<{ challengeId: string; code: string } | null>(null)
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -41,11 +48,19 @@ export default function Login() {
     setSubmitting(true)
     setAlert(null)
     try {
-      const data = await api.post<LoginResponse>('/api/auth/login', { email, password })
-      await setToken({ token: data.token, refresh: data.refresh })
+      const data = await api.post<LoginResponse | TwoFaResponse>('/api/auth/login', { email, password })
+      // Cas 2FA admin requis
+      if ('require_2fa' in data && data.require_2fa) {
+        setTwofa({ challengeId: data.challenge_id, code: '' })
+        setAlert({ type: 'info', text: data.message || 'Code envoyé par email.' })
+        setSubmitting(false)
+        return
+      }
+      const d = data as LoginResponse
+      await setToken({ token: d.token, refresh: d.refresh })
       const from = (location.state as { from?: string } | null)?.from
       if (from) navigate(from, { replace: true })
-      else navigate(data.user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+      else navigate(d.user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
     } catch (err) {
       let msg = 'Erreur inconnue'
       if (err instanceof ApiError) {
@@ -53,11 +68,29 @@ export default function Login() {
       } else if (err instanceof Error) {
         msg = err.message
       }
-      // Si c'est un échec réseau / cookie non reçu
       if (msg === 'Failed to fetch' || msg.includes('injoignable')) {
-        msg = 'Connexion au serveur impossible. Vérifie ta connexion Internet ou désactive ton adblock pour ce site.'
+        msg = 'Connexion au serveur impossible. Vérifie ta connexion ou désactive ton adblock.'
       }
       setAlert({ type: 'danger', text: msg })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const doTwoFa = async () => {
+    if (submitting || !twofa) return
+    setSubmitting(true)
+    setAlert(null)
+    try {
+      const data = await api.post<LoginResponse>('/api/auth/2fa/verify', {
+        email,
+        challenge_id: twofa.challengeId,
+        code: twofa.code,
+      })
+      await setToken({ token: data.token, refresh: data.refresh })
+      navigate(data.user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+    } catch (err) {
+      setAlert({ type: 'danger', text: err instanceof Error ? err.message : 'Code invalide' })
     } finally {
       setSubmitting(false)
     }
@@ -80,6 +113,32 @@ export default function Login() {
 
           {alert && <div className={`alert alert-${alert.type}`}>{alert.text}</div>}
 
+          {twofa ? (
+            <form onSubmit={(e) => { e.preventDefault(); doTwoFa() }} autoComplete="off">
+              <div className="mb-3">
+                <label className="form-label">Code à 6 chiffres envoyé à {email}</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  className="form-control form-control-lg text-center"
+                  style={{ letterSpacing: '0.7em', fontSize: '1.4rem', fontFamily: 'monospace' }}
+                  value={twofa.code}
+                  onChange={(e) => setTwofa({ ...twofa, code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                  autoFocus
+                  required
+                />
+                <small className="form-text text-muted">Saisis le code reçu par email (valable 10 minutes).</small>
+              </div>
+              <button type="submit" className="btn btn-primary w-100 fw-bold" disabled={submitting || twofa.code.length !== 6}>
+                {submitting ? (<><span className="spinner-border spinner-border-sm me-1"></span>Vérification…</>) : 'Vérifier'}
+              </button>
+              <button type="button" className="btn btn-link w-100 mt-2 text-decoration-none small"
+                onClick={() => { setTwofa(null); setAlert(null) }}>
+                ← Utiliser un autre compte
+              </button>
+            </form>
+          ) : (
           <form onSubmit={onSubmit} autoComplete="off">
             <div className="mb-3">
               <label htmlFor="email" className="form-label">
@@ -140,7 +199,8 @@ export default function Login() {
               </Link>
             </div>
           </form>
-          <GoogleOneTap mode="login" />
+          )}
+          {!twofa && <GoogleOneTap mode="login" />}
         </div>
       </div>
     </div>

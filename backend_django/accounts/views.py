@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 import os
 
 from core.responses import api_success, api_error
+from core.audit import log_event
 from .models import User
 from .serializers import UserRegisterSerializer, UserMeSerializer
 
@@ -253,6 +254,16 @@ def login(request: Request):
 
     user = authenticate(request, email=email, password=password)
     if not user:
+        # Échec login — on logue
+        log_event(
+            request,
+            "login_fail" if existing else "login_fail",
+            "password_mismatch",
+            success=False,
+            user=existing,
+            email=email,
+            detail={"locked": False},
+        )
         if existing:
             existing.failed_login_attempts = (existing.failed_login_attempts or 0) + 1
             if existing.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
@@ -260,6 +271,11 @@ def login(request: Request):
                 existing.login_locked_until = _tz.now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
                 existing.failed_login_attempts = MAX_LOGIN_ATTEMPTS
                 existing.save(update_fields=["failed_login_attempts", "login_locked_until"])
+                log_event(
+                    request, "login_fail", "account_locked",
+                    success=False, user=existing, email=email,
+                    detail={"lock_minutes": LOGIN_LOCK_MINUTES},
+                )
                 from rest_framework.response import Response as _R
                 resp = _R({"success": False, "error": "Trop de tentatives. Compte verrouillé 15 minutes."}, status=429)
                 resp["Retry-After"] = str(LOGIN_LOCK_MINUTES * 60)
@@ -267,10 +283,30 @@ def login(request: Request):
             existing.save(update_fields=["failed_login_attempts"])
         return api_error("Identifiants invalides", status.HTTP_401_UNAUTHORIZED)
 
-    # Connexion réussie : réinitialiser les compteurs
+    # Connexion réussie (mdp correct) : réinitialiser les compteurs
     user.failed_login_attempts = 0
     user.login_locked_until = None
     user.save(update_fields=["failed_login_attempts", "login_locked_until"])
+
+    # ROADMAP #9 : 2FA obligatoire pour les admins/superadmins
+    from core.twofa import is_admin_user, start_2fa_challenge
+    if is_admin_user(user) and str(os.environ.get("ADMIN_2FA_REQUIRED", "true")).lower() != "false":
+        cid = start_2fa_challenge(user)
+        log_event(
+            request, "login", "password_ok_2fa_sent",
+            success=True, user=user, email=user.email,
+        )
+        return api_success({
+            "require_2fa": True,
+            "challenge_id": cid,
+            "message": "Un code de vérification à 6 chiffres vient d'être envoyé à ton email.",
+            "expires_in_minutes": 10,
+        }, status_code=202)
+
+    log_event(
+        request, "login", "password_login",
+        success=True, user=user, email=user.email,
+    )
     return _auth_response(user)
 
 
@@ -363,6 +399,34 @@ def me(request: Request):
     return api_success(UserMeSerializer(request.user).data)
 
 
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def twofa_verify(request: Request):
+    """POST /api/auth/2fa/verify — valide le code 2FA admin et renvoie la session."""
+    challenge_id = (request.data.get("challenge_id") or "").strip()
+    code = (request.data.get("code") or "").strip()
+    email = (request.data.get("email") or "").strip().lower()
+    if not challenge_id or not code or not email:
+        return api_error("challenge_id, code et email requis.", 400)
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return api_error("Identifiants invalides", 401)
+    from core.twofa import verify_2fa
+    ok, msg = verify_2fa(user, challenge_id, code)
+    if not ok:
+        log_event(
+            request, "login_fail", "twofa_invalid",
+            success=False, user=user, email=email, detail={"msg": msg},
+        )
+        return api_error(msg, 401)
+    log_event(
+        request, "login", "twofa_ok",
+        success=True, user=user, email=email,
+    )
+    return _auth_response(user)
+
+
 # ---------- Google One Tap ----------
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -400,6 +464,11 @@ def google_one_tap(request: Request):
             logger.exception("Google JWT fallback dev: token invalide")
 
     if payload is None:
+        log_event(
+            request, "login_fail", "google_invalid_token",
+            success=False, email=None,
+            detail={"aud_configured": bool(expected_aud)},
+        )
         return api_error(
             "Vérification Google impossible. Assure-toi d'utiliser un compte Google valide.",
             status.HTTP_401_UNAUTHORIZED,
@@ -429,6 +498,7 @@ def google_one_tap(request: Request):
         or User.objects.filter(email=email).first()
 
     # Google a déjà vérifié l'email → on marque comme vérifié pour nos nouveaux users
+    is_new = False
     if not user:
         prenom = given_name.strip() or (name.split(" ")[0] if name else "Google")
         nom = family_name.strip() or (name.split(" ")[-1] if name and " " in name else "User")
@@ -443,7 +513,13 @@ def google_one_tap(request: Request):
         )
         user.email_verified = True
         user.save(update_fields=["email_verified"])
+        is_new = True
         logger.info("Nouvel utilisateur Google créé (vérifié): %s", email)
+        log_event(
+            request, "register", "google_signup",
+            success=True, user=user, email=user.email,
+            detail={"google_id": google_id},
+        )
     else:
         updates = {}
         if not user.google_id:
@@ -460,4 +536,10 @@ def google_one_tap(request: Request):
                 setattr(user, k, v)
             user.save(update_fields=list(updates.keys()))
 
+    if not is_new:
+        log_event(
+            request, "login", "google_login",
+            success=True, user=user, email=user.email,
+            detail={"google_id": google_id},
+        )
     return _auth_response(user)

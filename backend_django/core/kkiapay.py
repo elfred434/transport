@@ -110,22 +110,29 @@ def verify_transaction(transaction_id: str) -> Optional[dict]:
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@method_decorator(csrf_exempt, name="dispatch")
+@csrf_exempt
 def kkiapay_webhook(request: Request):
-    """POST /api/webhooks/kkiapay — appelé par Kkiapay quand un paiement est
-    confirmé. Vérifie la signature avant de marquer le paiement comme payé.
+    """POST /api/webhooks/kkiapay — DEPRECATED (FedaPay a remplacé Kkiapay).
 
-    Payload typique de Kkiapay :
-        { "transactionId": "xxx", "status": "SUCCESS", "amount": 1000, ... }
-    On recherche le paiement par numero_transaction (si déjà pré-renseigné) ou
-    par référence custom si elle est envoyée.
+    CONSERVÉ pour rétrocompatibilité. La vérification de signature est
+    OBLIGATOIRE : toute requête non signée ou avec une mauvaise signature
+    est rejetée en 401 (corrige la faille de faux paiements — ROADMAP #12).
     """
     raw = request.body
     sig = request.headers.get("X-Kkiapay-Signature", "")
-    # La signature n'est requise qu'avec une clé secrète configurée
-    if dj_settings.KKIAPAY_SECRET_KEY and not _verify_signature(raw, sig):
-        logger.warning("Webhook Kkiapay avec signature invalide (body=%s)", raw[:200])
-        return api_error("Signature invalide", 401)
+    # ROADMAP #12 : signature OBLIGATOIRE en prod (comme FedaPay)
+    secret = dj_settings.KKIAPAY_SECRET_KEY
+    if not secret:
+        logger.warning("Webhook Kkiapay reçu mais KKIAPAY_SECRET_KEY non configuré (refus)")
+        return api_error("Webhook Kkiapay désactivé (migré vers FedaPay).", 410)
+    if not _verify_signature(raw, sig):
+        from core.audit import log_event
+        log_event(
+            request, "webhook", "kkiapay_bad_sig",
+            success=False, detail={"sig_present": bool(sig), "body_preview": raw[:100].decode("utf-8", errors="replace")},
+        )
+        logger.warning("Webhook Kkiapay signature invalide (body=%s)", raw[:200])
+        return api_error("Signature Kkiapay invalide", 401)
 
     try:
         payload = json.loads(raw.decode("utf-8"))

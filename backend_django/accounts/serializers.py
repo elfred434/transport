@@ -23,16 +23,40 @@ def _normalize_phone(value: str) -> str:
 
 
 def _validate_phone(value: str) -> str:
-    """Accepte tous les numéros mais avertit / normalise le format béninois."""
+    """Valide et normalise le téléphone via libphonenumber (ROADMAP #15).
+
+    Accepte les formats locaux béninois (8 chiffres), avec espaces, avec
+    indicatif (+229, 00229, 229), et les numéros internationaux des pays
+    UEMOA (CI, TG, SN, BF, ML, NE) et internationaux.
+    Retourne le numéro en format E.164 (+22997000001).
+    """
     if not value:
         return ""
     v = value.strip()
+    # Fallback regex simple si phonenumbers pas installé (démarrage à froid)
+    try:
+        from core.phone_utils import normalize_phone, pretty_phone, is_valid_phone, guess_region
+        normalized = normalize_phone(v)
+        if normalized:
+            return normalized
+        # Message d'erreur plus précis
+        region = guess_region(v)
+        if region:
+            raise serializers.ValidationError(
+                f"Numéro {pretty_phone(v)} invalide pour {region}."
+            )
+        raise serializers.ValidationError(
+            "Numéro invalide. Format attendu : 8 chiffres pour le Bénin (ex: 97 00 00 01) "
+            "ou indicatif international (ex: +225 07 00 00 00 00)."
+        )
+    except ImportError:
+        pass
+    # --- Fallback (phonenumbers non installé) ---
     if _BJ_PHONE_RE.match(v):
         return _normalize_phone(v)
-    # Accepter numéros internationaux +XXX XXXXXXXXX (7 à 15 chiffres)
     if re.match(r"^\+?\d[\d\s.-]{7,15}$", v):
         return _normalize_phone(v) if re.match(r"^(?:\+?229|00229|229)", v) else re.sub(r"[^\d+]", "", v)
-    raise serializers.ValidationError("Numéro de téléphone invalide (format Bénin attendu : +229 XX XX XX XX).")
+    raise serializers.ValidationError("Numéro invalide (ex: 97 00 00 01 ou +229 97 00 00 01).")
 
 
 _COMMON_PASSWORDS = {

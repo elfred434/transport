@@ -58,6 +58,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.error_alerting.AdminAlertMiddleware",  # ROADMAP #14 : email sur 500 + audit log
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -344,6 +345,13 @@ else:
 
 APP_FRONTEND_URL = os.environ.get("APP_FRONTEND_URL", "http://localhost:5173")
 CONTACT_ADMIN_EMAIL = os.environ.get("CONTACT_ADMIN_EMAIL", DEFAULT_FROM_EMAIL or "elfred434@gmail.com")
+
+# Admins qui reçoivent les emails d'alerte sur les erreurs 500
+ADMIN_ALERTS_ENABLED = os.environ.get("ADMIN_ALERTS_ENABLED", "true").lower() != "false"
+ADMINS = [
+    ("Admin SpiistMove", os.environ.get("ADMIN_EMAIL", "elfred434@gmail.com")),
+]
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # ---- Kkiapay (conservé le temps de la migration, à retirer par la suite) ----
 KKIAPAY_PUBLIC_KEY = os.environ.get("KKIAPAY_PUBLIC_KEY", "")

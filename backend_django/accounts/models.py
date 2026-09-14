@@ -54,6 +54,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     verification_locked_until = models.DateTimeField(null=True, blank=True)
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     login_locked_until = models.DateTimeField(null=True, blank=True)
+    # 2FA admin (ROADMAP #9) : code à 6 chiffres envoyé par email
+    # à chaque connexion d'un admin/super_admin
+    twofa_code = models.CharField(max_length=6, blank=True, default="")
+    twofa_expires = models.DateTimeField(null=True, blank=True)
+    twofa_attempts = models.PositiveSmallIntegerField(default=0)
+    twofa_pending_token = models.CharField(max_length=500, blank=True, default="")
     date_creation = models.DateTimeField(default=timezone.now)
     date_modification = models.DateTimeField(auto_now=True)
 
