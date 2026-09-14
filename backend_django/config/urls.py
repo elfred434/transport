@@ -238,6 +238,11 @@ urlpatterns = [
 
     path("api/admin/paiements", adv.paiements_list),
 
+    # Export CSV (ROADMAP #55)
+    path("api/admin/export/colis.csv", adv.export_colis_csv),
+    path("api/admin/export/paiements.csv", adv.export_paiements_csv),
+    path("api/admin/export/utilisateurs.csv", adv.export_utilisateurs_csv),
+
     path("api/admin/livraisons", adv.livraisons_list),
     path("api/admin/livraisons/bulk", adv.livraison_bulk),
     path("api/admin/suivi/<int:pk>/livraison", adv.livraison_decision),

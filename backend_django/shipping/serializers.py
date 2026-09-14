@@ -72,9 +72,13 @@ class RetraitSerializer(serializers.ModelSerializer):
 
 
 class AvisSerializer(serializers.ModelSerializer):
+    auteur_prenom = serializers.CharField(source="user.prenom", read_only=True, default="")
+    auteur_nom = serializers.CharField(source="user.nom", read_only=True, default="")
+
     class Meta:
         model = Avis
-        fields = "__all__"
+        fields = ["id", "note", "commentaire", "date_creation",
+                  "auteur_prenom", "auteur_nom"]
 
 
 class ContactCreateSerializer(serializers.Serializer):

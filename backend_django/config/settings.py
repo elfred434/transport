@@ -398,7 +398,7 @@ def _float_env(key, default):
     except (TypeError, ValueError):
         return float(default)
 
-COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.95)
+COMMISSION_PLATEFORME = _float_env("COMMISSION_PLATEFORME", 0.05)
 MONTANT_MIN_RETRAIT = int(_float_env("MONTANT_MIN_RETRAIT", 1000))
 
 # --- Cookies d'auth cross-site ---

@@ -3,12 +3,14 @@ import { Link, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { date, datetime, money, SmartImg, StatusBadge } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
+import Timeline from '../components/Timeline'
 
 /** Détail d'un colis — port de colis-detail.html (?id= → /colis/:id). */
 
 interface EtapeSuivi {
   statut: string
   date_etape: string
+  commentaire?: string | null
 }
 
 interface ColisDetailData {
@@ -170,14 +172,7 @@ export default function ColisDetail() {
             <i className="fa-solid fa-route text-primary"></i> Étapes de suivi
           </h5>
           {c.etapes_suivi && c.etapes_suivi.length ? (
-            <ul className="list-group">
-              {c.etapes_suivi.map((et, i) => (
-                <li key={i} className="list-group-item d-flex justify-content-between align-items-center">
-                  <StatusBadge statut={et.statut} />
-                  <span className="small text-muted">{datetime(et.date_etape)}</span>
-                </li>
-              ))}
-            </ul>
+            <Timeline steps={[...c.etapes_suivi].reverse()} />
           ) : (
             <p className="text-muted mb-0">Aucune étape enregistrée.</p>
           )}

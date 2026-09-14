@@ -68,6 +68,13 @@ def _mark_paid(p: Paiement, transaction_id: str) -> None:
         )
     logger.info("Paiement %s marqué PAYE tx=%s", p.id, transaction_id)
 
+    # ROADMAP #43 : solde bloqué transporteur
+    try:
+        from shipping import wallet
+        wallet.credit_pending_on_payment(p)
+    except Exception:
+        logger.exception("Échec crédit solde bloqué paiement %s", p.id)
+
     # Emails transactionnels (jamais bloquant)
     try:
         from core.emails import envoyer_confirmation_paiement, envoyer_colis_en_cours, envoyer_paiement_recu_transporteur

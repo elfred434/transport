@@ -4,8 +4,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db import IntegrityError, transaction, models
+from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -310,6 +310,14 @@ def paiement_simuler(request: Request, pk: int):
     # Passe le colis en En cours
     SuiviColis.objects.create(colis=p.colis, statut="En cours", auteur_id=request.user.id)
 
+    # ROADMAP #43 : crédite solde bloqué transporteur
+    try:
+        from shipping import wallet
+        wallet.credit_pending_on_payment(p)
+    except Exception:
+        import logging as _log
+        _log.getLogger(__name__).exception("Échec crédit solde bloqué paiement %s", p.id)
+
     # Emails de confirmation
     try:
         from core.emails import envoyer_confirmation_paiement, envoyer_colis_en_cours, envoyer_paiement_recu_transporteur
@@ -483,8 +491,22 @@ def avis_store(request: Request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def avis_transporteur(request: Request, tid: int):
-    qs = Avis.objects.filter(transporteur_id=tid, statut="approuve")
-    return api_success(list(qs.values()))
+    qs = (
+        Avis.objects.filter(transporteur_id=tid, statut="approuve")
+        .select_related("user")
+        .order_by("-date_creation")
+    )
+    res = paginate_queryset(qs, request, per_page_default=10, serializer=AvisSerializer)
+    # Agrégat note moyenne / nombre d'avis
+    agg = qs.aggregate(
+        moyenne=Avg("note"),
+        total=Count("id"),
+    )
+    res["stats"] = {
+        "moyenne": float(agg["moyenne"] or 0),
+        "total": int(agg["total"] or 0),
+    }
+    return api_success(res)
 
 
 # ---------- CONTACT ----------

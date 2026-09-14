@@ -343,6 +343,13 @@ def _mark_paid(p: Paiement, transaction_id: str, mode: str = "") -> None:
         )
     logger.info("Paiement %s marqué PAYE fedapay_tx=%s", p.id, transaction_id)
 
+    # ROADMAP #43 : crédite le solde bloqué du transporteur
+    try:
+        from shipping import wallet
+        wallet.credit_pending_on_payment(p)
+    except Exception:
+        logger.exception("Échec crédit solde bloqué paiement %s", p.id)
+
     try:
         from core.emails import (
             envoyer_confirmation_paiement,

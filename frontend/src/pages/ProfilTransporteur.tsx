@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api'
 import { date } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
 import ResponsiveTable from "../components/ResponsiveTable";
+import StarRating from '../components/StarRating'
 
 /** Fiche publique d'un transporteur — port de profil-transporteur.html (?id=). */
 
@@ -45,11 +46,16 @@ interface TransporteurData {
 }
 
 interface Avis {
-  prenom: string
-  nom: string
+  id: number
+  auteur_prenom: string
+  auteur_nom: string
   note: number
   commentaire: string
-  date_avis: string
+  date_creation: string
+}
+interface AvisResponse {
+  data: Avis[]
+  stats?: { moyenne: number; total: number }
 }
 
 function stars(note: number | null) {
@@ -84,10 +90,10 @@ export default function ProfilTransporteur() {
       try {
         const [d, a] = await Promise.all([
           api.get<TransporteurData>('/api/transporteurs/' + encodeURIComponent(id)),
-          api.get<Avis[]>('/api/transporteurs/' + encodeURIComponent(id) + '/avis'),
+          api.get<AvisResponse>('/api/transporteurs/' + encodeURIComponent(id) + '/avis'),
         ])
         setData(d)
-        setAvis(a)
+        setAvis(a.data || [])
       } catch (e) {
         setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
       }
@@ -261,18 +267,18 @@ export default function ProfilTransporteur() {
           )}
           <div>
             {avis.length ? (
-              avis.map((a, i) => (
-                <div key={i} className="border-bottom py-3">
-                  <div className="d-flex justify-content-between">
+              avis.map((a) => (
+                <div key={a.id} className="border-bottom py-3">
+                  <div className="d-flex justify-content-between align-items-center">
                     <strong>
-                      {a.prenom} {a.nom}
+                      {a.auteur_prenom} {a.auteur_nom}
                     </strong>
-                    <span>{stars(a.note)}</span>
+                    <StarRating value={a.note} size="sm" />
                   </div>
                   <p className="mb-1 mt-1" style={{ whiteSpace: 'pre-line' }}>
                     {a.commentaire}
                   </p>
-                  <small className="text-muted">{date(a.date_avis)}</small>
+                  <small className="text-muted">{date(a.date_creation)}</small>
                 </div>
               ))
             ) : (

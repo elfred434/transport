@@ -399,7 +399,9 @@ def livraison_decision(request: Request, pk: int):
         etape.save(update_fields=["demande_livraison"])
         return api_success({"message": "Livraison refusée"})
 
-    # === Confirmation: calcul de commission 95/5 ===
+    # === Confirmation: calcul de commission 95/5 (ROADMAP #41 + #43) ===
+    commission_plateforme = Decimal("0")
+    commission_transporteur = Decimal("0")
     with transaction.atomic():
         etape.confirme_par_admin = True
         etape.demande_livraison = False
@@ -410,26 +412,31 @@ def livraison_decision(request: Request, pk: int):
             colis=etape.colis, statut=Reservation.STATUT_ACCEPTE
         ).update(statut=Reservation.STATUT_TERMINE)
 
-        # Récupère réservation acceptée
-        resa = Reservation.objects.filter(
-            colis=etape.colis, statut=Reservation.STATUT_TERMINE
-        ).select_related("voyage__user", "colis").first()
-        if resa:
-            montant = etape.colis.prix_estime or Decimal("0")
-            commission_plateforme = (montant * Decimal(str(dj_settings.COMMISSION_PLATEFORME))).quantize(Decimal("1"))
-            commission_transporteur = montant - commission_plateforme
+        # Récupère le paiement payé le plus récent pour ce colis
+        paiement = Paiement.objects.filter(
+            colis=etape.colis, statut=Paiement.STATUT_PAYE
+        ).order_by("-date_creation").first()
 
-            t, _ = Transporteur.objects.get_or_create(user=resa.voyage.user)
-            t.solde += commission_transporteur
-            t.save(update_fields=["solde"])
-
-            w, _ = WalletAdmin.objects.get_or_create(pk=1)
-            w.solde += commission_plateforme
-            w.total_genere += commission_plateforme
-            w.save(update_fields=["solde", "total_genere"])
+        if paiement:
+            from shipping import wallet
+            commission_transporteur, commission_plateforme = wallet.release_on_delivery(paiement)
         else:
-            commission_plateforme = Decimal("0")
-            commission_transporteur = Decimal("0")
+            # Fallback : aucune trace de paiement (cas démo / legacy)
+            resa = Reservation.objects.filter(
+                colis=etape.colis, statut=Reservation.STATUT_TERMINE
+            ).select_related("voyage__user").first()
+            if resa:
+                montant = etape.colis.prix_estime or Decimal("0")
+                cp_pct = Decimal(str(getattr(dj_settings, "COMMISSION_PLATEFORME", "0.05")))
+                commission_plateforme = (montant * cp_pct).quantize(Decimal("1"))
+                commission_transporteur = montant - commission_plateforme
+                t, _ = Transporteur.objects.get_or_create(user=resa.voyage.user)
+                t.solde += commission_transporteur
+                t.save(update_fields=["solde"])
+                w, _ = WalletAdmin.objects.get_or_create(pk=1)
+                w.solde += commission_plateforme
+                w.total_genere += commission_plateforme
+                w.save(update_fields=["solde", "total_genere"])
 
     # Email de confirmation de livraison au client
     try:
@@ -956,3 +963,86 @@ def contact_reply(request: Request, pk: int):
         except Exception:
             logger.exception("Erreur envoi réponse admin contact %s", m.id)
     return api_success({"message": "Réponse enregistrée" if reponse else "Marqué comme lu", "id": m.id})
+
+
+# ---------- EXPORT CSV (ROADMAP #55) ----------
+import csv
+from django.http import HttpResponse
+
+
+def _csv_response(filename: str, columns: list, rows):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")  # BOM pour Excel UTF-8
+    writer = csv.writer(response)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow(r)
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def export_colis_csv(request: Request):
+    qs = Colis.objects.select_related("user").all().order_by("-date_creation")
+    statut = request.query_params.get("statut")
+    if statut in (Colis.STATUT_ATTENTE, Colis.STATUT_APPROUVE, Colis.STATUT_REFUSE):
+        qs = qs.filter(statut=statut)
+    search = request.query_params.get("search", "")
+    if search:
+        qs = qs.filter(
+            Q(nom_colis__icontains=search) | Q(numero_suivi__icontains=search)
+            | Q(ville__icontains=search) | Q(pays__icontains=search)
+            | Q(user__nom__icontains=search) | Q(user__prenom__icontains=search)
+            | Q(user__email__icontains=search)
+        )
+    columns = ["ID", "Numéro suivi", "Nom colis", "Expéditeur email", "Expéditeur nom",
+               "Ville", "Pays", "Poids (kg)", "Prix estimé (XOF)", "Statut", "Créé le"]
+    rows = []
+    for c in qs.iterator(chunk_size=200):
+        rows.append([
+            c.id, c.numero_suivi, c.nom_colis, c.user.email,
+            f"{c.user.prenom or ''} {c.user.nom or ''}".strip(),
+            c.ville, c.pays, str(c.poids), str(c.prix_estime),
+            c.statut, c.date_creation.strftime("%Y-%m-%d %H:%M"),
+        ])
+    return _csv_response("colis.csv", columns, rows)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def export_paiements_csv(request: Request):
+    qs = Paiement.objects.select_related("colis", "user").all().order_by("-date_creation")
+    statut = request.query_params.get("statut")
+    if statut:
+        qs = qs.filter(statut=statut)
+    columns = ["ID", "Référence", "Email client", "Colis", "Montant (XOF)",
+               "Statut", "Opérateur", "Transaction", "Date"]
+    rows = []
+    for p in qs.iterator(chunk_size=200):
+        rows.append([
+            p.id, p.reference, p.user.email,
+            p.colis.nom_colis if p.colis_id else "",
+            str(p.montant), p.statut, p.operateur or "",
+            p.numero_transaction or "",
+            p.date_creation.strftime("%Y-%m-%d %H:%M"),
+        ])
+    return _csv_response("paiements.csv", columns, rows)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def export_utilisateurs_csv(request: Request):
+    qs = User.objects.all().order_by("-date_creation")
+    role = request.query_params.get("role")
+    if role:
+        qs = qs.filter(role=role)
+    columns = ["ID", "Email", "Prénom", "Nom", "Téléphone", "Rôle", "Vérifié email", "Créé le"]
+    rows = []
+    for u in qs.iterator(chunk_size=200):
+        rows.append([
+            u.id, u.email, u.prenom or "", u.nom or "", u.telephone or "",
+            u.role, "oui" if getattr(u, "email_verified", False) else "non",
+            u.date_creation.strftime("%Y-%m-%d %H:%M"),
+        ])
+    return _csv_response("utilisateurs.csv", columns, rows)
