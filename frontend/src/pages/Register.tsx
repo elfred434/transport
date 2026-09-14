@@ -5,7 +5,11 @@ import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
 import PasswordGenerator from '../components/PasswordGenerator'
 import PasswordStrength from '../components/PasswordStrength'
+import PasswordField from '../components/PasswordField'
 import PhoneInput from '../components/PhoneInput'
+
+/** Regex email raisonnable (ROADMAP #24) : RFC simplifié, refuse les espaces, TLD >=2. */
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
 interface RegisterResponse {
   token?: string
@@ -24,6 +28,7 @@ export default function Register() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [pwdValue, setPwdValue] = useState('')
+  const [pwd2Value, setPwd2Value] = useState('')
   const [emailValue, setEmailValue] = useState('')
   const [emailState, setEmailState] = useState<'idle' | 'checking' | 'ok' | 'invalid' | 'exists'>('idle')
   const navigate = useNavigate()
@@ -33,7 +38,7 @@ export default function Register() {
   useEffect(() => {
     const email = emailValue.trim().toLowerCase()
     if (!email) { setEmailState('idle'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailState('invalid'); return }
+    if (!EMAIL_RE.test(email)) { setEmailState('invalid'); return }
     setEmailState('checking')
     const t = setTimeout(async () => {
       try {
@@ -59,6 +64,14 @@ export default function Register() {
     const fd = new FormData(form)
     const file = (fd.get('photo_profil') as File | null) || null
     const email = String(fd.get('email') || '')
+    const pwd1 = String(fd.get('password') || '')
+    const pwd2 = String(fd.get('password2') || '')
+
+    // Validation confirm. mot de passe (ROADMAP #25)
+    if (pwd1 !== pwd2) {
+      setError('Les deux mots de passe ne correspondent pas.')
+      return
+    }
 
     try {
       const data = await api.upload<RegisterResponse>(
@@ -67,7 +80,8 @@ export default function Register() {
           nom: String(fd.get('nom') || ''),
           prenom: String(fd.get('prenom') || ''),
           email,
-          password: String(fd.get('password') || ''),
+          password: pwd1,
+          confirm_password: pwd2,
           telephone: String(fd.get('tel') || ''),
         },
         { photo_profil: file && file.size > 0 ? file : null },
@@ -120,14 +134,17 @@ export default function Register() {
               <label className="form-label">
                 Mot de passe <small className="text-muted">(8 caractères min. + 1 chiffre)</small>
               </label>
-              <input ref={passwordRef} type="password" name="password" className="form-control" minLength={8} required
+              <PasswordField
+                name="password"
+                inputRef={passwordRef}
+                minLength={8}
+                autoComplete="new-password"
                 value={pwdValue}
-                onChange={(e) => {
-                  setPwdValue(e.target.value)
-                  // Synchroniser avec le generative password qui utilise la valeur du ref
-                  if (passwordRef.current) passwordRef.current.value = e.target.value
+                onChange={(v) => {
+                  setPwdValue(v)
+                  if (passwordRef.current) passwordRef.current.value = v
                 }}
-                autoComplete="new-password" />
+              />
               <PasswordStrength password={pwdValue} />
               <PasswordGenerator
                 onSelect={(p) => {
@@ -138,6 +155,20 @@ export default function Register() {
                 }}
                 inputRef={passwordRef}
               />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Confirmer le mot de passe</label>
+              <PasswordField
+                name="password2"
+                label={null as any}
+                minLength={8}
+                autoComplete="new-password"
+                value={pwd2Value}
+                onChange={setPwd2Value}
+              />
+              {pwd2Value && pwdValue !== pwd2Value && (
+                <small className="text-danger">Les mots de passe ne correspondent pas.</small>
+              )}
             </div>
             <div className="mb-3">
               <label className="form-label">Téléphone</label>

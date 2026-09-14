@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
+import PasswordField from '../../components/PasswordField'
 
 interface LoginResponse {
   token: string
@@ -55,12 +56,11 @@ export default function AdminLogin() {
             </div>
             <div className="mb-3">
               <label className="form-label">Mot de passe</label>
-              <input
-                type="password"
-                className="form-control"
+              <PasswordField
+                label={null as any}
+                autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                onChange={setPassword}
               />
             </div>
             <button type="submit" className="btn btn-primary w-100 fw-bold">

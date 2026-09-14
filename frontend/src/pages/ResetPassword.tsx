@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import PasswordGenerator from '../components/PasswordGenerator'
 import PasswordStrength from '../components/PasswordStrength'
+import PasswordField from '../components/PasswordField'
 
 /** Nouveau mot de passe — port de reset-password.html (token en query string). */
 export default function ResetPassword() {
@@ -55,28 +56,33 @@ export default function ResetPassword() {
               <label className="form-label">
                 Nouveau mot de passe <small className="text-muted">(8 caractères min. + 1 chiffre)</small>
               </label>
-              <input
-                ref={pwdRef}
-                type="password"
-                className="form-control"
+              <PasswordField
+                label={null as any}
+                inputRef={pwdRef}
                 minLength={8}
+                autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                onChange={(v) => {
+                  setPassword(v)
+                  if (pwdRef.current) pwdRef.current.value = v
+                }}
               />
               <PasswordStrength password={password} />
               <PasswordGenerator onSelect={setPwdBoth} inputRef={pwdRef} />
             </div>
             <div className="mb-3">
               <label className="form-label">Confirmer le mot de passe</label>
-              <input
-                type="password"
-                className="form-control"
+              <PasswordField
+                label={null as any}
+                name="password2"
                 minLength={8}
+                autoComplete="new-password"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
+                onChange={setConfirm}
               />
+              {confirm && password !== confirm && (
+                <small className="text-danger">Les mots de passe ne correspondent pas.</small>
+              )}
             </div>
             <button type="submit" className="btn btn-primary w-100 fw-bold">
               <i className="fa-solid fa-key"></i> Réinitialiser le mot de passe

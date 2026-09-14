@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { api, Auth, ApiError } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import GoogleOneTap from '../components/GoogleOneTap'
+import PasswordField from '../components/PasswordField'
 
 interface LoginResponse {
   token: string
@@ -160,13 +161,12 @@ export default function Login() {
               <label htmlFor="password" className="form-label">
                 Mot de passe
               </label>
-              <input
-                type="password"
-                id="password"
-                className="form-control"
+              <PasswordField
+                label={null as any}
+                name="password"
+                autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                onChange={setPassword}
               />
             </div>
             <div className="form-check mb-3">

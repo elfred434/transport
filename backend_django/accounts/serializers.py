@@ -91,19 +91,27 @@ def _validate_password(value: str) -> str:
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=False, default="")
     nom = serializers.CharField(required=True, max_length=100)
     prenom = serializers.CharField(required=True, max_length=100)
     telephone = serializers.CharField(required=False, max_length=30, default="", allow_blank=True)
 
     class Meta:
         model = User
-        fields = ["email", "password", "nom", "prenom", "telephone"]
+        fields = ["email", "password", "confirm_password", "nom", "prenom", "telephone"]
 
     def validate_password(self, value):
         return _validate_password(value)
 
     def validate_telephone(self, value):
         return _validate_phone(value)
+
+    def validate(self, attrs):
+        pwd = attrs.get("password", "")
+        pwd2 = (attrs.get("confirm_password") or "").strip()
+        if pwd2 and pwd != pwd2:
+            raise serializers.ValidationError({"confirm_password": "Les mots de passe ne correspondent pas."})
+        return attrs
 
     def create(self, validated_data):
         if "role" not in validated_data or not validated_data.get("role"):

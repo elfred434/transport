@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 /** Indicateur de force du mot de passe en direct (ROADMAP #20).
  * Règles :
