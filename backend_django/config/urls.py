@@ -244,7 +244,9 @@ urlpatterns = [
 
     # Export CSV (ROADMAP #55)
     path("api/admin/export/colis.csv", adv.export_colis_csv),
+    path("api/admin/export/colis.xlsx", adv.export_colis_xlsx),
     path("api/admin/export/paiements.csv", adv.export_paiements_csv),
+    path("api/admin/export/paiements.xlsx", adv.export_paiements_xlsx),
     path("api/admin/export/utilisateurs.csv", adv.export_utilisateurs_csv),
 
     path("api/admin/livraisons", adv.livraisons_list),

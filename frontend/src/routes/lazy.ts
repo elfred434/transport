@@ -1,0 +1,35 @@
+/**
+ * Code splitting par route (ROADMAP #64).
+ * Charge dynamiquement chaque page pour réduire le bundle initial.
+ */
+import { lazy } from 'react'
+
+export const Home = lazy(() => import('../pages/Home'))
+export const Login = lazy(() => import('../pages/Login'))
+export const Register = lazy(() => import('../pages/Register'))
+export const VerifyEmail = lazy(() => import('../pages/VerifyEmail'))
+export const ResetRequest = lazy(() => import('../pages/ResetRequest'))
+export const ResetPassword = lazy(() => import('../pages/ResetPassword'))
+export const Contact = lazy(() => import('../pages/Contact'))
+export const Suivi = lazy(() => import('../pages/Suivi'))
+export const Dashboard = lazy(() => import('../pages/Dashboard'))
+export const PosterColis = lazy(() => import('../pages/PosterColis'))
+export const ColisDisponibles = lazy(() => import('../pages/ColisDisponibles'))
+export const ColisDetail = lazy(() => import('../pages/ColisDetail'))
+export const Recherche = lazy(() => import('../pages/Recherche'))
+export const ReservationColis = lazy(() => import('../pages/ReservationColis'))
+export const Paiement = lazy(() => import('../pages/Paiement'))
+export const Profil = lazy(() => import('../pages/Profil'))
+export const ModifierProfil = lazy(() => import('../pages/ModifierProfil'))
+export const DevenirTransporteur = lazy(() => import('../pages/DevenirTransporteur'))
+export const TransporteurStats = lazy(() => import('../pages/TransporteurStats'))
+export const ProfilTransporteur = lazy(() => import('../pages/ProfilTransporteur'))
+export const ListeMessagerie = lazy(() => import('../pages/ListeMessagerie'))
+export const Messagerie = lazy(() => import('../pages/Messagerie'))
+export const MessagerieAdmin = lazy(() => import('../pages/MessagerieAdmin'))
+export const Reponses = lazy(() => import('../pages/Reponses'))
+export const AdminIndex = lazy(() => import('../pages/admin/AdminIndex'))
+export const AdminMessagerie = lazy(() => import('../pages/admin/AdminMessagerie'))
+export const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'))
+export const SuperAdmin = lazy(() => import('../pages/admin/SuperAdmin'))
+export const NotFound = lazy(() => import('../pages/NotFound'))

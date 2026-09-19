@@ -160,9 +160,28 @@ def user_delete(request: Request, pk: int):
 @permission_classes([IsAuthenticated, IsAdmin])
 def colis_list(request: Request):
     qs = Colis.objects.select_related("user").all()
+    # ROADMAP #50 filtres avancés admin
     statut = request.query_params.get("statut")
     if statut in (Colis.STATUT_ATTENTE, Colis.STATUT_APPROUVE, Colis.STATUT_REFUSE):
         qs = qs.filter(statut=statut)
+    pays = request.query_params.get("pays")
+    if pays:
+        qs = qs.filter(pays__icontains=pays)
+    ville = request.query_params.get("ville")
+    if ville:
+        qs = qs.filter(ville__icontains=ville)
+    date_debut = request.query_params.get("date_debut")
+    date_fin = request.query_params.get("date_fin")
+    if date_debut:
+        qs = qs.filter(date_creation__date__gte=date_debut)
+    if date_fin:
+        qs = qs.filter(date_creation__date__lte=date_fin)
+    prix_min = request.query_params.get("prix_min")
+    prix_max = request.query_params.get("prix_max")
+    if prix_min:
+        qs = qs.filter(prix_estime__gte=prix_min)
+    if prix_max:
+        qs = qs.filter(prix_estime__lte=prix_max)
     search = request.query_params.get("search", "")
     if search:
         qs = qs.filter(
@@ -1060,3 +1079,59 @@ def colis_etiquette_pdf(request: Request, pk: int):
         return api_error("Accès interdit", 403)
     from shipping.labels import label_pdf
     return label_pdf(c)
+
+
+# ---------- EXPORT XLSX (ROADMAP #55 complément) ----------
+def _xlsx_response(filename: str, columns: list, rows):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    wb = Workbook()
+    ws = wb.active
+    ws.title = filename.replace(".xlsx", "")[:31]
+    ws.append(columns)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for r in rows:
+        ws.append(r)
+    # Auto-width
+    for i, col in enumerate(ws.columns, start=1):
+        max_len = max((len(str(c.value)) for c in col if c.value is not None), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
+def _colis_export_rows(qs):
+    for c in qs.iterator(chunk_size=200):
+        yield [c.id, c.numero_suivi, c.nom_colis, c.user.email,
+               f"{c.user.prenom or ''} {c.user.nom or ''}".strip(),
+               c.ville, c.pays, float(c.poids), float(c.prix_estime), c.statut,
+               c.date_creation.strftime("%Y-%m-%d %H:%M")]
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def export_colis_xlsx(request: Request):
+    qs = Colis.objects.select_related("user").all().order_by("-date_creation")
+    statut = request.query_params.get("statut")
+    if statut in (Colis.STATUT_ATTENTE, Colis.STATUT_APPROUVE, Colis.STATUT_REFUSE):
+        qs = qs.filter(statut=statut)
+    return _xlsx_response("colis.xlsx",
+                          ["ID", "Numéro suivi", "Nom colis", "Email", "Expéditeur",
+                           "Ville", "Pays", "Poids (kg)", "Prix (XOF)", "Statut", "Créé le"],
+                          _colis_export_rows(qs))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def export_paiements_xlsx(request: Request):
+    qs = Paiement.objects.select_related("colis", "user").all().order_by("-date_creation")
+    columns = ["ID", "Référence", "Email client", "Colis", "Montant (XOF)",
+               "Statut", "Remboursé", "Opérateur", "Transaction", "Date"]
+    rows = ([p.id, p.reference, p.user.email, p.colis.nom_colis if p.colis_id else "",
+             float(p.montant), p.statut, "oui" if p.rembourse else "non",
+             p.operateur or "", p.numero_transaction or "",
+             p.date_creation.strftime("%Y-%m-%d %H:%M")] for p in qs.iterator(chunk_size=200))
+    return _xlsx_response("paiements.xlsx", columns, rows)
