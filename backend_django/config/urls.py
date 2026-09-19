@@ -163,6 +163,9 @@ urlpatterns = [
     path("api/admin-chat/conversations", cv.admin_chat_conversations),
 
     # Colis (GET+POST)
+    # Calculateur de prix public (ROADMAP #30)
+    path("api/pricing/estimate", sv.prix_estimer),
+
     path("api/colis", colis_view),
     path("api/colis/mine", sv.colis_mine),
     path("api/colis/available", sv.colis_available),

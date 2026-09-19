@@ -50,6 +50,28 @@ def _ensure_transporteur_profile(user: User, data: dict) -> Transporteur:
     return t
 
 
+# ---------- PUBLIC PRICE CALCULATOR (ROADMAP #30) ----------
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def prix_estimer(request: Request):
+    """Calculateur de prix public sans compte."""
+    try:
+        poids = float(request.data.get("poids", 0) or 0)
+    except (TypeError, ValueError):
+        return api_error("Poids invalide", 422)
+    from shipping.pricing import estimate_price
+    ville_depart = (request.data.get("ville_depart") or "").strip()
+    ville_destination = (request.data.get("ville_destination") or request.data.get("ville") or "").strip()
+    pays_depart = (request.data.get("pays_depart") or "").strip() or None
+    pays_destination = (request.data.get("pays_destination") or request.data.get("pays") or "").strip() or None
+    type_produit = (request.data.get("type_produit") or "").strip()
+    result = estimate_price(
+        poids, ville_depart, ville_destination,
+        pays_depart, pays_destination, type_produit,
+    )
+    return api_success(result)
+
+
 # ---------- COLIS ----------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -60,6 +82,17 @@ def colis_store(request: Request):
 
     if v["date_limite"] < date.today():
         return api_error("La date limite doit être aujourd'hui ou dans le futur", 422)
+
+    # Prix estimé via calculateur (distance + poids + type) ROADMAP #29
+    from shipping.pricing import decimal_price
+    prix = decimal_price(
+        poids_kg=float(v["poids"] or 0),
+        ville_depart=v.get("adresse_depart", ""),
+        ville_destination=v.get("ville", ""),
+        pays_depart="Bénin",  # pour l'instant le pays de départ est le Bénin par défaut
+        pays_destination=v.get("pays", ""),
+        type_produit=v.get("type_produit", ""),
+    )
 
     colis = Colis.objects.create(
         user=request.user,
@@ -75,6 +108,7 @@ def colis_store(request: Request):
         date_limite=v["date_limite"],
         description=v.get("description", ""),
         image_colis=v.get("image_colis", ""),
+        prix_estime=prix,
     )
     # Crée d'office un paiement en_attente
     paiement = Paiement.objects.create(

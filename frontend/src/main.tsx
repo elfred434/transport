@@ -9,6 +9,7 @@ import './styles/first-design.css'
 import './styles/app.css'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './components/Toasts'
 import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
@@ -17,14 +18,16 @@ import './lib/tableLabels'  // auto data-label sur les tableaux Bootstrap
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ToastProvider>
-        <AuthProvider>
-          <ErrorBoundary>
-            <OfflineBanner />
-            <App />
-          </ErrorBoundary>
-        </AuthProvider>
-      </ToastProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <ErrorBoundary>
+              <OfflineBanner />
+              <App />
+            </ErrorBoundary>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

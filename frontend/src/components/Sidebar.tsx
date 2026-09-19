@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from './ThemeToggle'
 
 /* ------------------------------------------------------------------ */
 /*  Context global pour l'état ouvert/fermé du menu mobile.            */
@@ -81,7 +82,7 @@ export function TopbarMobile() {
         <img src="/assets/img/OIG1.jpeg" alt="" style={{ height: 30, width: 30, borderRadius: '50%', objectFit: 'cover' }} />
         SPIISTMOVE
       </Link>
-      <div style={{ width: 44 }} /> {/* espace pour équilibrer */}
+      <ThemeToggle />
     </div>
   )
 }
