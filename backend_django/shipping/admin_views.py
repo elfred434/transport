@@ -1046,3 +1046,17 @@ def export_utilisateurs_csv(request: Request):
             u.date_creation.strftime("%Y-%m-%d %H:%M"),
         ])
     return _csv_response("utilisateurs.csv", columns, rows)
+
+
+# ---------- ÉTIQUETTE PDF (ROADMAP #56) ----------
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def colis_etiquette_pdf(request: Request, pk: int):
+    try:
+        c = Colis.objects.select_related("user").get(pk=pk)
+    except Colis.DoesNotExist:
+        return api_error("Colis introuvable", 404)
+    if not _is_user_admin(request.user) and c.user_id != request.user.id:
+        return api_error("Accès interdit", 403)
+    from shipping.labels import label_pdf
+    return label_pdf(c)

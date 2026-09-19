@@ -17,9 +17,10 @@ from core.throttles import ContactThrottle
 from accounts.models import User
 from core.pagination import paginate_queryset
 from core.responses import api_success, api_error
+from core.permissions import IsAdmin
 
 from .models import (
-    Avis, Colis, ContactMessage, NotificationAdmin, Paiement, Reservation,
+    Avis, Colis, ContactMessage, Litige, NotificationAdmin, Paiement, Reservation,
     Retrait, SuiviColis, Transporteur, Voyage, WalletAdmin,
 )
 from .serializers import (
@@ -595,3 +596,120 @@ def _kkiapay_cfg_payload():
 @permission_classes([AllowAny])
 def kkiapay_config(request: Request):
     return api_success(_kkiapay_cfg_payload())
+
+
+# ---------- PREUVE DE LIVRAISON (ROADMAP #32) ----------
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def suivi_preuve(request: Request, pk: int):
+    """Ajoute photo + signature numérique à une étape de suivi (livraison)."""
+    try:
+        etape = SuiviColis.objects.select_related("colis").get(pk=pk)
+    except SuiviColis.DoesNotExist:
+        return api_error("Étape introuvable", 404)
+    is_transporteur = (
+        Reservation.objects.filter(
+            colis=etape.colis,
+            transporteur=request.user,
+            statut=Reservation.STATUT_ACCEPTE,
+        ).exists()
+    )
+    is_admin = _is_user_admin(request.user)
+    if not (is_transporteur or is_admin or etape.colis.user_id == request.user.id):
+        return api_error("Accès interdit", 403)
+
+    photo_url = (request.data.get("photo_url") or "").strip()
+    signature_nom = (request.data.get("signature_nom") or "").strip()
+    signature_data = (request.data.get("signature_data") or "").strip()
+    if photo_url:
+        etape.photo_url = photo_url
+    if signature_nom:
+        etape.signature_nom = signature_nom
+    if signature_data:
+        etape.signature_data = signature_data
+    commentaire = (request.data.get("commentaire") or "").strip()
+    if commentaire:
+        etape.commentaire = commentaire
+    etape.save(update_fields=["photo_url", "signature_nom", "signature_data", "commentaire"])
+    return api_success({"message": "Preuve enregistrée", "id": etape.id})
+
+
+# ---------- LITIGES (ROADMAP #34) ----------
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def litiges_list_create(request: Request):
+    if request.method == "GET":
+        if _is_user_admin(request.user):
+            qs = Litige.objects.select_related("colis", "user").all()
+        else:
+            qs = Litige.objects.filter(user=request.user).select_related("colis")
+        statut = request.query_params.get("statut")
+        if statut:
+            qs = qs.filter(statut=statut)
+        return api_success(paginate_queryset(qs.order_by("-date_creation"), request,
+                                             serializer=lambda objs, many: [
+                                                 {
+                                                     "id": l.id,
+                                                     "sujet": l.sujet,
+                                                     "description": l.description,
+                                                     "statut": l.statut,
+                                                     "montant_reclame": str(l.montant_reclame) if l.montant_reclame else None,
+                                                     "colis_id": l.colis_id,
+                                                     "resolution": l.resolution,
+                                                     "date_creation": l.date_creation.isoformat(),
+                                                 } for l in objs
+                                             ]))
+    # POST
+    sujet = (request.data.get("sujet") or "").strip()
+    description = (request.data.get("description") or "").strip()
+    colis_id = request.data.get("colis_id")
+    if not sujet or not description:
+        return api_error("Sujet et description requis", 422)
+    colis = None
+    if colis_id:
+        try:
+            colis = Colis.objects.get(pk=colis_id)
+        except Colis.DoesNotExist:
+            return api_error("Colis introuvable", 404)
+    try:
+        montant = Decimal(str(request.data.get("montant_reclame", 0) or 0))
+    except Exception:
+        montant = Decimal("0")
+    Litige.objects.create(user=request.user, colis=colis, sujet=sujet, description=description, montant_reclame=montant)
+    NotificationAdmin.objects.create(type="litige", message=f"Nouveau litige: {sujet}")
+    return api_success({"message": "Litige ouvert, notre équipe reviendra vers vous."}, status_code=201)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsAdmin])
+def litige_resoudre(request: Request, pk: int):
+    try:
+        l = Litige.objects.get(pk=pk)
+    except Litige.DoesNotExist:
+        return api_error("Litige introuvable", 404)
+    decision = (request.data.get("decision") or "").strip()
+    resolution = (request.data.get("resolution") or "").strip()
+    if decision not in ("resolu", "rejete"):
+        return api_error("Décision invalide (resolu|rejete)", 422)
+    l.statut = Litige.STATUT_RESOLU if decision == "resolu" else Litige.STATUT_REJETE
+    l.resolution = resolution
+    l.save(update_fields=["statut", "resolution"])
+
+    # ROADMAP #47 : si résolu avec remboursement, passe le paiement en "rembourse"
+    if decision == "resolu" and l.colis_id:
+        paiement = Paiement.objects.filter(colis=l.colis, statut=Paiement.STATUT_PAYE, rembourse=False).first()
+        if paiement:
+            # Annule le solde bloqué si la livraison n'est pas terminée
+            from shipping import wallet
+            from shipping.models import Reservation
+            resa_term = Reservation.objects.filter(colis=l.colis, statut=Reservation.STATUT_TERMINE).exists()
+            if not resa_term:
+                wallet.unblock_on_cancel(paiement)
+                paiement.statut = Paiement.STATUT_REMBOURSE
+                paiement.rembourse = True
+                paiement.save(update_fields=["statut", "rembourse"])
+            else:
+                # Déjà payé au transporteur : marquer remboursé (remboursement manuel à traiter)
+                paiement.rembourse = True
+                paiement.save(update_fields=["rembourse"])
+    return api_success({"message": "Litige mis à jour"})

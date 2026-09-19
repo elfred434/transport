@@ -170,6 +170,7 @@ urlpatterns = [
     path("api/colis/mine", sv.colis_mine),
     path("api/colis/available", sv.colis_available),
     path("api/colis/<int:pk>", mv.colis_detail_public),
+    path("api/colis/<int:pk>/etiquette.pdf", adv.colis_etiquette_pdf),
     path("api/colis/<int:pk>/reservations", sv.colis_reservations),
     path("api/colis/<int:colis_id>/voyages-compatibles", ok_empty_list),
 
@@ -291,3 +292,9 @@ urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 if settings.DEBUG:
     from django.urls import get_resolver  # noqa: F401
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+    # Preuve de livraison (ROADMAP #32)
+    path("api/suivi/<int:pk>/preuve", sv.suivi_preuve),
+    # Litiges (ROADMAP #34)
+    path("api/litiges", sv.litiges_list_create),
+    path("api/litiges/<int:pk>/resoudre", sv.litige_resoudre),

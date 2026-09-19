@@ -180,15 +180,29 @@ export default function Dashboard() {
   const [detailsPaiement, setDetailsPaiement] = useState<PaiementMine | null>(null)
 
   const [searchColisId, setSearchColisId] = useState('')
+  const [colisPage, setColisPage] = useState(1)
+  const [colisHasMore, setColisHasMore] = useState(false)
+  const [colisLoading, setColisLoading] = useState(false)
 
-  const loadColis = useCallback(async () => {
+  // ROADMAP #36 : pagination lazy-load sur "Mes colis"
+  const loadColis = useCallback(async (page = 1, append = false) => {
     try {
       setError(null)
-      setColis(await api.get<ColisMine[]>('/api/colis/mine'))
+      setColisLoading(true)
+      const data = await api.get<{ data: ColisMine[]; pagination: { last_page: number } }>(
+        `/api/colis/mine?page=${page}&per_page=10`
+      )
+      setColis((prev) => append && prev ? [...prev, ...(data.data || [])] : (data.data || []))
+      setColisHasMore(page < (data.pagination?.last_page || 1))
+      setColisPage(page)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Erreur inconnue')
+    } finally {
+      setColisLoading(false)
     }
   }, [])
+
+  const loadMoreColis = () => loadColis(colisPage + 1, true)
 
   const loadVoyages = useCallback(async () => {
     try {
@@ -336,9 +350,22 @@ export default function Dashboard() {
                   <i className="fa-solid fa-eye"></i>
                   <span className="d-none d-md-inline"> Réservations</span>
                 </Link>
+                <a href={`${import.meta.env.VITE_API_BASE_URL || ''}/api/colis/${c.id}/etiquette.pdf`}
+                   target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-secondary"
+                   title="Télécharger l'étiquette PDF">
+                  <i className="fa-solid fa-qrcode"></i>
+                </a>
               </>
             )}
           />
+          {colisHasMore && (
+            <div className="text-center mt-2">
+              <button type="button" className="btn btn-outline-primary btn-sm" onClick={loadMoreColis} disabled={colisLoading}>
+                <i className={`fa-solid ${colisLoading ? 'fa-spinner fa-spin' : 'fa-chevron-down'}`} />{' '}
+                {colisLoading ? 'Chargement…' : 'Charger plus de colis'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ====================== MES VOYAGES PROPOSÉS ======================= */}

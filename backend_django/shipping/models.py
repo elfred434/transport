@@ -177,6 +177,8 @@ class Paiement(TimeStampedModel):
     numero_transaction = models.CharField(max_length=100, blank=True, default="")
     operateur = models.CharField(max_length=50, blank=True, default="")
     methode = models.CharField(max_length=30, blank=True, default="mobile_money")
+    # ROADMAP #47 : marqueur de remboursement traité
+    rembourse = models.BooleanField(default=False, help_text="Remboursement effectué")
 
     class Meta:
         db_table = "paiements"
@@ -208,6 +210,10 @@ class SuiviColis(TimeStampedModel):
     # Livraison
     demande_livraison = models.BooleanField(default=False)
     confirme_par_admin = models.BooleanField(default=False)
+    # ROADMAP #32 : Preuve de livraison
+    photo_url = models.CharField(max_length=500, blank=True, default="")
+    signature_nom = models.CharField(max_length=150, blank=True, default="")
+    signature_data = models.TextField(blank=True, default="", help_text="Signature canvas base64")
 
     class Meta:
         db_table = "suivi_colis"
@@ -263,6 +269,31 @@ class Avis(TimeStampedModel):
 
     class Meta:
         db_table = "avis"
+        ordering = ["-date_creation"]
+
+
+class Litige(TimeStampedModel):
+    """ROADMAP #34 : Litiges / réclamations clients/transporteurs."""
+    STATUT_OUVERT = "ouvert"
+    STATUT_EN_COURS = "en_cours"
+    STATUT_RESOLU = "resolu"
+    STATUT_REJETE = "rejete"
+    STATUT_CHOICES = [
+        (STATUT_OUVERT, "Ouvert"),
+        (STATUT_EN_COURS, "En cours"),
+        (STATUT_RESOLU, "Résolu"),
+        (STATUT_REJETE, "Rejeté"),
+    ]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="litiges")
+    colis = models.ForeignKey(Colis, on_delete=models.SET_NULL, null=True, blank=True, related_name="litiges")
+    sujet = models.CharField(max_length=150)
+    description = models.TextField()
+    montant_reclame = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default=STATUT_OUVERT)
+    resolution = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "litiges"
         ordering = ["-date_creation"]
 
 
