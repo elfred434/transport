@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { money } from '../lib/format'
 import { CountrySelect, CitySelect } from '../components/LocationSelect'
+import MapPicker from '../components/MapPicker'
 import '../styles/home-originale.css'
 
 interface CreateResponse {
@@ -34,11 +35,49 @@ export default function PosterColis() {
     ville: '',
     adresse_depart: '',
     adresse_destination: '',
+    lat_depart: null as number | null,
+    lng_depart: null as number | null,
+    lat_dest: null as number | null,
+    lng_dest: null as number | null,
     description: '',
   })
 
-  const prix = calcPrix(poids)
+  // Calcul prix en temps réel (ROADMAP #29/#30) : utilise l'API si possible, sinon fallback local
+  const [prixDetails, setPrixDetails] = useState<{ montant: number; distance_km: number } | null>(null)
+
+  // Prix : utilise le détail API si disponible, sinon fallback local au poids
+  const prix = prixDetails?.montant ?? calcPrix(poids)
   const today = new Date().toISOString().split('T')[0]
+
+  // Recalcule le prix via l'API à chaque changement
+  useEffect(() => {
+    const p = parseFloat(poids)
+    if (!p || p <= 0) { setPrixDetails(null); return }
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || ''}/api/pricing/estimate`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              poids: p,
+              ville_depart: formData.adresse_depart,
+              ville_destination: formData.adresse_destination || formData.ville,
+              pays_destination: formData.pays,
+              type_produit: formData.type_produit,
+            }),
+          }
+        )
+        if (r.ok) {
+          const j = await r.json()
+          if (j.success) setPrixDetails({ montant: j.data.montant, distance_km: j.data.details.distance_km })
+        }
+      } catch {}
+    }, 400)
+    return () => clearTimeout(t)
+  }, [poids, formData.adresse_depart, formData.adresse_destination, formData.ville, formData.pays, formData.type_produit])
   const progress = (step / totalSteps) * 100
 
   const next = () => { setError(null); if (step < totalSteps) setStep(s => s + 1) }
@@ -188,6 +227,20 @@ export default function PosterColis() {
                       />
                     </div>
                     <div className="mb-3"><label className="form-label fw-bold">Adresse départ *</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Porto-Novo, Hinkoudé" value={formData.adresse_depart} onChange={update('adresse_depart')} required /></div>
+                    <details className="mb-3">
+                      <summary className="small text-primary" style={{cursor:'pointer'}}>
+                        <i className="fa-solid fa-location-dot me-1" />Placer le point de départ sur la carte
+                      </summary>
+                      <div className="mt-2">
+                        <MapPicker
+                          label=""
+                          height={260}
+                          address={formData.adresse_depart}
+                          onPick={({ lat, lng, address }) => setFormData(f => ({ ...f, lat_depart: lat, lng_depart: lng, adresse_depart: address }))}
+                          markerIcon="fa-circle-dot"
+                        />
+                      </div>
+                    </details>
                   </div>
                 )}
 
@@ -200,6 +253,20 @@ export default function PosterColis() {
                       <p className="text-muted small">Dernière étape !</p>
                     </div>
                     <div className="mb-3"><label className="form-label fw-bold">Adresse destination *</label><input type="text" className="form-control form-control-lg" placeholder="Ex. Cotonou, Akpakpa" value={formData.adresse_destination} onChange={update('adresse_destination')} required /></div>
+                    <details className="mb-3">
+                      <summary className="small text-primary" style={{cursor:'pointer'}}>
+                        <i className="fa-solid fa-location-dot me-1" />Placer le point d'arrivée sur la carte
+                      </summary>
+                      <div className="mt-2">
+                        <MapPicker
+                          label=""
+                          height={260}
+                          address={formData.adresse_destination}
+                          onPick={({ lat, lng, address }) => setFormData(f => ({ ...f, lat_dest: lat, lng_dest: lng, adresse_destination: address }))}
+                          markerIcon="fa-flag-checkered"
+                        />
+                      </div>
+                    </details>
                     <div className="mb-3"><label className="form-label fw-bold">Photo du colis (optionnel)</label><input type="file" name="image_colis" className="form-control form-control-lg" accept="image/jpeg,image/png,image/gif,image/webp" /></div>
                     <div className="alert alert-info text-center"><i className="fas fa-info-circle"></i> Vérifiez vos infos : <strong>{formData.nom_colis}</strong> — {poids}kg — {formData.pays} → {formData.ville}<br/>Prix : <strong>{prix !== null ? money(prix) : '—'}</strong></div>
                   </div>
